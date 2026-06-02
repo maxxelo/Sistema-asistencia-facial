@@ -1,0 +1,107 @@
+#define todos lo contenedores que docker va a levantar
+services:
+  postgres:
+    image: postgres:16
+    # Usa la imagen oficial de PostgreSQL versión 16
+    # Docker la descarga automáticamente si no la tienes
+    
+    container_name: colegio_db
+    # El contenedor se llamará "colegio_db"
+    
+    env_file: .env
+    # Lee las credenciales desde el archivo .env
+    
+    volumes:
+      - colegio_data:/var/lib/postgresql/data
+      # Guarda los datos de la BD en un volumen persistente
+      # Si reinicias Docker, los datos NO se pierden
+      
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      # Cuando PostgreSQL arranca por primera vez
+      # ejecuta automáticamente el init.sql
+      # Ahí se crearán las 30 tablas
+    
+    networks:
+      - red_interna
+      # Solo se comunica dentro de la red interna
+      # No está expuesto al exterior
+
+    
+  api1:
+    build: ./api1-academica
+    # Construye el contenedor usando el Dockerfile
+    # que estará dentro de la carpeta api1-academica
+    
+    container_name: api1_academica
+    # Nombre del contenedor
+    
+    ports:
+      - "3001:3001"
+    # Puerto 3001 de tu PC conectado al puerto 3001 del contenedor
+    # Así puedes acceder desde el navegador a localhost:3001
+    
+    env_file: .env
+    # Lee las mismas credenciales para conectarse a PostgreSQL
+    
+    depends_on:
+      - postgres
+    # Esta API espera a que PostgreSQL esté listo antes de arrancar
+    
+    networks:
+      - red_interna
+    # Está en la misma red que PostgreSQL
+    # Por eso puede comunicarse con él
+  
+
+  api2:
+    build: ./api2-asistencia
+    container_name: api2_asistencia
+    ports:
+      - "3002:3002"
+    env_file: .env
+    depends_on:
+      - postgres
+    networks:
+      - red_interna
+  
+
+  api3:
+    build: ./api3-facial
+    container_name: api3_facial
+    ports:
+      - "3003:3003"
+    env_file: .env
+    depends_on:
+      - postgres
+    networks:
+      - red_interna
+  
+
+  api4:
+    build: ./api4-reportes
+    container_name: api4_reportes
+    ports:
+      - "3004:3004"
+    env_file: .env
+    depends_on:
+      - postgres
+    networks:
+      - red_interna
+
+networks:
+  red_interna:
+    driver: bridge
+    # Red tipo bridge — los contenedores se ven entre ellos
+    internal: true
+    # Red aislada — no tiene salida a internet
+    # PostgreSQL no es accesible desde fuera de Docker
+
+
+volumes:
+  colegio_data:
+  # Define el volumen persistente para los datos de PostgreSQL
+  # Docker lo gestiona automáticamente
+
+  
+
+   
