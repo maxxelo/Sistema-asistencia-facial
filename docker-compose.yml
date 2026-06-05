@@ -52,7 +52,7 @@ services:
     restart: unless-stopped
     # Si se cierra, se reinicia solo
 
- # api1:
+  #api1:
    # build: ./api1-academica
     # Construye el contenedor usando el Dockerfile
     # que estará dentro de la carpeta api1-academica
@@ -88,16 +88,16 @@ services:
     #networks:
      # - red_interna
 
-  #api3:
-   # build: ./api3-facial
-    #container_name: api3_facial
-    #ports:
-    #  - "3003:3003"
-    #env_file: .env
-    #depends_on:
-     # - postgres
-    #networks:
-     # - red_interna
+  api3:
+    build: ./api3-facial
+    container_name: api3_facial
+    ports:
+      - "3003:3003"
+    env_file: .env
+    depends_on:
+      - postgres
+    networks:
+      - red_interna
 
  # api4:
   #  build: ./api4-reportes
