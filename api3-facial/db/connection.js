@@ -14,5 +14,11 @@ const pool = new Pool({
   password: process.env.POSTGRES_PASSWORD // contraseña: admin123
 })
 
+// Si la BD falla, muestra el error en consola
+pool.on('error', (err) => {
+  console.error('[DB] Error en el pool de conexiones:', err.message)
+  process.exit(-1)
+})
+
 // Exporta el pool para usarlo en las rutas
 module.exports = pool

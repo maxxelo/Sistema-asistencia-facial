@@ -1,0 +1,25 @@
+{
+  "name": "sistema-asistencia-facial",
+  "version": "1.0.0",
+  "description": "",
+  "main": "generar-token.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maxxelo/Sistema-asistencia-facial.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/maxxelo/Sistema-asistencia-facial/issues"
+  },
+  "homepage": "https://github.com/maxxelo/Sistema-asistencia-facial#readme",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "jsonwebtoken": "^9.0.3"
+  }
+}
