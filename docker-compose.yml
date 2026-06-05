@@ -1,4 +1,4 @@
-#define todos lo contenedores que docker va a levantar
+# define todos los contenedores que docker va a levantar
 services:
   postgres:
     image: postgres:16
@@ -26,82 +26,99 @@ services:
       # Solo se comunica dentro de la red interna
       # No está expuesto al exterior
 
+  # =====================================================
+  #  INTERFAZ WEB PARA VER LA BASE DE DATOS
+  # =====================================================
+  adminer:
+    image: adminer:latest
+    # Herramienta liviana para administrar BD desde el navegador
     
-  api1:
-    build: ./api1-academica
-    # Construye el contenedor usando el Dockerfile
-    # que estará dentro de la carpeta api1-academica
-    
-    container_name: api1_academica
+    container_name: adminer
     # Nombre del contenedor
     
     ports:
-      - "3001:3001"
+      - "8080:8080"
+    # Puerto 8080 de tu PC → interfaz web de Adminer
+    # Abres http://localhost:8080 y ves las tablas
+    
+    networks:
+      - red_interna
+    # Se comunica con postgres dentro de la red interna
+    
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    # Le dice a Adminer que se conecte al contenedor "postgres"
+    
+    restart: unless-stopped
+    # Si se cierra, se reinicia solo
+
+ # api1:
+   # build: ./api1-academica
+    # Construye el contenedor usando el Dockerfile
+    # que estará dentro de la carpeta api1-academica
+    
+    #container_name: api1_academica
+    # Nombre del contenedor
+    
+    #ports:
+    #  - "3001:3001"
     # Puerto 3001 de tu PC conectado al puerto 3001 del contenedor
     # Así puedes acceder desde el navegador a localhost:3001
     
-    env_file: .env
+    #env_file: .env
     # Lee las mismas credenciales para conectarse a PostgreSQL
     
-    depends_on:
-      - postgres
+    #depends_on:
+     # - postgres
     # Esta API espera a que PostgreSQL esté listo antes de arrancar
     
-    networks:
-      - red_interna
+    #networks:
+      #- red_interna
     # Está en la misma red que PostgreSQL
     # Por eso puede comunicarse con él
   
+  #api2:
+   # build: ./api2-asistencia
+    #container_name: api2_asistencia
+    #ports:
+     # - "3002:3002"
+    #env_file: .env
+    #depends_on:
+     # - postgres
+    #networks:
+     # - red_interna
 
-  api2:
-    build: ./api2-asistencia
-    container_name: api2_asistencia
-    ports:
-      - "3002:3002"
-    env_file: .env
-    depends_on:
-      - postgres
-    networks:
-      - red_interna
-  
+  #api3:
+   # build: ./api3-facial
+    #container_name: api3_facial
+    #ports:
+    #  - "3003:3003"
+    #env_file: .env
+    #depends_on:
+     # - postgres
+    #networks:
+     # - red_interna
 
-  api3:
-    build: ./api3-facial
-    container_name: api3_facial
-    ports:
-      - "3003:3003"
-    env_file: .env
-    depends_on:
-      - postgres
-    networks:
-      - red_interna
-  
-
-  api4:
-    build: ./api4-reportes
-    container_name: api4_reportes
-    ports:
-      - "3004:3004"
-    env_file: .env
-    depends_on:
-      - postgres
-    networks:
-      - red_interna
+ # api4:
+  #  build: ./api4-reportes
+   # container_name: api4_reportes
+   # ports:
+    #  - "3004:3004"
+    #env_file: .env
+    #depends_on:
+    #  - postgres
+    #networks:
+     # - red_interna
 
 networks:
   red_interna:
     driver: bridge
     # Red tipo bridge — los contenedores se ven entre ellos
-    internal: true
+    internal: false
     # Red aislada — no tiene salida a internet
     # PostgreSQL no es accesible desde fuera de Docker
-
 
 volumes:
   colegio_data:
   # Define el volumen persistente para los datos de PostgreSQL
   # Docker lo gestiona automáticamente
-
-  
-
-   
