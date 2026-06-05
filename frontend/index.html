@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Asistencia Facial</title>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <style>
+    #contenedor-camara { position: relative; display: inline-block; }
+    #video { display: block; }
+    #canvas {
+      position: absolute;
+      top: 0; left: 0;
+      pointer-events: none;
+    }
+    #imgIP { display: none; }
+  </style>
+</head>
+<body>
+
+  <h1>Sistema de Asistencia Facial</h1>
+
+  <!-- Selector de fuente de cámara -->
+  <div>
+    <label>
+      <input type="radio" name="tipoCamara" value="webcam" checked onchange="cambiarModo('webcam')">
+      Webcam del PC
+    </label>
+    &nbsp;&nbsp;
+    <label>
+      <input type="radio" name="tipoCamara" value="ip" onchange="cambiarModo('ip')">
+      IP Webcam (celular)
+    </label>
+    <div id="config-ip" style="display:none; margin-top:8px">
+      <label>URL IP Webcam:
+        <input type="text" id="urlIP" placeholder="https://192.168.1.X:8080" size="30" />
+      </label>
+      <button onclick="conectarIP()">Conectar y Ver</button>
+    </div>
+  </div>
+
+  <br>
+
+  <!-- Contenedor de cámara: video + canvas superpuesto -->
+  <div id="contenedor-camara">
+    <video id="video" width="640" height="480" autoplay muted></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+  </div>
+
+  <!-- Imagen oculta para cargar snapshots de IP Webcam -->
+  <img id="imgIP" crossorigin="anonymous" />
+
+  <hr>
+
+  <!-- SECCIÓN: Registrar rostro -->
+  <h2>Registrar rostro</h2>
+  <div id="estadoCamara" style="color:gray; font-size:0.9em"></div>
+  <label>ID Alumno: <input type="number" id="idAlumno" placeholder="Ej: 1" /></label>
+  <button onclick="registrarRostro()">Capturar y Registrar Rostro</button>
+  <div id="resultadoRegistro"></div>
+
+  <hr>
+
+  <!-- SECCIÓN: Reconocimiento automático -->
+  <h2>Reconocimiento (asistencia)</h2>
+  <div id="resultado">Esperando reconocimiento...</div>
+  <button onclick="iniciar()">Iniciar Reconocimiento</button>
+  <button onclick="detener()">Detener</button>
+
+  <script>
+    const WS_URL = 'ws://localhost:3003'
+    let ws = null
+    let intervaloReconocimiento = null
+    let intervaloPreview = null
+    let modoIP = false
+    const OPCIONES_DETECTOR = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 })
+
+    // ─── MODO DE CÁMARA ───────────────────────────────────────────────
+
+    function cambiarModo(modo) {
+      modoIP = (modo === 'ip')
+      document.getElementById('config-ip').style.display = modoIP ? 'block' : 'none'
+      detenerPreview()
+    }
+
+    async function conectarIP() {
+      const url = getUrlIP()
+      if (!url) return alert('Ingresa la URL de IP Webcam')
+
+      if (!faceapi.nets.tinyFaceDetector.isLoaded) {
+        document.getElementById('resultadoRegistro').innerHTML = 'Cargando modelos...'
+        await cargarModelos()
+      }
+
+      document.getElementById('resultadoRegistro').innerHTML = 'Conectando...'
+      iniciarPreviewIP(url)
+    }
+
+    function getUrlIP() {
+      return document.getElementById('urlIP').value.trim().replace(/\/$/, '')
+    }
+
+    // ─── MODELOS ──────────────────────────────────────────────────────
+
+    async function cargarModelos() {
+      const RUTA = './assets/models'
+      await faceapi.nets.tinyFaceDetector.loadFromUri(RUTA)
+      await faceapi.nets.faceLandmark68Net.loadFromUri(RUTA)
+      await faceapi.nets.faceRecognitionNet.loadFromUri(RUTA)
+      console.log('Modelos cargados')
+    }
+
+    // ─── WEBCAM PC ────────────────────────────────────────────────────
+
+    async function activarWebcam() {
+      const video = document.getElementById('video')
+      if (video.srcObject) return
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      video.srcObject = stream
+      // Preview de detección sobre el video
+      iniciarPreviewWebcam()
+    }
+
+    function iniciarPreviewWebcam() {
+      detenerPreview()
+      const video = document.getElementById('video')
+      const canvas = document.getElementById('canvas')
+
+      intervaloPreview = setInterval(async () => {
+        if (video.readyState < 2) return
+        const detecciones = await faceapi
+          .detectAllFaces(video, OPCIONES_DETECTOR)
+          .withFaceLandmarks()
+
+        faceapi.matchDimensions(canvas, { width: video.videoWidth, height: video.videoHeight })
+        const ctx = canvas.getContext('2d')
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        faceapi.draw.drawDetections(canvas, faceapi.resizeResults(detecciones, { width: video.videoWidth, height: video.videoHeight }))
+      }, 300)
+    }
+
+    // ─── IP WEBCAM ────────────────────────────────────────────────────
+
+    function iniciarPreviewIP(url) {
+      detenerPreview()
+      const canvas = document.getElementById('canvas')
+      const ctx = canvas.getContext('2d')
+
+      intervaloPreview = setInterval(async () => {
+        try {
+          const img = await cargarSnapshot(url)
+          canvas.width = 640
+          canvas.height = 480
+          ctx.drawImage(img, 0, 0, 640, 480)
+
+          const detecciones = await faceapi
+            .detectAllFaces(canvas, OPCIONES_DETECTOR)
+            .withFaceLandmarks()
+
+          // Dibuja recuadros sobre lo que ya está en el canvas
+          faceapi.draw.drawDetections(canvas, detecciones)
+          document.getElementById('estadoCamara').innerHTML =
+            detecciones.length > 0 ? '✅ Rostro detectado — listo para registrar' : '🔍 Buscando rostro...'
+        } catch (err) {
+          console.warn('Preview error:', err.message)
+        }
+      }, 500)
+    }
+
+    function detenerPreview() {
+      if (intervaloPreview) { clearInterval(intervaloPreview); intervaloPreview = null }
+    }
+
+    // Carga una imagen desde la URL de snapshot de IP Webcam
+    function cargarSnapshot(url) {
+      return new Promise((resolve, reject) => {
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+        img.onload = () => resolve(img)
+        img.onerror = () => reject(new Error('No se pudo cargar snapshot'))
+        img.src = `${url}/shot.jpg?t=${Date.now()}`
+        setTimeout(() => reject(new Error('Timeout')), 5000)
+      })
+    }
+
+    // Devuelve un frame para detección según el modo activo
+    async function getFrame() {
+      if (modoIP) {
+        return await cargarSnapshot(getUrlIP())
+      }
+      return document.getElementById('video')
+    }
+
+    // ─── WEBSOCKET ────────────────────────────────────────────────────
+
+    function conectarWebSocket() {
+      ws = new WebSocket(WS_URL)
+      ws.onopen = () => console.log('Conectado a API3 via WebSocket')
+      ws.onmessage = (evento) => {
+        const r = JSON.parse(evento.data)
+        const div = document.getElementById('resultado')
+        div.innerHTML = r.exito
+          ? `✅ Alumno identificado:<br>
+             Nombre: ${r.alumno.nombre} ${r.alumno.apellido}<br>
+             RUT: ${r.alumno.rut}<br>
+             Confianza: ${r.alumno.confianza}`
+          : `❌ ${r.mensaje}`
+      }
+      ws.onerror = (e) => console.error('Error WebSocket:', e)
+    }
+
+    // ─── REGISTRAR ROSTRO ─────────────────────────────────────────────
+
+    async function registrarRostro() {
+      const idAlumno = document.getElementById('idAlumno').value
+      const divReg = document.getElementById('resultadoRegistro')
+
+      if (!idAlumno) { divReg.innerHTML = '⚠️ Ingresa el ID del alumno'; return }
+
+      divReg.innerHTML = 'Cargando modelos...'
+      if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
+
+      if (!modoIP) await activarWebcam()
+
+      divReg.innerHTML = 'Capturando rostro...'
+
+      let elemento
+      try {
+        elemento = await getFrame()
+      } catch (err) {
+        divReg.innerHTML = `❌ Error cámara: ${err.message}`
+        return
+      }
+
+      const deteccion = await faceapi
+        .detectSingleFace(elemento, OPCIONES_DETECTOR)
+        .withFaceLandmarks()
+        .withFaceDescriptor()
+
+      if (!deteccion) {
+        divReg.innerHTML = '❌ No se detectó ningún rostro. Posiciónate frente a la cámara.'
+        return
+      }
+
+      const descriptor = Array.from(deteccion.descriptor)
+
+      try {
+        const respuesta = await fetch('http://localhost:3003/rostros', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id_alumno: parseInt(idAlumno), descriptor })
+        })
+        const datos = await respuesta.json()
+        divReg.innerHTML = respuesta.ok
+          ? `✅ ${datos.mensaje} (ID alumno: ${idAlumno})`
+          : `❌ Error: ${datos.error}`
+      } catch (err) {
+        divReg.innerHTML = `❌ Error de red: ${err.message}`
+      }
+    }
+
+    // ─── RECONOCIMIENTO AUTOMÁTICO ────────────────────────────────────
+
+    async function enviarFrame() {
+      try {
+        const elemento = await getFrame()
+        const deteccion = await faceapi
+          .detectSingleFace(elemento, OPCIONES_DETECTOR)
+          .withFaceLandmarks()
+          .withFaceDescriptor()
+
+        if (!deteccion) {
+          document.getElementById('resultado').innerHTML = '🔍 Buscando rostro...'
+          return
+        }
+
+        const descriptor = Array.from(deteccion.descriptor)
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ descriptor }))
+        }
+      } catch (err) {
+        document.getElementById('resultado').innerHTML = `❌ Error cámara: ${err.message}`
+      }
+    }
+
+    function detener() {
+      detenerPreview()
+      if (intervaloReconocimiento) { clearInterval(intervaloReconocimiento); intervaloReconocimiento = null }
+      if (ws) { ws.close(); ws = null }
+      document.getElementById('resultado').innerHTML = 'Reconocimiento detenido.'
+    }
+
+    async function iniciar() {
+      document.getElementById('resultado').innerHTML = 'Cargando modelos...'
+      if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
+      if (!modoIP) await activarWebcam()
+
+      conectarWebSocket()
+      if (intervaloReconocimiento) clearInterval(intervaloReconocimiento)
+      intervaloReconocimiento = setInterval(enviarFrame, 2000)
+      document.getElementById('resultado').innerHTML = 'Sistema listo, buscando rostros...'
+    }
+  </script>
+
+</body>
+</html>

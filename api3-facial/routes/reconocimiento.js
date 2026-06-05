@@ -35,9 +35,15 @@ async function buscarAlumno(descriptorRecibido) {
 
   // Compara el descriptor recibido con cada rostro en la BD
   for (const fila of resultado.rows) {
+    // pg devuelve FLOAT[] como array de JS directamente, pero por seguridad
+    // nos aseguramos que sea un array de números
+    const descriptorBD = Array.isArray(fila.descriptor_facial)
+      ? fila.descriptor_facial.map(Number)
+      : fila.descriptor_facial
+
     const distancia = calcularDistancia(
       descriptorRecibido,
-      fila.descriptor_facial
+      descriptorBD
     )
 
     // Guarda la coincidencia con menor distancia
@@ -62,5 +68,25 @@ async function buscarAlumno(descriptorRecibido) {
   return mejorCoincidencia
 }
 
-// Exporta la función para usarla en index.js
-module.exports = { buscarAlumno }
+// Guarda el descriptor facial de un alumno en la BD
+// Recibe: id_alumno (número) + descriptor (array de 128 floats)
+async function registrarRostro(idAlumno, descriptor) {
+  // Verifica que el alumno existe
+  const alumno = await pool.query(
+    'SELECT id FROM alumnos WHERE id = $1',
+    [idAlumno]
+  )
+  if (alumno.rows.length === 0) {
+    throw new Error('Alumno no encontrado')
+  }
+
+  // Inserta o actualiza el rostro (un alumno solo tiene un rostro)
+  await pool.query(`
+    INSERT INTO rostros (id_alumno, descriptor_facial, activo)
+    VALUES ($1, $2, TRUE)
+    ON CONFLICT (id_alumno)
+    DO UPDATE SET descriptor_facial = $2, activo = TRUE, fecha_captura = NOW()
+  `, [idAlumno, descriptor])
+}
+
+module.exports = { buscarAlumno, registrarRostro }

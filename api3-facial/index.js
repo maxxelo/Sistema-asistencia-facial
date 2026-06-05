@@ -11,7 +11,7 @@ const cors = require('cors')
 require('dotenv').config()
 
 // Importa la función de reconocimiento facial
-const { buscarAlumno } = require('./routes/reconocimiento')
+const { buscarAlumno, registrarRostro } = require('./routes/reconocimiento')
 
 // Crea la aplicación Express
 const app = express()
@@ -31,6 +31,23 @@ app.get('/health', (req, res) => {
     mensaje: 'API Facial funcionando',
     puerto: PORT 
   })
+})
+
+// Registra el rostro de un alumno
+// POST /rostros  Body: { id_alumno: 1, descriptor: [128 números] }
+app.post('/rostros', async (req, res) => {
+  const { id_alumno, descriptor } = req.body
+
+  if (!id_alumno || !descriptor || !Array.isArray(descriptor)) {
+    return res.status(400).json({ error: 'Faltan id_alumno o descriptor' })
+  }
+
+  try {
+    await registrarRostro(id_alumno, descriptor)
+    res.json({ ok: true, mensaje: 'Rostro registrado correctamente' })
+  } catch (err) {
+    res.status(400).json({ error: err.message })
+  }
 })
 
 // Arranca el servidor HTTP
