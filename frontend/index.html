@@ -95,7 +95,8 @@
   <div class="nav-tabs" id="navTabs">
     <button class="tab-btn solo-admin activo" onclick="mostrarTab('panel')" id="tab-panel">📊 Panel</button>
     <button class="tab-btn" onclick="mostrarTab('asistencia')" id="tab-asistencia">📷 Asistencia</button>
-    <button class="tab-btn" onclick="mostrarTab('alumnos')" id="tab-alumnos">👤 Alumnos</button>
+    <button class="tab-btn" onclick="mostrarTab('reportes')" id="tab-reportes">📋 Reportes</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('alumnos')" id="tab-alumnos">👤 Alumnos</button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('cursos')" id="tab-cursos">📚 Cursos</button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('profesores')" id="tab-profesores">👨‍🏫 Profesores</button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('horarios')" id="tab-horarios">📅 Horarios</button>
@@ -169,6 +170,92 @@
     </div>
   </div>
 
+  <!-- ── TAB: REPORTES ───────────────────────────────────────── -->
+  <div class="tab-section" id="sec-reportes">
+    <div class="seccion">
+      <!-- Sub-tabs de reportes -->
+      <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+        <button id="rtab-alumno"  class="btn-primary"   onclick="mostrarReporteTab('alumno')"  style="font-size:.88em">👤 Por alumno</button>
+        <button id="rtab-curso"   class="btn-secondary" onclick="mostrarReporteTab('curso')"   style="font-size:.88em">📚 Por curso</button>
+        <button id="rtab-dia"     class="btn-secondary" onclick="mostrarReporteTab('dia')"     style="font-size:.88em">📅 Resumen del día</button>
+        <button id="rtab-manual"  class="btn-secondary" onclick="mostrarReporteTab('manual')"  style="font-size:.88em">✋ Pasar lista manual</button>
+      </div>
+
+      <!-- Reporte: Por alumno -->
+      <div id="rsec-alumno">
+        <h2 style="margin-bottom:12px">📊 Asistencia por alumno</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+          <input type="text" id="buscar-alumno-reporte" placeholder="🔍 Buscar por nombre o RUT..."
+                 style="flex:1;min-width:200px;padding:8px 12px;border:1px solid #ccc;border-radius:6px"
+                 oninput="filtrarAlumnosReporte()" />
+          <div id="lista-alumnos-reporte" style="position:relative;flex:1;min-width:200px"></div>
+        </div>
+        <div id="resultado-reporte-alumno"></div>
+      </div>
+
+      <!-- Reporte: Por curso -->
+      <div id="rsec-curso" style="display:none">
+        <h2 style="margin-bottom:12px">📚 Asistencia de un curso</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end">
+          <div>
+            <label style="font-size:.85em;display:block;margin-bottom:4px">Curso</label>
+            <select id="r-id-curso" onchange="cargarReporteCurso()" style="padding:7px;border-radius:6px;border:1px solid #ccc">
+              <option value="">— Selecciona —</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.85em;display:block;margin-bottom:4px">Fecha</label>
+            <input type="date" id="r-fecha-curso" onchange="cargarReporteCurso()"
+                   style="padding:7px;border-radius:6px;border:1px solid #ccc" />
+          </div>
+        </div>
+        <div id="resultado-reporte-curso"></div>
+      </div>
+
+      <!-- Reporte: Resumen del día -->
+      <div id="rsec-dia" style="display:none">
+        <h2 style="margin-bottom:12px">📅 Resumen del día</h2>
+        <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:12px">
+          <div>
+            <label style="font-size:.85em;display:block;margin-bottom:4px">Fecha</label>
+            <input type="date" id="r-fecha-dia" onchange="cargarResumenDia()"
+                   style="padding:7px;border-radius:6px;border:1px solid #ccc" />
+          </div>
+          <button class="btn-primary" onclick="cargarResumenDia()" style="font-size:.88em">🔄 Cargar</button>
+        </div>
+        <div id="resultado-reporte-dia"></div>
+      </div>
+
+      <!-- Lista manual -->
+      <div id="rsec-manual" style="display:none">
+        <h2 style="margin-bottom:12px">✋ Pasar lista manualmente</h2>
+        <div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:10px 13px;margin-bottom:12px;font-size:.85em;color:#713f12">
+          ℹ️ Usa esto cuando la cámara no funcione o necesites corregir una asistencia ya registrada.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end">
+          <div>
+            <label style="font-size:.85em;display:block;margin-bottom:4px">Curso</label>
+            <select id="m-id-curso" onchange="cargarListaManual()" style="padding:7px;border-radius:6px;border:1px solid #ccc">
+              <option value="">— Selecciona —</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.85em;display:block;margin-bottom:4px">Clase (horario)</label>
+            <select id="m-id-horario" onchange="cargarListaManual()" style="padding:7px;border-radius:6px;border:1px solid #ccc">
+              <option value="">— Selecciona curso primero —</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.85em;display:block;margin-bottom:4px">Fecha</label>
+            <input type="date" id="m-fecha" onchange="cargarListaManual()"
+                   style="padding:7px;border-radius:6px;border:1px solid #ccc" />
+          </div>
+        </div>
+        <div id="resultado-lista-manual"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── TAB: ALUMNOS ─────────────────────────────────────────── -->
   <div class="tab-section" id="sec-alumnos">
     <div class="seccion">
@@ -177,6 +264,9 @@
           <button class="btn-primary" onclick="abrirModal('alumno')">+ Nuevo Alumno</button>
         </span>
       </h2>
+      <input type="text" id="buscar-alumnos" placeholder="🔍 Buscar por nombre, RUT o curso..."
+             oninput="filtrarTabla('tbodyAlumnos', this.value)"
+             style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;margin-bottom:8px;box-sizing:border-box" />
       <div id="msg-alumnos" style="margin-bottom:8px"></div>
       <table id="tablaAlumnos">
         <thead>
@@ -197,6 +287,9 @@
           <button class="btn-primary" onclick="abrirModal('curso')">+ Nuevo Curso</button>
         </span>
       </h2>
+      <input type="text" id="buscar-cursos" placeholder="🔍 Buscar por nombre, nivel o profesor jefe..."
+             oninput="filtrarTabla('tbodyCursos', this.value)"
+             style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;margin-bottom:8px;box-sizing:border-box" />
       <div id="msg-cursos" style="margin-bottom:8px"></div>
       <table id="tablaCursos">
         <thead>
@@ -215,6 +308,9 @@
           <button class="btn-primary" onclick="abrirModal('profesor')">+ Nuevo Profesor</button>
         </span>
       </h2>
+      <input type="text" id="buscar-profesores" placeholder="🔍 Buscar por nombre, RUT o especialidad..."
+             oninput="filtrarTabla('tbodyProfesores', this.value)"
+             style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;margin-bottom:8px;box-sizing:border-box" />
       <div id="msg-profesores" style="margin-bottom:8px"></div>
       <table id="tablaProfesores">
         <thead>
@@ -244,6 +340,9 @@
           <option value="5">Viernes</option>
         </select>
       </div>
+      <input type="text" id="buscar-horarios" placeholder="🔍 Buscar por curso, asignatura, profesor o sala..."
+             oninput="filtrarTabla('tbodyHorarios', this.value)"
+             style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;margin-bottom:8px;box-sizing:border-box" />
       <div id="msg-horarios" style="margin-bottom:8px"></div>
       <table id="tablaHorarios">
         <thead>
@@ -265,7 +364,7 @@
       <div id="msg-usuarios" style="margin-bottom:8px"></div>
       <table id="tablaUsuarios">
         <thead>
-          <tr><th>ID</th><th>Usuario</th><th>Tipo</th><th>Profesor vinculado</th><th>Estado</th><th>Último acceso</th><th>Acciones</th></tr>
+          <tr><th>ID</th><th>Usuario</th><th>Tipo</th><th>Profesor vinculado</th><th>Último acceso</th><th>Acciones</th></tr>
         </thead>
         <tbody id="tbodyUsuarios"></tbody>
       </table>
@@ -326,6 +425,7 @@
 <script>
   /* ── CONSTANTES ─────────────────────────────────────────────────── */
   const API1   = 'http://localhost:3001'
+  const API2   = 'http://localhost:3002'
   const API3   = 'http://localhost:3003'
   const WS_URL = 'ws://localhost:3003'
   const OPCIONES_DETECTOR = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 })
@@ -443,6 +543,7 @@
     // Refresca la pestaña activa cada 30 segundos automáticamente
     intervaloAutoRefresh = setInterval(() => {
       if (tabActual === 'panel')       cargarPanel()
+      if (tabActual === 'reportes')    cargarReportes()
       if (tabActual === 'alumnos')     cargarTablaAlumnos()
       if (tabActual === 'cursos')      cargarTablaCursos()
       if (tabActual === 'profesores')  cargarTablaProfesores()
@@ -466,6 +567,7 @@
     document.getElementById('tab-' + nombre).classList.add('activo')
     tabActual = nombre
     if (nombre === 'panel')       cargarPanel()
+    if (nombre === 'reportes')    cargarReportes()
     if (nombre === 'alumnos')     cargarTablaAlumnos()
     if (nombre === 'cursos')      cargarTablaCursos()
     if (nombre === 'profesores')  cargarTablaProfesores()
@@ -506,6 +608,367 @@
     return { ok: r.ok, data: await r.json() }
   }
 
+  /* ── BÚSQUEDA UNIVERSAL EN TABLAS ─────────────────────────────── */
+  function filtrarTabla(tbodyId, texto) {
+    const tbody = document.getElementById(tbodyId)
+    if (!tbody) return
+    const q = texto.toLowerCase().trim()
+    Array.from(tbody.rows).forEach(tr => {
+      const contenido = tr.textContent.toLowerCase()
+      tr.style.display = (!q || contenido.includes(q)) ? '' : 'none'
+    })
+  }
+
+  /* ── REPORTES ──────────────────────────────────────────────────── */
+  let reporteTabActual = 'alumno'
+  let listaAlumnosCompleta = []   // cache para búsqueda
+
+  function mostrarReporteTab(tab) {
+    reporteTabActual = tab
+    ;['alumno','curso','dia','manual'].forEach(t => {
+      document.getElementById(`rsec-${t}`).style.display    = t === tab ? '' : 'none'
+      const btn = document.getElementById(`rtab-${t}`)
+      if (btn) {
+        btn.className = t === tab ? 'btn-primary' : 'btn-secondary'
+        btn.style.fontSize = '.88em'
+      }
+    })
+    // Inicializar fechas y selectores al abrir
+    if (tab === 'dia' && !document.getElementById('r-fecha-dia').value) {
+      document.getElementById('r-fecha-dia').value = new Date().toISOString().slice(0,10)
+      cargarResumenDia()
+    }
+    if (tab === 'curso' && !document.getElementById('r-fecha-curso').value) {
+      document.getElementById('r-fecha-curso').value = new Date().toISOString().slice(0,10)
+      rellenarSelectCursoReporte()
+    }
+    if (tab === 'manual') rellenarSelectsManual()
+    if (tab === 'alumno') cargarAlumnosParaReporte()
+  }
+
+  async function cargarReportes() {
+    await cargarAlumnosParaReporte()
+  }
+
+  /* ── REPORTES: Por alumno ───────────────────────────────────────── */
+  async function cargarAlumnosParaReporte() {
+    if (!listaAlumnosCompleta.length) {
+      listaAlumnosCompleta = await apiGet(`${API1}/alumnos`)
+    }
+  }
+
+  function filtrarAlumnosReporte() {
+    const q = document.getElementById('buscar-alumno-reporte')?.value.trim().toLowerCase()
+    const cont = document.getElementById('lista-alumnos-reporte')
+    if (!q || q.length < 2) { cont.innerHTML = ''; return }
+
+    const matches = listaAlumnosCompleta.filter(a =>
+      `${a.nombre} ${a.apellido_paterno} ${a.apellido_materno||''} ${a.rut} ${a.curso||''}`
+        .toLowerCase().includes(q)
+    ).slice(0, 8)
+
+    if (!matches.length) {
+      cont.innerHTML = '<p style="color:#aaa;font-size:.85em;margin:4px 0">Sin resultados</p>'
+      return
+    }
+    cont.innerHTML = `<div style="background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 2px 8px #0001;position:absolute;z-index:10;width:100%;min-width:220px">` +
+      matches.map(a => `
+        <div onclick="seleccionarAlumnoReporte(${a.id},'${a.nombre} ${a.apellido_paterno}')"
+             style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:.88em"
+             onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''">
+          <strong>${a.nombre} ${a.apellido_paterno}</strong>
+          <span style="color:#888;font-size:.85em"> — ${a.rut} — ${a.curso||'Sin curso'}</span>
+        </div>`).join('') + '</div>'
+  }
+
+  async function seleccionarAlumnoReporte(id, nombre) {
+    document.getElementById('buscar-alumno-reporte').value = nombre
+    document.getElementById('lista-alumnos-reporte').innerHTML = ''
+    const el = document.getElementById('resultado-reporte-alumno')
+    el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+    try {
+      const [resumen, historial] = await Promise.all([
+        apiGet(`${API2}/asistencia/resumen/alumno/${id}`),
+        apiGet(`${API2}/asistencia/alumno/${id}`)
+      ])
+      el.innerHTML = renderReporteAlumno(nombre, resumen, historial)
+    } catch (err) {
+      el.innerHTML = `<p class="mensaje-err">Error: ${err.message}</p>`
+    }
+  }
+
+  function renderReporteAlumno(nombre, resumen, historial) {
+    const totalClases    = resumen.reduce((s,r)=>s+parseInt(r.total_clases),0)
+    const totalPresentes = resumen.reduce((s,r)=>s+parseInt(r.clases_presentes),0)
+    const pctTotal       = totalClases ? Math.round(100*totalPresentes/totalClases) : null
+    const pctColor       = pctTotal===null?'#888' : pctTotal>=85?'#16a34a' : pctTotal>=70?'#d97706':'#dc2626'
+    const pctIcon        = pctTotal===null?'—'     : pctTotal>=85?'✅' : pctTotal>=70?'⚠️':'🔴'
+
+    let html = `<div style="background:#f8fafc;border-radius:8px;padding:16px;border:1px solid #e2e8f0;margin-bottom:12px">
+      <h3 style="margin:0 0 12px;color:#1e40af">📊 ${nombre}</h3>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">`
+
+    // Tarjeta global
+    html += `<div style="background:${pctColor};color:#fff;padding:12px 18px;border-radius:8px;text-align:center;min-width:110px">
+      <div style="font-size:1.6em;font-weight:700">${pctTotal!==null?pctTotal+'%':'N/A'}</div>
+      <div style="font-size:.8em;opacity:.9">Asistencia global</div>
+      <div style="font-size:1.2em">${pctIcon}</div>
+    </div>`
+
+    // Tarjetas por asignatura
+    resumen.forEach(r => {
+      const pct   = parseFloat(r.porcentaje_asistencia) || 0
+      const color = pct>=85?'#059669' : pct>=70?'#d97706':'#dc2626'
+      const bg    = pct>=85?'#dcfce7' : pct>=70?'#fef3c7':'#fee2e2'
+      html += `<div style="background:${bg};border:1px solid ${color}33;padding:10px 14px;border-radius:7px;min-width:130px">
+        <div style="font-size:1.3em;font-weight:700;color:${color}">${pct}%</div>
+        <div style="font-size:.82em;color:#374151;font-weight:600">${r.asignatura}</div>
+        <div style="font-size:.75em;color:#6b7280">${r.clases_presentes}/${r.total_clases} clases</div>
+      </div>`
+    })
+    html += '</div>'
+
+    if (pctTotal !== null && pctTotal < 85) {
+      html += `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:8px 12px;font-size:.85em;color:#7f1d1d">
+        ⚠️ Asistencia por debajo del <strong>85%</strong> mínimo requerido. Riesgo de reprobación por inasistencia.
+      </div>`
+    }
+    html += '</div>'
+
+    // Historial reciente
+    if (historial.length) {
+      html += `<h4 style="margin:0 0 8px;color:#374151;font-size:.9em">Últimas clases</h4>
+      <div style="max-height:280px;overflow-y:auto;border-radius:6px;border:1px solid #e5e7eb">
+      <table style="width:100%;border-collapse:collapse;font-size:.83em">
+      <thead><tr>
+        <th style="background:#1e40af;color:#fff;padding:6px 10px;text-align:left">Fecha</th>
+        <th style="background:#1e40af;color:#fff;padding:6px 10px">Asignatura</th>
+        <th style="background:#1e40af;color:#fff;padding:6px 10px">Hora</th>
+        <th style="background:#1e40af;color:#fff;padding:6px 10px">Estado</th>
+        <th style="background:#1e40af;color:#fff;padding:6px 10px">Tipo</th>
+      </tr></thead><tbody>`
+      historial.slice(0,30).forEach((h,i) => {
+        const bg      = i%2===0?'#f9f9f9':'#fff'
+        const estado  = h.presente ? '<span style="color:#16a34a;font-weight:600">✅ Presente</span>' : '<span style="color:#dc2626;font-weight:600">❌ Ausente</span>'
+        const tipo    = h.tipo_asistencia === 'facial' ? '🤖 Facial' : h.tipo_asistencia === 'manual' ? '✋ Manual' : h.tipo_asistencia||'—'
+        const justif  = h.justificacion ? `<br><span style="font-size:.8em;color:#d97706">📝 ${h.justificacion}</span>` : ''
+        html += `<tr style="background:${bg}">
+          <td style="padding:5px 10px">${new Date(h.fecha).toLocaleDateString('es-CL')}</td>
+          <td style="padding:5px 10px">${h.asignatura}</td>
+          <td style="padding:5px 10px">${h.hora_inicio?.slice(0,5)||''}–${h.hora_fin?.slice(0,5)||''}</td>
+          <td style="padding:5px 10px">${estado}${justif}</td>
+          <td style="padding:5px 10px;color:#6b7280">${tipo}</td>
+        </tr>`
+      })
+      html += '</tbody></table></div>'
+    } else {
+      html += '<p style="color:#aaa;text-align:center;padding:20px">No hay registros de asistencia aún</p>'
+    }
+    return html
+  }
+
+  /* ── REPORTES: Por curso ────────────────────────────────────────── */
+  async function rellenarSelectCursoReporte() {
+    if (!listaCursos.length) listaCursos = (await apiGet(`${API1}/cursos`)).filter(c=>c.activo)
+    const sel = document.getElementById('r-id-curso')
+    if (!sel.options.length || sel.options[0].value==='') {
+      sel.innerHTML = '<option value="">— Selecciona —</option>' +
+        listaCursos.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')
+    }
+  }
+
+  async function cargarReporteCurso() {
+    const idCurso = document.getElementById('r-id-curso')?.value
+    const fecha   = document.getElementById('r-fecha-curso')?.value
+    const el      = document.getElementById('resultado-reporte-curso')
+    if (!idCurso || !fecha) return
+    el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+    try {
+      const data = await apiGet(`${API2}/asistencia/curso/${idCurso}?fecha=${fecha}`)
+      if (!data.length) {
+        el.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">No hay asistencia registrada para esa fecha en este curso.</p>'
+        return
+      }
+      // Agrupar por horario
+      const byHorario = {}
+      data.forEach(r => {
+        const key = r.id_horario || 'sin_horario'
+        if (!byHorario[key]) byHorario[key] = { asignatura: r.asignatura, hora_inicio: r.hora_inicio, hora_fin: r.hora_fin, alumnos: [] }
+        byHorario[key].alumnos.push(r)
+      })
+      let html = ''
+      Object.values(byHorario).forEach(bloque => {
+        const presentes = bloque.alumnos.filter(a=>a.presente).length
+        const total     = bloque.alumnos.length
+        const pct       = total ? Math.round(100*presentes/total) : 0
+        const color     = pct>=85?'#16a34a' : pct>=70?'#d97706':'#dc2626'
+        html += `<div style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;padding:14px;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h4 style="margin:0;color:#1e40af">${bloque.asignatura||'Sin asignatura'} — ${bloque.hora_inicio?.slice(0,5)||''}</h4>
+            <span style="background:${color};color:#fff;padding:3px 12px;border-radius:20px;font-size:.85em;font-weight:600">${presentes}/${total} — ${pct}%</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px">`
+        bloque.alumnos.forEach(a => {
+          const bg    = a.presente ? '#dcfce7' : '#fee2e2'
+          const borde = a.presente ? '#86efac' : '#fca5a5'
+          const icon  = a.presente ? '✅' : '❌'
+          html += `<div style="background:${bg};border:1px solid ${borde};border-radius:6px;padding:6px 10px;font-size:.83em">
+            ${icon} ${a.nombre} ${a.apellido_paterno}
+            ${a.hora_marcada ? `<span style="color:#6b7280;font-size:.85em"> (${a.hora_marcada.slice(0,5)})</span>` : ''}
+          </div>`
+        })
+        html += '</div></div>'
+      })
+      el.innerHTML = html
+    } catch(err) {
+      el.innerHTML = `<p class="mensaje-err">Error: ${err.message}</p>`
+    }
+  }
+
+  /* ── REPORTES: Resumen del día ──────────────────────────────────── */
+  async function cargarResumenDia() {
+    const fecha = document.getElementById('r-fecha-dia')?.value
+    const el    = document.getElementById('resultado-reporte-dia')
+    if (!fecha) return
+    el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+    try {
+      const data = await apiGet(`${API2}/asistencia/fecha?fecha=${fecha}`)
+      if (!data.length) {
+        el.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">No hay clases registradas para esta fecha.</p>'
+        return
+      }
+      let html = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px">`
+      data.forEach(d => {
+        const total    = parseInt(d.total_alumnos) || 0
+        const pres     = parseInt(d.presentes) || 0
+        const aus      = parseInt(d.ausentes) || 0
+        const pct      = total ? Math.round(100*pres/total) : 0
+        const color    = pct>=85?'#16a34a' : pct>=70?'#d97706':'#dc2626'
+        const bg       = pct>=85?'#dcfce7' : pct>=70?'#fef3c7':'#fee2e2'
+        html += `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px;box-shadow:0 1px 3px #0001">
+          <div style="font-weight:700;color:#1e40af;margin-bottom:4px">${d.asignatura}</div>
+          <div style="font-size:.85em;color:#374151;margin-bottom:8px">
+            📚 ${d.curso} &nbsp;|&nbsp; 🕐 ${d.hora_inicio?.slice(0,5)||''}–${d.hora_fin?.slice(0,5)||''}
+            ${d.sala?`&nbsp;|&nbsp; 🏫 ${d.sala}`:''}
+          </div>
+          ${d.profesor_nombre?`<div style="font-size:.82em;color:#6b7280;margin-bottom:8px">👨‍🏫 ${d.profesor_nombre} ${d.profesor_apellido}</div>`:''}
+          <div style="background:${bg};border-radius:6px;padding:8px;text-align:center">
+            <span style="font-size:1.4em;font-weight:700;color:${color}">${pct}%</span>
+            <span style="font-size:.8em;color:#6b7280;display:block">${pres} presentes / ${aus} ausentes</span>
+          </div>
+        </div>`
+      })
+      html += '</div>'
+      el.innerHTML = html
+    } catch(err) {
+      el.innerHTML = `<p class="mensaje-err">Error: ${err.message}</p>`
+    }
+  }
+
+  /* ── REPORTES: Lista manual ─────────────────────────────────────── */
+  async function rellenarSelectsManual() {
+    if (!listaCursos.length) listaCursos = (await apiGet(`${API1}/cursos`)).filter(c=>c.activo)
+    const sel = document.getElementById('m-id-curso')
+    if (sel && (sel.options.length <= 1)) {
+      sel.innerHTML = '<option value="">— Selecciona —</option>' +
+        listaCursos.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')
+    }
+    if (!document.getElementById('m-fecha').value) {
+      document.getElementById('m-fecha').value = new Date().toISOString().slice(0,10)
+    }
+  }
+
+  async function cargarListaManual() {
+    const idCurso   = document.getElementById('m-id-curso')?.value
+    const fecha     = document.getElementById('m-fecha')?.value
+    const selHorario = document.getElementById('m-id-horario')
+    const el         = document.getElementById('resultado-lista-manual')
+    if (!idCurso) { selHorario.innerHTML='<option value="">— Selecciona curso primero —</option>'; el.innerHTML=''; return }
+
+    // Cargar horarios del curso para el selector de clase
+    if (selHorario.dataset.curso !== idCurso) {
+      const horarios = await apiGet(`${API1}/horarios?id_curso=${idCurso}`)
+      selHorario.innerHTML = '<option value="">— Selecciona la clase —</option>' +
+        horarios.map(h =>
+          `<option value="${h.id}">${DIAS_SEMANA[h.dia_semana]} ${h.hora_inicio?.slice(0,5)}–${h.hora_fin?.slice(0,5)} — ${h.asignatura}</option>`
+        ).join('')
+      selHorario.dataset.curso = idCurso
+    }
+
+    const idHorario = selHorario?.value
+    if (!idHorario || !fecha) { el.innerHTML=''; return }
+
+    el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando alumnos...</p>'
+    try {
+      const alumnos = await apiGet(`${API2}/asistencia/curso/${idCurso}?fecha=${fecha}&id_horario=${idHorario}`)
+      if (!alumnos.length) {
+        el.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">No hay alumnos en este curso.</p>'; return
+      }
+      let html = `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;padding:12px;margin-bottom:12px;font-size:.85em;color:#0369a1">
+        📋 <strong>${alumnos.length}</strong> alumno(s) — Marca los presentes y guarda.
+      </div>
+      <div style="max-height:350px;overflow-y:auto;border-radius:6px;border:1px solid #e5e7eb;margin-bottom:12px">
+      <table style="width:100%;border-collapse:collapse;font-size:.88em">
+      <thead><tr>
+        <th style="background:#1e40af;color:#fff;padding:8px 12px;text-align:left">Alumno</th>
+        <th style="background:#1e40af;color:#fff;padding:8px;text-align:center">¿Presente?</th>
+      </tr></thead><tbody id="tbody-lista-manual">`
+      alumnos.forEach((a,i) => {
+        const checked = a.presente ? 'checked' : ''
+        const bg = i%2===0?'#f9f9f9':'#fff'
+        html += `<tr style="background:${bg}">
+          <td style="padding:8px 12px">${a.nombre} ${a.apellido_paterno} ${a.apellido_materno||''}</td>
+          <td style="padding:8px;text-align:center">
+            <input type="checkbox" id="presente-${a.id_alumno}" ${checked}
+                   style="width:18px;height:18px;cursor:pointer"
+                   data-id="${a.id_alumno}" />
+          </td>
+        </tr>`
+      })
+      html += `</tbody></table></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-primary" onclick="guardarListaManual('${idCurso}','${idHorario}','${fecha}')" style="font-size:.88em">
+          💾 Guardar asistencia
+        </button>
+        <button class="btn-secondary" onclick="marcarTodos(true)" style="font-size:.8em">✅ Todos presentes</button>
+        <button class="btn-secondary" onclick="marcarTodos(false)" style="font-size:.8em">❌ Todos ausentes</button>
+      </div>
+      <div id="msg-lista-manual" style="margin-top:8px"></div>`
+      el.innerHTML = html
+    } catch(err) {
+      el.innerHTML = `<p class="mensaje-err">Error: ${err.message}</p>`
+    }
+  }
+
+  function marcarTodos(presente) {
+    document.querySelectorAll('#tbody-lista-manual input[type=checkbox]').forEach(cb => cb.checked = presente)
+  }
+
+  async function guardarListaManual(idCurso, idHorario, fecha) {
+    const checkboxes = document.querySelectorAll('#tbody-lista-manual input[type=checkbox]')
+    const alumnos    = Array.from(checkboxes).map(cb => ({
+      id_alumno: parseInt(cb.dataset.id),
+      presente:  cb.checked,
+      tipo_asistencia: 'manual'
+    }))
+    const msg = document.getElementById('msg-lista-manual')
+    msg.innerHTML = '<span style="color:gray;font-size:.85em">⏳ Guardando...</span>'
+    const { ok, data } = await apiPost(`${API2}/asistencia/marcar`, {
+      id_curso: parseInt(idCurso), id_horario: parseInt(idHorario), fecha, alumnos
+    })
+    msg.innerHTML = ok
+      ? `<span class="mensaje-ok">✅ Asistencia guardada correctamente</span>`
+      : `<span class="mensaje-err">❌ ${data.error}</span>`
+  }
+
+  /* ── VER ASISTENCIA DESDE TABLA ALUMNOS ───────────────────────── */
+  async function verAsistenciaAlumno(id, nombre) {
+    mostrarTab('reportes')
+    mostrarReporteTab('alumno')
+    document.getElementById('buscar-alumno-reporte').value = nombre
+    await seleccionarAlumnoReporte(id, nombre)
+  }
+
   /* ── TABLA: ALUMNOS ────────────────────────────────────────────── */
   async function cargarTablaAlumnos() {
     const tbody = document.getElementById('tbodyAlumnos')
@@ -538,9 +1001,10 @@
                     <button class="btn-sm btn-primary" onclick="reactivarAlumno(${a.id},'${a.nombre}')">🔄 Reactivar</button>
                     <button class="btn-sm btn-delete"  onclick="eliminarAlumno(${a.id},'${a.nombre}')">🗑️ Eliminar</button>`
                 : /* Activo: todas las acciones */`
-                    <button class="btn-sm btn-face"   onclick="irARegistrarRostro(${a.id})">📸 Rostro</button>
-                    <button class="btn-sm btn-edit"   onclick="editarAlumno(${a.id})">✏️ Editar</button>
-                    <button class="btn-sm btn-delete" onclick="eliminarAlumno(${a.id},'${a.nombre}')">🗑️</button>`
+                    <button class="btn-sm" style="background:#0891b2;color:#fff" onclick="verAsistenciaAlumno(${a.id},'${a.nombre} ${a.apellido_paterno}')" title="Ver asistencia">📊</button>
+                    <button class="btn-sm btn-face"   onclick="irARegistrarRostro(${a.id})" title="Registrar rostro">📸</button>
+                    <button class="btn-sm btn-edit"   onclick="editarAlumno(${a.id})" title="Editar">✏️</button>
+                    <button class="btn-sm btn-delete" onclick="eliminarAlumno(${a.id},'${a.nombre}')" title="Eliminar">🗑️</button>`
               : '<span style="color:#bbb">Solo lectura</span>'}
           </td>`
         tbody.appendChild(tr)
@@ -924,12 +1388,12 @@
   /* ── TABLA: USUARIOS ───────────────────────────────────────────── */
   async function cargarTablaUsuarios() {
     const tbody = document.getElementById('tbodyUsuarios')
-    tbody.innerHTML = '<tr><td colspan="7">Cargando...</td></tr>'
+    tbody.innerHTML = '<tr><td colspan="6">Cargando...</td></tr>'
     try {
       const usuarios = await apiGet(`${API1}/usuarios`)
       tbody.innerHTML = ''
       if (!usuarios.length) {
-        tbody.innerHTML = '<tr><td colspan="7" style="color:gray">No hay usuarios</td></tr>'; return
+        tbody.innerHTML = '<tr><td colspan="6" style="color:gray">No hay usuarios</td></tr>'; return
       }
       usuarios.forEach(u => {
         const tr = document.createElement('tr')
@@ -941,18 +1405,23 @@
         const ultimoAcceso = u.ultimo_acceso
           ? new Date(u.ultimo_acceso).toLocaleDateString('es-CL') + ' ' + new Date(u.ultimo_acceso).toLocaleTimeString('es-CL', {hour:'2-digit',minute:'2-digit'})
           : 'Nunca'
+        const tipoColor  = u.tipo_persona === 'admin' ? '#1e40af' : '#166534'
+        const tipoBg     = u.tipo_persona === 'admin' ? '#dbeafe'  : '#dcfce7'
+        const tipoIcon   = u.tipo_persona === 'admin' ? '🔐'       : '👨‍🏫'
+        const tipoLabel  = u.tipo_persona === 'admin' ? 'Admin'    : 'Profesor'
         tr.innerHTML = `
           <td>${u.id}</td>
           <td><strong>${u.nombre_usuario}</strong>${badge}</td>
-          <td><span style="background:${u.tipo_persona==='admin'?'#dbeafe':'#f0fdf4'};padding:2px 8px;border-radius:10px;font-size:.8em">${u.tipo_persona}</span></td>
-          <td>${u.nombre_profesor || '—'}</td>
-          <td>${u.activo ? '✅ Activo' : '🔴 Inactivo'}</td>
+          <td><span style="background:${tipoBg};color:${tipoColor};padding:3px 9px;border-radius:10px;font-size:.8em;font-weight:600">${tipoIcon} ${tipoLabel}</span></td>
+          <td style="font-size:.88em">${u.nombre_profesor
+            ? `<span title="Profesor vinculado">👤 ${u.nombre_profesor}</span>`
+            : `<span style="color:#aaa">Sin vinculación</span>`}</td>
           <td style="font-size:.82em;color:#666">${ultimoAcceso}</td>
           <td>
-            <button class="btn-sm btn-edit"   onclick="editarUsuario(${u.id})">✏️ Editar</button>
-            <button class="btn-sm" style="background:#8b5cf6;color:#fff" onclick="resetPasswordUsuario(${u.id},'${u.nombre_usuario}')">🔑</button>
-            <button class="btn-sm ${u.activo?'btn-secondary':'btn-face'}" onclick="toggleUsuario(${u.id},'${u.nombre_usuario}',${u.activo})">${u.activo?'🔒 Desact.':'🔓 Activar'}</button>
-            <button class="btn-sm btn-delete" onclick="eliminarUsuario(${u.id},'${u.nombre_usuario}')">🗑️</button>
+            <button class="btn-sm btn-edit"   onclick="editarUsuario(${u.id})" title="Editar usuario">✏️</button>
+            <button class="btn-sm" style="background:#8b5cf6;color:#fff" onclick="resetPasswordUsuario(${u.id},'${u.nombre_usuario}')" title="Cambiar contraseña">🔑</button>
+            <button class="btn-sm ${u.activo?'btn-secondary':'btn-face'}" onclick="toggleUsuario(${u.id},'${u.nombre_usuario}',${u.activo})" title="${u.activo?'Desactivar acceso':'Activar acceso'}">${u.activo?'🔒':'🔓'}</button>
+            <button class="btn-sm btn-delete" onclick="eliminarUsuario(${u.id},'${u.nombre_usuario}')" title="Eliminar usuario">🗑️</button>
           </td>`
         tbody.appendChild(tr)
       })
@@ -1124,7 +1593,18 @@
       listaAulas       = aulas
     }
     if (tipo === 'usuario') {
-      listaProfesores = (await apiGet(`${API1}/profesores`)).filter(p => p.activo)
+      const [profs, users] = await Promise.all([
+        apiGet(`${API1}/profesores`),
+        apiGet(`${API1}/usuarios`)
+      ])
+      // Profesores que ya tienen cuenta de usuario activa
+      const profsConCuenta = new Set(
+        users.filter(u => u.id_profesor && u.activo).map(u => u.id_profesor)
+      )
+      // Al crear: solo profesores SIN cuenta. Al editar: incluir el vinculado actualmente
+      listaProfesores = profs.filter(p =>
+        p.activo && (!profsConCuenta.has(p.id) || (d && d.id_profesor == p.id))
+      )
     }
 
     // Restaurar botones del modal (en caso de que estuvieran en modo "ver")
@@ -1415,17 +1895,60 @@
 
     /* ── USUARIO ─────────────────────────────────────────────── */
     if (tipo === 'usuario') {
-      const opsProfs = listaProfesores.map(p =>
-        `<option value="${p.id}" ${d && d.id_profesor==p.id?'selected':''}>${p.nombre} ${p.apellido_paterno} — ${p.rut}</option>`
-      ).join('')
+      const opsProfs = listaProfesores.length
+        ? listaProfesores.map(p =>
+            `<option value="${p.id}"
+              data-username="${(p.nombre.split(' ')[0] + '.' + p.apellido_paterno).toLowerCase().replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/ñ/g,'n').replace(/[^a-z0-9_.]/g,'')}"
+              ${d && d.id_profesor==p.id?'selected':''}>
+              ${p.nombre} ${p.apellido_paterno} — ${p.especialidad || 'Sin especialidad'}
+            </option>`
+          ).join('')
+        : `<option value="" disabled>⚠️ Todos los profesores ya tienen cuenta activa</option>`
+
       return `
+        <!-- PASO 1: Tipo de cuenta -->
         <div class="form-group">
-          <label>Nombre de usuario * <small style="color:#888">Solo letras, números, punto o guión</small></label>
-          <input type="text" id="f-nombre_usuario" value="${v('nombre_usuario')}" placeholder="profe_gonzalez"
-                 autocomplete="off"
+          <label>¿Qué tipo de cuenta es? *</label>
+          <select id="f-tipo_persona" onchange="toggleCampoProfesor()">
+            <option value="">— Selecciona —</option>
+            <option value="admin"    ${v('tipo_persona')==='admin'   ?'selected':''}>🔐 Administrador — acceso total al sistema</option>
+            <option value="profesor" ${v('tipo_persona')==='profesor'?'selected':''}>👨‍🏫 Profesor — solo ve su horario y toma asistencia</option>
+          </select>
+        </div>
+
+        <!-- PASO 2: Vincular al profesor (solo si tipo=profesor) -->
+        <div id="campo-id-profesor" style="${v('tipo_persona')==='profesor'?'':'display:none'}">
+          <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;padding:12px;margin-bottom:12px">
+            <p style="margin:0 0 8px;font-size:.88em;color:#0369a1;font-weight:600">
+              👤 ¿A qué profesor corresponde esta cuenta?
+            </p>
+            <p style="margin:0 0 8px;font-size:.82em;color:#555">
+              Vincula la cuenta al registro del profesor para que pueda ver su horario y registrar asistencia.
+              ${!modalId && !listaProfesores.length ? '' : ''}
+            </p>
+            <select id="f-id_profesor" onchange="sugerirUsernameDeProfesor()" style="width:100%">
+              <option value="">— Selecciona el profesor —</option>
+              ${opsProfs}
+            </select>
+            ${!modalId ? `<p style="margin:6px 0 0;font-size:.78em;color:#0369a1">
+              💡 Al seleccionar el profesor se sugerirá un nombre de usuario automáticamente.
+            </p>` : ''}
+          </div>
+        </div>
+
+        <!-- PASO 3: Nombre de usuario -->
+        <div class="form-group">
+          <label>Nombre de usuario *
+            <small style="color:#888">Solo letras, números, punto (.) o guión bajo (_)</small>
+          </label>
+          <input type="text" id="f-nombre_usuario" value="${v('nombre_usuario')}"
+                 placeholder="ej: carlos.gonzalez o admin2025"
+                 autocomplete="off" maxlength="50"
                  oninput="this.value=this.value.replace(/\\s/g,'').replace(/[^a-zA-Z0-9_.\\-]/g,'')"
                  onpaste="setTimeout(()=>{ this.value=this.value.replace(/\\s/g,'').replace(/[^a-zA-Z0-9_.\\-]/g,'') },0)" />
         </div>
+
+        <!-- PASO 4: Contraseña (solo al crear) -->
         ${!modalId ? `
         <div class="form-group">
           <label>Contraseña *</label>
@@ -1433,22 +1956,22 @@
             <input type="password" id="f-password" placeholder="Mínimo 8 caracteres" autocomplete="new-password"
                    style="flex:1" oninput="verificarFortalezaPassword()" />
             <button type="button" onclick="generarPasswordSegura()"
+                    title="Generar contraseña segura automáticamente"
                     style="background:#7c3aed;color:#fff;border:none;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:.82em;white-space:nowrap">
               🎲 Generar
             </button>
             <button type="button" onclick="toggleVerPassword('f-password')"
+                    title="Mostrar/ocultar contraseña"
                     style="background:#e5e7eb;border:none;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:.82em">
               👁️
             </button>
           </div>
-          <!-- Barra de fortaleza -->
           <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
             <div style="flex:1;height:6px;background:#e5e7eb;border-radius:3px">
               <div id="pwd-bar" style="width:0%;height:100%;background:#e5e7eb;border-radius:3px;transition:all .3s"></div>
             </div>
             <span id="pwd-label" style="font-size:.78em;min-width:80px"></span>
           </div>
-          <!-- Requisitos -->
           <div style="margin-top:6px;font-size:.8em;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px">
             <div id="req-len">○ Mínimo 8 caracteres</div>
             <div id="req-upper">○ Al menos 1 mayúscula</div>
@@ -1457,22 +1980,11 @@
             <div id="req-sym">○ Al menos 1 símbolo (!@#...)</div>
             <div id="req-nouser">○ Sin nombre de usuario</div>
           </div>
-        </div>` : '<p style="color:#888;font-size:.85em;margin:0 0 8px">💡 Para cambiar la contraseña usa el botón 🔑 en la tabla.</p>'}
-        <div class="form-group">
-          <label>Tipo de acceso *</label>
-          <select id="f-tipo_persona" onchange="toggleCampoProfesor()">
-            <option value="">— Selecciona —</option>
-            <option value="admin"   ${v('tipo_persona')==='admin'   ?'selected':''}>Admin</option>
-            <option value="profesor" ${v('tipo_persona')==='profesor'?'selected':''}>Profesor</option>
-          </select>
-        </div>
-        <div class="form-group" id="campo-id-profesor" style="${v('tipo_persona')==='profesor'?'':'display:none'}">
-          <label>Profesor vinculado <small style="color:#888">Obligatorio si es tipo Profesor</small></label>
-          <select id="f-id_profesor">
-            <option value="">— Selecciona profesor —</option>
-            ${opsProfs}
-          </select>
         </div>`
+        : `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:.85em;color:#713f12">
+            🔑 Para cambiar la contraseña usa el botón <strong>🔑</strong> en la tabla de usuarios.
+           </div>`}
+      `
     }
 
     /* ── USUARIO - RESET PASSWORD ─────────────────────────────── */
@@ -1556,11 +2068,35 @@
     return ''
   }
 
-  // Muestra/oculta el campo de profesor según el tipo de usuario seleccionado
+  // Muestra/oculta la sección de vinculación al profesor
   function toggleCampoProfesor() {
-    const tipo = document.getElementById('f-tipo_persona')?.value
+    const tipo  = document.getElementById('f-tipo_persona')?.value
     const campo = document.getElementById('campo-id-profesor')
-    if (campo) campo.style.display = tipo === 'profesor' ? 'block' : 'none'
+    const selProf = document.getElementById('f-id_profesor')
+    if (!campo) return
+    if (tipo === 'profesor') {
+      campo.style.display = 'block'
+    } else {
+      campo.style.display = 'none'
+      if (selProf) selProf.value = ''   // limpiar selección al cambiar a admin
+    }
+  }
+
+  // Auto-sugerencia de nombre de usuario al seleccionar un profesor
+  function sugerirUsernameDeProfesor() {
+    const sel       = document.getElementById('f-id_profesor')
+    const inputUser = document.getElementById('f-nombre_usuario')
+    if (!sel || !inputUser) return
+    const opt = sel.options[sel.selectedIndex]
+    if (!opt || !opt.value) return
+    const sugerido = opt.getAttribute('data-username') || ''
+    // Solo auto-completar si el campo está vacío o tiene la sugerencia anterior
+    if (sugerido && (!inputUser.value || inputUser.dataset.sugerido === inputUser.value)) {
+      inputUser.value = sugerido
+      inputUser.dataset.sugerido = sugerido
+      // Disparar fortaleza si hay contraseña puesta
+      verificarFortalezaPassword()
+    }
   }
 
   function leerCampo(id) {
