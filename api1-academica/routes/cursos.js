@@ -9,7 +9,10 @@ const { verificarToken, soloAdmin, adminOProfesor } = require('../middleware/aut
 // Auth: JWT (Admin o Profesor)
 // =====================================================
 router.get('/', verificarToken, adminOProfesor, async (req, res) => {
+  const esAdmin = req.usuario.tipo_persona === 'admin';
   try {
+    // Admin ve TODOS los cursos. Profesor solo los activos.
+    const filtro = esAdmin ? '' : 'WHERE c.activo = TRUE';
     const result = await pool.query(
       `SELECT
         c.id, c.nombre, c.nivel, c.letra, c.anio, c.activo,
@@ -19,9 +22,9 @@ router.get('/', verificarToken, adminOProfesor, async (req, res) => {
        FROM cursos c
        LEFT JOIN profesores p ON c.id_profesor_jefe = p.id
        LEFT JOIN alumnos a ON a.id_curso = c.id AND a.activo = TRUE
-       WHERE c.activo = TRUE
+       ${filtro}
        GROUP BY c.id, p.id, p.nombre, p.apellido_paterno
-       ORDER BY c.anio DESC, c.nivel, c.letra`
+       ORDER BY c.activo DESC, c.anio DESC, c.nivel, c.letra`
     );
     res.json(result.rows);
   } catch (err) {
@@ -133,8 +136,65 @@ router.put('/:id', verificarToken, soloAdmin, async (req, res) => {
 });
 
 // =====================================================
+// PATCH /cursos/:id/jefe
+// Asigna o quita el profesor jefe de un curso.
+// Body: { id_profesor_jefe: number | null }
+// Auth: JWT (Solo Admin)
+// =====================================================
+router.patch('/:id/jefe', verificarToken, soloAdmin, async (req, res) => {
+  const { id } = req.params;
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+  // Aceptar null explícito para quitar el profesor jefe
+  const id_profesor_jefe = req.body.id_profesor_jefe ?? null;
+
+  try {
+    const result = await pool.query(
+      'UPDATE cursos SET id_profesor_jefe = $1 WHERE id = $2 RETURNING id, nombre',
+      [id_profesor_jefe, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Curso no encontrado' });
+    const msg = id_profesor_jefe
+      ? `Profesor jefe asignado al curso ${result.rows[0].nombre}`
+      : `Profesor jefe removido del curso ${result.rows[0].nombre}`;
+    res.json({ mensaje: msg });
+  } catch (err) {
+    console.error('[PATCH /cursos/:id/jefe]', err.message);
+    res.status(500).json({ error: 'Error al actualizar profesor jefe' });
+  }
+});
+
+// =====================================================
+// PATCH /cursos/:id/reactivar
+// Reactiva un curso desactivado
+// Auth: JWT (Solo Admin)
+// =====================================================
+router.patch('/:id/reactivar', verificarToken, soloAdmin, async (req, res) => {
+  const { id } = req.params;
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+  try {
+    const result = await pool.query(
+      'UPDATE cursos SET activo = TRUE WHERE id = $1 RETURNING id, nombre',
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Curso no encontrado' });
+    res.json({ mensaje: `Curso ${result.rows[0].nombre} reactivado correctamente` });
+  } catch (err) {
+    console.error('[PATCH /cursos/:id/reactivar]', err.message);
+    res.status(500).json({ error: 'Error al reactivar curso' });
+  }
+});
+
+// =====================================================
 // DELETE /cursos/:id
-// Desactivar un curso (soft delete)
+// Elimina permanentemente el curso de la BD.
+// Antes verifica que no tenga alumnos activos (para no
+// dejarlos sin curso sin querer).
+// Las FK con CASCADE borran automáticamente: horarios,
+//   asistencia_cabecera (y en cascada asistencia_detalle).
+// La FK de alumnos.id_curso → ON DELETE SET NULL deja
+//   los alumnos sin curso (id_curso = NULL).
 // Auth: JWT (Solo Admin)
 // =====================================================
 router.delete('/:id', verificarToken, soloAdmin, async (req, res) => {
@@ -142,18 +202,29 @@ router.delete('/:id', verificarToken, soloAdmin, async (req, res) => {
   if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
 
   try {
+    // Bloquear si hay alumnos activos asignados a este curso
+    const chk = await pool.query(
+      'SELECT COUNT(*) AS total FROM alumnos WHERE id_curso = $1 AND activo = TRUE',
+      [id]
+    );
+    if (parseInt(chk.rows[0].total) > 0) {
+      return res.status(409).json({
+        error: `No se puede eliminar: el curso tiene ${chk.rows[0].total} alumno(s) activo(s). Reasígnalos a otro curso primero.`
+      });
+    }
+
     const result = await pool.query(
-      'UPDATE cursos SET activo = FALSE WHERE id = $1 RETURNING id, nombre',
+      'DELETE FROM cursos WHERE id = $1 RETURNING id, nombre',
       [id]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Curso no encontrado' });
     }
-    res.json({ mensaje: 'Curso desactivado correctamente', curso: result.rows[0] });
+    res.json({ mensaje: `Curso ${result.rows[0].nombre} eliminado correctamente` });
   } catch (err) {
     console.error('[DELETE /cursos/:id]', err.message);
-    res.status(500).json({ error: 'Error al desactivar curso' });
+    res.status(500).json({ error: 'Error al eliminar curso' });
   }
 });
 

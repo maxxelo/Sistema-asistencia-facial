@@ -9,14 +9,17 @@ const { verificarToken, soloAdmin, adminOProfesor } = require('../middleware/aut
 // Auth: JWT (Admin o Profesor)
 // =====================================================
 router.get('/', verificarToken, adminOProfesor, async (req, res) => {
+  const esAdmin = req.usuario.tipo_persona === 'admin';
   try {
+    // Admin ve TODOS los profesores. Profesor solo los activos.
+    const filtro = esAdmin ? '' : 'WHERE activo = TRUE';
     const result = await pool.query(
       `SELECT
         id, rut, nombre, apellido_paterno, apellido_materno,
         email, telefono, especialidad, activo
        FROM profesores
-       WHERE activo = TRUE
-       ORDER BY apellido_paterno, apellido_materno, nombre`
+       ${filtro}
+       ORDER BY activo DESC, apellido_paterno, nombre`
     );
     res.json(result.rows);
   } catch (err) {
@@ -130,8 +133,35 @@ router.put('/:id', verificarToken, soloAdmin, async (req, res) => {
 });
 
 // =====================================================
+// PATCH /profesores/:id/reactivar
+// Reactiva un profesor desactivado
+// Auth: JWT (Solo Admin)
+// =====================================================
+router.patch('/:id/reactivar', verificarToken, soloAdmin, async (req, res) => {
+  const { id } = req.params;
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+  try {
+    const result = await pool.query(
+      'UPDATE profesores SET activo = TRUE WHERE id = $1 RETURNING id, nombre, apellido_paterno',
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Profesor no encontrado' });
+    const p = result.rows[0];
+    res.json({ mensaje: `Profesor ${p.nombre} ${p.apellido_paterno} reactivado correctamente` });
+  } catch (err) {
+    console.error('[PATCH /profesores/:id/reactivar]', err.message);
+    res.status(500).json({ error: 'Error al reactivar profesor' });
+  }
+});
+
+// =====================================================
 // DELETE /profesores/:id
-// Desactivar un profesor (soft delete)
+// Elimina permanentemente al profesor de la BD.
+// Las FK con CASCADE borran automáticamente: horarios
+// Las FK con SET NULL dejan NULL en:
+//   cursos.id_profesor_jefe, asistencia_cabecera.id_profesor,
+//   usuarios.id_profesor (el usuario queda huérfano pero no se borra)
 // Auth: JWT (Solo Admin)
 // =====================================================
 router.delete('/:id', verificarToken, soloAdmin, async (req, res) => {
@@ -140,17 +170,18 @@ router.delete('/:id', verificarToken, soloAdmin, async (req, res) => {
 
   try {
     const result = await pool.query(
-      'UPDATE profesores SET activo = FALSE WHERE id = $1 RETURNING id, nombre, apellido_paterno',
+      'DELETE FROM profesores WHERE id = $1 RETURNING id, nombre, apellido_paterno',
       [id]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Profesor no encontrado' });
     }
-    res.json({ mensaje: 'Profesor desactivado correctamente', profesor: result.rows[0] });
+    const p = result.rows[0];
+    res.json({ mensaje: `Profesor ${p.nombre} ${p.apellido_paterno} eliminado correctamente` });
   } catch (err) {
     console.error('[DELETE /profesores/:id]', err.message);
-    res.status(500).json({ error: 'Error al desactivar profesor' });
+    res.status(500).json({ error: 'Error al eliminar profesor' });
   }
 });
 

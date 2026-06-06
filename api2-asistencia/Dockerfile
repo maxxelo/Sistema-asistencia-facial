@@ -4,11 +4,13 @@ WORKDIR /app
 
 # Copiar dependencias primero (aprovecha caché de Docker)
 COPY package*.json ./
-RUN npm install --omit=dev
+# Instala TODAS las dependencias (incluye devDeps para desarrollo)
+RUN npm install
 
 # Copiar el resto del código
 COPY . .
 
 EXPOSE 3002
 
-CMD ["node", "index.js"]
+# --watch detecta cambios en archivos y reinicia automáticamente (Node 18+)
+CMD ["node", "--watch", "index.js"]

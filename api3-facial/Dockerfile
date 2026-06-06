@@ -7,8 +7,8 @@ WORKDIR /app
 # Copia primero el package.json para aprovechar el cache de Docker
 COPY package*.json ./
 
-# Instala las dependencias dentro del contenedor
-RUN npm install --omit=dev
+# Instala TODAS las dependencias (incluye devDeps para desarrollo)
+RUN npm install
 
 # Copia el resto del código
 COPY . .
@@ -16,5 +16,5 @@ COPY . .
 # Expone el puerto 3003
 EXPOSE 3003
 
-# Comando para arrancar la API
-CMD ["node", "index.js"]
+# --watch detecta cambios en archivos y reinicia automáticamente (Node 18+)
+CMD ["node", "--watch", "index.js"]

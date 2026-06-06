@@ -41,6 +41,9 @@ services:
     networks:
       - red_interna
     restart: unless-stopped
+    volumes:
+      - ./api1-academica:/app          # Código del host → contenedor en tiempo real
+      - /app/node_modules              # node_modules del contenedor (binarios Linux, no pisado por Windows)
 
   # ─── API 2: Asistencia ─────────────────────────────────
   api2:
@@ -55,6 +58,9 @@ services:
     networks:
       - red_interna
     restart: unless-stopped
+    volumes:
+      - ./api2-asistencia:/app
+      - /app/node_modules
 
   # ─── API 3: Reconocimiento facial (WebSocket) ──────────
   api3:
@@ -69,6 +75,9 @@ services:
     networks:
       - red_interna
     restart: unless-stopped
+    volumes:
+      - ./api3-facial:/app
+      - /app/node_modules
 
   # ─── API 4: Reportes (pendiente) ───────────────────────
   # api4:

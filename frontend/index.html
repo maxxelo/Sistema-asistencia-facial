@@ -6,441 +6,2212 @@
   <title>Sistema de Asistencia Facial</title>
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-    #contenedor-camara { position: relative; display: inline-block; }
-    #video { display: block; }
-    #canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
-    #imgIP { display: none; }
-    .seccion { background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
-    .seccion h2 { margin-top: 0; }
-    button { padding: 8px 16px; margin: 4px; cursor: pointer; }
-    input[type="number"], input[type="text"], input[type="date"], input[type="password"], select {
-      padding: 6px; margin: 4px; border: 1px solid #ccc; border-radius: 4px;
-    }
-    #mensajeLogin { margin-top: 8px; font-weight: bold; }
-    #seccionApp { display: none; }
-    .usuario-info { float: right; font-size: 0.9em; color: #555; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 950px; margin: 0 auto; }
+    h1 { margin: 0 0 12px; }
+
+    /* Login */
+    .seccion-login { background:#f5f5f5; padding:20px; border-radius:8px; }
+
+    /* Header app */
+    .app-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .usuario-info { font-size:0.9em; color:#555; }
+
+    /* Tabs */
+    .nav-tabs { display:flex; gap:6px; margin-bottom:16px; border-bottom:2px solid #ddd; padding-bottom:6px; }
+    .tab-btn { padding:8px 18px; border:1px solid #ccc; border-radius:6px 6px 0 0;
+               background:#f0f0f0; cursor:pointer; font-size:0.95em; }
+    .tab-btn.activo { background:#2563eb; color:#fff; border-color:#2563eb; }
+    .tab-btn:hover:not(.activo) { background:#e0e0e0; }
+
+    /* Sections */
+    .tab-section { display:none; }
+    .tab-section.visible { display:block; }
+    .seccion { background:#f9f9f9; padding:16px; border-radius:8px; margin-bottom:14px; border:1px solid #e5e5e5; }
+    .seccion h2 { margin-top:0; font-size:1.1em; color:#333; }
+
+    /* Cámara */
+    #contenedor-camara { position:relative; display:inline-block; }
+    #video { display:block; border-radius:6px; }
+    #canvas { position:absolute; top:0; left:0; pointer-events:none; }
+
+    /* Tabla */
+    table { width:100%; border-collapse:collapse; font-size:0.9em; }
+    th { background:#2563eb; color:#fff; padding:8px 10px; text-align:left; }
+    td { padding:7px 10px; border-bottom:1px solid #eee; }
+    tr:hover td { background:#f0f5ff; }
+    .btn-sm { padding:4px 10px; font-size:0.82em; margin:2px; border-radius:4px; cursor:pointer; border:none; }
+    .btn-edit   { background:#f59e0b; color:#fff; }
+    .btn-delete { background:#ef4444; color:#fff; }
+    .btn-face   { background:#10b981; color:#fff; }
+    .btn-primary { background:#2563eb; color:#fff; padding:8px 16px; border:none; border-radius:5px; cursor:pointer; }
+    .btn-secondary { background:#6b7280; color:#fff; padding:8px 16px; border:none; border-radius:5px; cursor:pointer; }
+
+    /* Modal */
+    #modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:100; }
+    #modal-box { background:#fff; width:480px; max-width:95vw; margin:6% auto; border-radius:10px;
+                 padding:24px; box-shadow:0 8px 30px rgba(0,0,0,.2); }
+    #modal-box h3 { margin-top:0; }
+    .form-group { margin-bottom:12px; }
+    .form-group label { display:block; font-size:.88em; color:#555; margin-bottom:3px; }
+    .form-group input, .form-group select {
+      width:100%; padding:7px 10px; border:1px solid #ccc; border-radius:5px; font-size:.95em; }
+    .form-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+
+    /* Inputs generales */
+    input[type="text"], input[type="password"], input[type="number"],
+    input[type="date"], select { padding:6px 10px; border:1px solid #ccc; border-radius:4px; }
+    button { cursor:pointer; }
+    #mensajeLogin { margin-top:8px; font-weight:bold; }
+    .mensaje-ok  { color:#16a34a; }
+    .mensaje-err { color:#dc2626; }
   </style>
 </head>
 <body>
 
-  <!-- ─── LOGIN ─────────────────────────────────────── -->
-  <div class="seccion" id="seccionLogin">
-    <h2>Iniciar sesión</h2>
-    <label>Usuario: <input type="text" id="loginUsuario" placeholder="admin" /></label>
-    &nbsp;
-    <label>Contraseña: <input type="password" id="loginPassword" placeholder="••••••" /></label>
-    &nbsp;
-    <button onclick="iniciarSesion()">Entrar</button>
-    <div id="mensajeLogin"></div>
-  </div>
+<!-- ═══ LOGIN ═══════════════════════════════════════════════════════ -->
+<div class="seccion-login" id="seccionLogin">
+  <h2>Sistema de Asistencia Facial — Iniciar sesión</h2>
+  <label>Usuario: <input type="text" id="loginUsuario" placeholder="admin" /></label>
+  &nbsp;
+  <label>Contraseña: <input type="password" id="loginPassword" placeholder="••••••" /></label>
+  &nbsp;
+  <button class="btn-primary" onclick="iniciarSesion()">Entrar</button>
+  <div id="mensajeLogin"></div>
+</div>
 
-  <!-- ─── APP (visible solo después del login) ──────── -->
-  <div id="seccionApp">
+<!-- ═══ APP ══════════════════════════════════════════════════════════ -->
+<div id="seccionApp" style="display:none">
 
+  <div class="app-header">
+    <h1>Sistema de Asistencia Facial</h1>
     <div class="usuario-info">
       Sesión: <strong id="nombreUsuario"></strong>
-      &nbsp; <button onclick="cerrarSesion()" style="font-size:0.8em">Salir</button>
+      &nbsp;<button class="btn-sm btn-delete" onclick="cerrarSesion()">Salir</button>
     </div>
-    <h1>Sistema de Asistencia Facial</h1>
+  </div>
 
-    <!-- Selector de fuente de cámara -->
-    <div>
-      <label>
-        <input type="radio" name="tipoCamara" value="webcam" checked onchange="cambiarModo('webcam')">
-        Webcam del PC
-      </label>
+  <!-- Tabs de navegación -->
+  <div class="nav-tabs" id="navTabs">
+    <button class="tab-btn solo-admin activo" onclick="mostrarTab('panel')" id="tab-panel">📊 Panel</button>
+    <button class="tab-btn" onclick="mostrarTab('asistencia')" id="tab-asistencia">📷 Asistencia</button>
+    <button class="tab-btn" onclick="mostrarTab('alumnos')" id="tab-alumnos">👤 Alumnos</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('cursos')" id="tab-cursos">📚 Cursos</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('profesores')" id="tab-profesores">👨‍🏫 Profesores</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('horarios')" id="tab-horarios">📅 Horarios</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('usuarios')" id="tab-usuarios">🔑 Usuarios</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('asignaturas')" id="tab-asignaturas">📖 Asignaturas</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('aulas')" id="tab-aulas">🏫 Aulas</button>
+  </div>
+
+  <!-- ── TAB: PANEL ────────────────────────────────────────────── -->
+  <div class="tab-section solo-admin visible" id="sec-panel">
+    <div class="seccion">
+      <h2 style="margin-bottom:16px">👋 Bienvenido, <span id="panel-nombre-admin"></span></h2>
+      <div id="panel-stats"></div>
+      <div id="panel-alertas" style="margin:16px 0"></div>
+      <div id="panel-guia"></div>
+    </div>
+  </div>
+
+  <!-- ── TAB: ASISTENCIA ──────────────────────────────────────── -->
+  <div class="tab-section" id="sec-asistencia">
+
+    <!-- Cámara -->
+    <div class="seccion">
+      <h2>Cámara</h2>
+      <label><input type="radio" name="tipoCamara" value="webcam" checked onchange="cambiarModo('webcam')"> Webcam del PC</label>
       &nbsp;&nbsp;
-      <label>
-        <input type="radio" name="tipoCamara" value="ip" onchange="cambiarModo('ip')">
-        IP Webcam (celular)
-      </label>
+      <label><input type="radio" name="tipoCamara" value="ip" onchange="cambiarModo('ip')"> IP Webcam (celular)</label>
       <div id="config-ip" style="display:none; margin-top:8px">
-        <label>URL IP Webcam:
-          <input type="text" id="urlIP" placeholder="https://192.168.1.X:8080" size="30" />
-        </label>
-        <button onclick="conectarIP()">Conectar y Ver</button>
+        <label>URL: <input type="text" id="urlIP" placeholder="http://192.168.1.X:8080" size="28" /></label>
+        <button class="btn-primary" onclick="conectarIP()">Conectar y Ver</button>
+      </div>
+      <br><br>
+      <div id="contenedor-camara">
+        <video id="video" width="560" height="420" autoplay muted></video>
+        <canvas id="canvas" width="560" height="420"></canvas>
       </div>
     </div>
 
-    <br>
-
-    <!-- Contenedor de cámara -->
-    <div id="contenedor-camara">
-      <video id="video" width="640" height="480" autoplay muted></video>
-      <canvas id="canvas" width="640" height="480"></canvas>
-    </div>
-    <img id="imgIP" crossorigin="anonymous" />
-
-    <hr>
-
-    <!-- ─── SECCIÓN: Registrar rostro ─────────────────── -->
+    <!-- Registrar rostro -->
     <div class="seccion">
-      <h2>Registrar rostro</h2>
-      <div id="estadoCamara" style="color:gray; font-size:0.9em"></div>
-      <label>ID Alumno: <input type="number" id="idAlumno" placeholder="Ej: 1" /></label>
-      <button onclick="registrarRostro()">Capturar y Registrar Rostro</button>
-      <div id="resultadoRegistro"></div>
+      <h2>Registrar rostro de alumno</h2>
+      <div id="estadoCamara" style="color:gray; font-size:.88em; margin-bottom:6px"></div>
+      <label>ID Alumno: <input type="number" id="idAlumno" placeholder="Ej: 1" style="width:90px" /></label>
+      &nbsp;
+      <button class="btn-primary" onclick="registrarRostro()">📸 Capturar y Registrar</button>
+      <div id="resultadoRegistro" style="margin-top:8px"></div>
     </div>
 
-    <!-- ─── SECCIÓN: Clase activa ──────────────────────── -->
+    <!-- Clase activa -->
     <div class="seccion">
       <h2>Clase activa</h2>
-      <label>Fecha:
-        <input type="date" id="fechaClase" />
-      </label>
+      <label>Fecha: <input type="date" id="fechaClase" /></label>
       &nbsp;&nbsp;
       <label>Clase:
         <select id="selectorHorario">
-          <option value="">-- Selecciona una clase --</option>
+          <option value="">-- Selecciona --</option>
         </select>
       </label>
       &nbsp;
-      <button onclick="cargarHorarios()">🔄 Cargar clases de hoy</button>
-      <div id="infoClase" style="color:gray; font-size:0.9em; margin-top:6px"></div>
+      <button class="btn-primary" onclick="cargarHorarios()">🔄 Cargar</button>
+      <div id="infoClase" style="color:gray; font-size:.88em; margin-top:6px"></div>
     </div>
 
-    <!-- ─── SECCIÓN: Reconocimiento automático ─────────── -->
+    <!-- Reconocimiento -->
     <div class="seccion">
-      <h2>Reconocimiento (asistencia)</h2>
-      <div id="resultado">Esperando reconocimiento...</div>
+      <h2>Reconocimiento automático</h2>
+      <div id="resultado" style="min-height:40px; font-size:1em">Esperando reconocimiento...</div>
       <br>
-      <button onclick="iniciar()">▶ Iniciar Reconocimiento</button>
-      <button onclick="detener()">⏹ Detener</button>
+      <button class="btn-primary" onclick="iniciar()">▶ Iniciar</button>
+      <button class="btn-secondary" onclick="detener()">⏹ Detener</button>
     </div>
+  </div>
 
-  </div><!-- fin seccionApp -->
+  <!-- ── TAB: ALUMNOS ─────────────────────────────────────────── -->
+  <div class="tab-section" id="sec-alumnos">
+    <div class="seccion">
+      <h2>Gestión de Alumnos
+        <span id="btn-nuevo-alumno" class="solo-admin" style="float:right">
+          <button class="btn-primary" onclick="abrirModal('alumno')">+ Nuevo Alumno</button>
+        </span>
+      </h2>
+      <div id="msg-alumnos" style="margin-bottom:8px"></div>
+      <table id="tablaAlumnos">
+        <thead>
+          <tr>
+            <th>ID</th><th>RUT</th><th>Nombre</th><th>Curso</th><th>Email</th><th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyAlumnos"></tbody>
+      </table>
+    </div>
+  </div>
 
-  <script>
-    const API1 = 'http://localhost:3001'
-    const API3  = 'http://localhost:3003'
-    const WS_URL = 'ws://localhost:3003'
+  <!-- ── TAB: CURSOS ──────────────────────────────────────────── -->
+  <div class="tab-section" id="sec-cursos">
+    <div class="seccion">
+      <h2>Gestión de Cursos
+        <span style="float:right">
+          <button class="btn-primary" onclick="abrirModal('curso')">+ Nuevo Curso</button>
+        </span>
+      </h2>
+      <div id="msg-cursos" style="margin-bottom:8px"></div>
+      <table id="tablaCursos">
+        <thead>
+          <tr><th>ID</th><th>Nombre</th><th>Nivel</th><th>Año</th><th>Profesor Jefe</th><th>Alumnos</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="tbodyCursos"></tbody>
+      </table>
+    </div>
+  </div>
 
-    let ws = null
-    let intervaloReconocimiento = null
-    let intervaloPreview = null
-    let modoIP = false
-    let token = localStorage.getItem('token') || null
+  <!-- ── TAB: PROFESORES ──────────────────────────────────────── -->
+  <div class="tab-section" id="sec-profesores">
+    <div class="seccion">
+      <h2>Gestión de Profesores
+        <span style="float:right">
+          <button class="btn-primary" onclick="abrirModal('profesor')">+ Nuevo Profesor</button>
+        </span>
+      </h2>
+      <div id="msg-profesores" style="margin-bottom:8px"></div>
+      <table id="tablaProfesores">
+        <thead>
+          <tr><th>ID</th><th>RUT</th><th>Nombre</th><th>Email</th><th>Especialidad</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="tbodyProfesores"></tbody>
+      </table>
+    </div>
+  </div>
 
-    const OPCIONES_DETECTOR = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 })
+  <!-- ── TAB: HORARIOS ──────────────────────────────────────── -->
+  <div class="tab-section" id="sec-horarios">
+    <div class="seccion">
+      <h2>Gestión de Horarios
+        <span style="float:right">
+          <button class="btn-primary" onclick="abrirModal('horario')">+ Nuevo Bloque</button>
+        </span>
+      </h2>
+      <div style="margin-bottom:8px">
+        Filtrar por día:
+        <select id="filtro-dia-horario" onchange="cargarTablaHorarios()" style="margin-left:4px">
+          <option value="">Todos los días</option>
+          <option value="1">Lunes</option>
+          <option value="2">Martes</option>
+          <option value="3">Miércoles</option>
+          <option value="4">Jueves</option>
+          <option value="5">Viernes</option>
+        </select>
+      </div>
+      <div id="msg-horarios" style="margin-bottom:8px"></div>
+      <table id="tablaHorarios">
+        <thead>
+          <tr><th>Día</th><th>Hora</th><th>Curso</th><th>Asignatura</th><th>Profesor</th><th>Sala</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="tbodyHorarios"></tbody>
+      </table>
+    </div>
+  </div>
 
-    // ─── INICIO ────────────────────────────────────────────
-    window.onload = () => {
-      // Auto-rellenar fecha con hoy
-      document.getElementById('fechaClase').value = new Date().toISOString().split('T')[0]
+  <!-- ── TAB: USUARIOS ──────────────────────────────────────── -->
+  <div class="tab-section" id="sec-usuarios">
+    <div class="seccion">
+      <h2>Gestión de Usuarios
+        <span style="float:right">
+          <button class="btn-primary" onclick="abrirModal('usuario')">+ Nuevo Usuario</button>
+        </span>
+      </h2>
+      <div id="msg-usuarios" style="margin-bottom:8px"></div>
+      <table id="tablaUsuarios">
+        <thead>
+          <tr><th>ID</th><th>Usuario</th><th>Tipo</th><th>Profesor vinculado</th><th>Estado</th><th>Último acceso</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="tbodyUsuarios"></tbody>
+      </table>
+    </div>
+  </div>
 
-      // Si ya hay token guardado, saltar el login
-      if (token) mostrarApp()
-    }
+  <!-- ── TAB: ASIGNATURAS ────────────────────────────────────── -->
+  <div class="tab-section" id="sec-asignaturas">
+    <div class="seccion">
+      <h2>Gestión de Asignaturas
+        <span style="float:right">
+          <button class="btn-primary" onclick="abrirModal('asignatura')">+ Nueva Asignatura</button>
+        </span>
+      </h2>
+      <div id="msg-asignaturas" style="margin-bottom:8px"></div>
+      <table id="tablaAsignaturas">
+        <thead>
+          <tr><th>ID</th><th>Nombre</th><th>Código</th><th>Hrs/semana</th><th>Estado</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="tbodyAsignaturas"></tbody>
+      </table>
+    </div>
+  </div>
 
-    // ─── LOGIN ─────────────────────────────────────────────
-    async function iniciarSesion() {
-      const usuario  = document.getElementById('loginUsuario').value.trim()
-      const password = document.getElementById('loginPassword').value
-      const msg      = document.getElementById('mensajeLogin')
+  <!-- ── TAB: AULAS ──────────────────────────────────────────── -->
+  <div class="tab-section" id="sec-aulas">
+    <div class="seccion">
+      <h2>Gestión de Aulas / Salas
+        <span style="float:right">
+          <button class="btn-primary" onclick="abrirModal('aula')">+ Nueva Aula</button>
+        </span>
+      </h2>
+      <div id="msg-aulas" style="margin-bottom:8px"></div>
+      <table id="tablaAulas">
+        <thead>
+          <tr><th>ID</th><th>Código</th><th>Nombre</th><th>Capacidad</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="tbodyAulas"></tbody>
+      </table>
+    </div>
+  </div>
 
-      if (!usuario || !password) {
-        msg.innerHTML = '<span style="color:red">Completa usuario y contraseña</span>'
-        return
-      }
+</div><!-- fin seccionApp -->
 
-      msg.innerHTML = 'Ingresando...'
+<!-- ═══ MODAL CRUD ═══════════════════════════════════════════════════ -->
+<div id="modal-overlay" onclick="cerrarModal()">
+  <div id="modal-box" onclick="event.stopPropagation()">
+    <h3 id="modal-titulo">Formulario</h3>
+    <div id="modal-form-container"></div>
+    <div id="modal-msg" style="margin-top:8px; font-weight:bold"></div>
+    <div class="form-actions">
+      <button class="btn-secondary" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarModal()">Guardar</button>
+    </div>
+  </div>
+</div>
 
-      try {
-        const resp = await fetch(`${API1}/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nombre_usuario: usuario, password })
-        })
-        const datos = await resp.json()
+<script>
+  /* ── CONSTANTES ─────────────────────────────────────────────────── */
+  const API1   = 'http://localhost:3001'
+  const API3   = 'http://localhost:3003'
+  const WS_URL = 'ws://localhost:3003'
+  const OPCIONES_DETECTOR = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 })
 
-        if (!resp.ok) {
-          msg.innerHTML = `<span style="color:red">❌ ${datos.error}</span>`
-          return
-        }
+  let ws = null, intervaloReconocimiento = null, intervaloPreview = null
+  let intervaloAutoRefresh = null   // para el auto-refresh de tablas
+  let tabActual  = 'panel'          // pestaña visible en este momento
+  let modoIP     = false
+  let token      = localStorage.getItem('token')      || null
+  let rolUsuario = localStorage.getItem('rolUsuario') || null
+  let modalTipo  = null   // 'alumno' | 'curso' | 'profesor' | 'horario' | 'usuario' | 'asignatura' | 'aula'
+  let modalId    = null   // null = crear, número = editar
+  let listaCursos = [], listaProfesores = [], listaAsignaturas = [], listaAulas = []
 
-        token = datos.token
-        localStorage.setItem('token', token)
-        document.getElementById('nombreUsuario').textContent =
-          `${datos.usuario.nombre_usuario} (${datos.usuario.rol})`
+  const DIAS_SEMANA = { 1:'Lunes', 2:'Martes', 3:'Miércoles', 4:'Jueves', 5:'Viernes', 6:'Sábado', 7:'Domingo' }
+
+  /* ── JWT: decodificar sin verificar (solo para mostrar datos) ── */
+  function decodificarToken(jwt) {
+    // El JWT tiene 3 partes separadas por '.'; la segunda es el payload en base64
+    try { return JSON.parse(atob(jwt.split('.')[1])) }
+    catch { return null }
+  }
+
+  function tokenExpirado(jwt) {
+    const p = decodificarToken(jwt)
+    // p.exp es Unix timestamp en segundos
+    return !p || !p.exp || (Date.now() / 1000 > p.exp)
+  }
+
+  /* ── INICIO ────────────────────────────────────────────────────── */
+  window.onload = () => {
+    document.getElementById('fechaClase').value = new Date().toISOString().split('T')[0]
+    if (token) {
+      if (tokenExpirado(token)) {
+        // Token vencido: limpiar sesión y mostrar login
+        localStorage.removeItem('token')
+        localStorage.removeItem('rolUsuario')
+        token = null; rolUsuario = null
+      } else {
         mostrarApp()
-        msg.innerHTML = ''
-      } catch (err) {
-        msg.innerHTML = `<span style="color:red">❌ Error de red: ${err.message}</span>`
       }
     }
+  }
 
-    function mostrarApp() {
-      document.getElementById('seccionLogin').style.display = 'none'
-      document.getElementById('seccionApp').style.display  = 'block'
-      cargarHorarios()
+  /* ── LOGIN ─────────────────────────────────────────────────────── */
+  async function iniciarSesion() {
+    const usuario  = document.getElementById('loginUsuario').value.trim()
+    const password = document.getElementById('loginPassword').value
+    const msg      = document.getElementById('mensajeLogin')
+    if (!usuario || !password) { msg.innerHTML = '<span class="mensaje-err">Completa usuario y contraseña</span>'; return }
+    msg.innerHTML = 'Ingresando...'
+    try {
+      const resp  = await fetch(`${API1}/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre_usuario: usuario, password })
+      })
+      const datos = await resp.json()
+      if (!resp.ok) { msg.innerHTML = `<span class="mensaje-err">❌ ${datos.error}</span>`; return }
+      token      = datos.token
+      rolUsuario = datos.usuario.tipo_persona
+      localStorage.setItem('token', token)
+      localStorage.setItem('rolUsuario', rolUsuario)
+      document.getElementById('nombreUsuario').textContent =
+        `${datos.usuario.nombre_usuario} (${datos.usuario.rol})`
+      mostrarApp()
+      msg.innerHTML = ''
+    } catch (err) {
+      msg.innerHTML = `<span class="mensaje-err">❌ Error de red: ${err.message}</span>`
+    }
+  }
+
+  function mostrarApp() {
+    document.getElementById('seccionLogin').style.display = 'none'
+    document.getElementById('seccionApp').style.display   = 'block'
+
+    // Restaurar nombre de usuario desde el token (funciona aunque se refresque la página)
+    const payload = decodificarToken(token)
+    if (payload) {
+      document.getElementById('nombreUsuario').textContent =
+        `${payload.nombre_usuario} (${payload.rol})`
     }
 
-    function cerrarSesion() {
-      token = null
-      localStorage.removeItem('token')
-      detener()
-      document.getElementById('seccionLogin').style.display = 'block'
-      document.getElementById('seccionApp').style.display   = 'none'
+    // Ocultar tabs y secciones de solo-admin si es profesor
+    if (rolUsuario !== 'admin') {
+      document.querySelectorAll('.solo-admin').forEach(el => el.style.display = 'none')
     }
 
-    // ─── CARGAR HORARIOS DE HOY ────────────────────────────
-    async function cargarHorarios() {
-      const fecha      = document.getElementById('fechaClase').value
-      const infoClase  = document.getElementById('infoClase')
-      const selector   = document.getElementById('selectorHorario')
+    // Mostrar nombre en el panel de bienvenida
+    const panelNombre = document.getElementById('panel-nombre-admin')
+    if (panelNombre && payload) panelNombre.textContent = payload.nombre_usuario
 
-      if (!fecha) return
+    // Admin → ir al panel; Profesor → ir a asistencia
+    if (rolUsuario === 'admin') {
+      mostrarTab('panel')
+    } else {
+      mostrarTab('asistencia')
+    }
 
-      // dia_semana: 1=lunes … 7=domingo (JS: 0=domingo, hay que ajustar)
-      const diaSemana = new Date(fecha + 'T12:00:00').getDay()
-      const diaAjustado = diaSemana === 0 ? 7 : diaSemana  // domingo=7
+    cargarHorarios()
+    iniciarAutoRefresh()
+  }
 
-      try {
-        const resp = await fetch(`${API1}/horarios?dia_semana=${diaAjustado}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        const horarios = await resp.json()
+  function cerrarSesion() {
+    token = null; rolUsuario = null
+    localStorage.removeItem('token'); localStorage.removeItem('rolUsuario')
+    detener()
+    detenerAutoRefresh()
+    document.getElementById('seccionLogin').style.display = 'block'
+    document.getElementById('seccionApp').style.display   = 'none'
+  }
 
-        selector.innerHTML = '<option value="">-- Selecciona una clase --</option>'
+  /* ── AUTO-REFRESH ──────────────────────────────────────────────── */
+  function iniciarAutoRefresh() {
+    if (intervaloAutoRefresh) clearInterval(intervaloAutoRefresh)
+    // Refresca la pestaña activa cada 30 segundos automáticamente
+    intervaloAutoRefresh = setInterval(() => {
+      if (tabActual === 'panel')       cargarPanel()
+      if (tabActual === 'alumnos')     cargarTablaAlumnos()
+      if (tabActual === 'cursos')      cargarTablaCursos()
+      if (tabActual === 'profesores')  cargarTablaProfesores()
+      if (tabActual === 'horarios')    cargarTablaHorarios()
+      if (tabActual === 'usuarios')    cargarTablaUsuarios()
+      if (tabActual === 'asignaturas') cargarTablaAsignaturas()
+      if (tabActual === 'aulas')       cargarTablaAulas()
+      if (tabActual === 'asistencia')  cargarHorarios()
+    }, 30000)
+  }
 
-        if (horarios.length === 0) {
-          infoClase.textContent = 'No hay clases registradas para ese día'
-          return
-        }
+  function detenerAutoRefresh() {
+    if (intervaloAutoRefresh) { clearInterval(intervaloAutoRefresh); intervaloAutoRefresh = null }
+  }
 
-        horarios.forEach(h => {
-          const op = document.createElement('option')
-          op.value = h.id
-          op.textContent = `${h.hora_inicio.slice(0,5)} - ${h.asignatura} (${h.curso}) — ${h.profesor}`
-          selector.appendChild(op)
-        })
+  /* ── TABS ──────────────────────────────────────────────────────── */
+  function mostrarTab(nombre) {
+    document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('visible'))
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'))
+    document.getElementById('sec-' + nombre).classList.add('visible')
+    document.getElementById('tab-' + nombre).classList.add('activo')
+    tabActual = nombre
+    if (nombre === 'panel')       cargarPanel()
+    if (nombre === 'alumnos')     cargarTablaAlumnos()
+    if (nombre === 'cursos')      cargarTablaCursos()
+    if (nombre === 'profesores')  cargarTablaProfesores()
+    if (nombre === 'horarios')    cargarTablaHorarios()
+    if (nombre === 'usuarios')    cargarTablaUsuarios()
+    if (nombre === 'asignaturas') cargarTablaAsignaturas()
+    if (nombre === 'aulas')       cargarTablaAulas()
+  }
 
-        infoClase.textContent = `${horarios.length} clase(s) encontradas`
-      } catch (err) {
-        infoClase.textContent = `Error al cargar horarios: ${err.message}`
+  /* ── HELPERS API ───────────────────────────────────────────────── */
+  function authHeaders() {
+    return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+  }
+
+  async function apiGet(url) {
+    const r = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
+    return r.json()
+  }
+
+  async function apiPost(url, body) {
+    const r = await fetch(url, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) })
+    return { ok: r.ok, data: await r.json() }
+  }
+
+  async function apiPut(url, body) {
+    const r = await fetch(url, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) })
+    return { ok: r.ok, data: await r.json() }
+  }
+
+  async function apiDelete(url) {
+    const r = await fetch(url, { method: 'DELETE', headers: authHeaders() })
+    return { ok: r.ok, data: await r.json() }
+  }
+
+  async function apiPatch(url, body) {
+    // Para reactivar registros (PATCH /entidad/:id/reactivar)
+    const r = await fetch(url, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(body) })
+    return { ok: r.ok, data: await r.json() }
+  }
+
+  /* ── TABLA: ALUMNOS ────────────────────────────────────────────── */
+  async function cargarTablaAlumnos() {
+    const tbody = document.getElementById('tbodyAlumnos')
+    tbody.innerHTML = '<tr><td colspan="6">Cargando...</td></tr>'
+    try {
+      const alumnos = await apiGet(`${API1}/alumnos`)
+      tbody.innerHTML = ''
+      if (!alumnos.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:gray">No hay alumnos registrados</td></tr>'; return
       }
+      alumnos.forEach(a => {
+        const tr    = document.createElement('tr')
+        const esAdmin   = rolUsuario === 'admin'
+        const inactivo  = !a.activo
+        // Fila gris para inactivos
+        if (inactivo) tr.style.cssText = 'background:#f9f0f0; color:#aaa;'
+        const badge = inactivo
+          ? '<span style="font-size:.7em;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:10px;margin-left:4px">Inactivo</span>'
+          : ''
+        tr.innerHTML = `
+          <td>${a.id}${badge}</td>
+          <td>${a.rut}</td>
+          <td>${a.nombre} ${a.apellido_paterno}</td>
+          <td>${a.curso || '—'}</td>
+          <td>${a.email || '—'}</td>
+          <td>
+            ${esAdmin
+              ? inactivo
+                ? /* Inactivo: solo reactivar o eliminar permanente */`
+                    <button class="btn-sm btn-primary" onclick="reactivarAlumno(${a.id},'${a.nombre}')">🔄 Reactivar</button>
+                    <button class="btn-sm btn-delete"  onclick="eliminarAlumno(${a.id},'${a.nombre}')">🗑️ Eliminar</button>`
+                : /* Activo: todas las acciones */`
+                    <button class="btn-sm btn-face"   onclick="irARegistrarRostro(${a.id})">📸 Rostro</button>
+                    <button class="btn-sm btn-edit"   onclick="editarAlumno(${a.id})">✏️ Editar</button>
+                    <button class="btn-sm btn-delete" onclick="eliminarAlumno(${a.id},'${a.nombre}')">🗑️</button>`
+              : '<span style="color:#bbb">Solo lectura</span>'}
+          </td>`
+        tbody.appendChild(tr)
+      })
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="6" class="mensaje-err">Error: ${err.message}</td></tr>`
+    }
+  }
+
+  async function reactivarAlumno(id, nombre) {
+    if (!confirm(`¿Reactivar al alumno ${nombre}?`)) return
+    const { ok, data } = await apiPatch(`${API1}/alumnos/${id}/reactivar`, {})
+    document.getElementById('msg-alumnos').innerHTML =
+      ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+         : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarTablaAlumnos()
+  }
+
+  function irARegistrarRostro(idAlumno) {
+    document.getElementById('idAlumno').value = idAlumno
+    mostrarTab('asistencia')
+  }
+
+  async function editarAlumno(id) {
+    const a = await apiGet(`${API1}/alumnos/${id}`)
+    await abrirModal('alumno', a)  // await para que los cursos carguen antes de renderizar
+  }
+
+  async function eliminarAlumno(id, nombre) {
+    if (!confirm(`⚠️ ¿Eliminar permanentemente al alumno ${nombre}?\n\nEsta acción borrará también su rostro registrado y sus asistencias. No se puede deshacer.`)) return
+    const { ok, data } = await apiDelete(`${API1}/alumnos/${id}`)
+    document.getElementById('msg-alumnos').innerHTML =
+      ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+         : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarTablaAlumnos()
+  }
+
+  /* ── TABLA: CURSOS ─────────────────────────────────────────────── */
+  async function cargarTablaCursos() {
+    const tbody = document.getElementById('tbodyCursos')
+    tbody.innerHTML = '<tr><td colspan="7">Cargando...</td></tr>'
+    try {
+      const cursos = await apiGet(`${API1}/cursos`)
+      // Solo los activos van al listado de selección de alumno
+      listaCursos = cursos.filter(c => c.activo)
+      tbody.innerHTML = ''
+      if (!cursos.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="color:gray">No hay cursos</td></tr>'; return
+      }
+      cursos.forEach(c => {
+        const tr       = document.createElement('tr')
+        const inactivo = !c.activo
+        if (inactivo) tr.style.cssText = 'background:#f9f0f0; color:#aaa;'
+        const badge = inactivo
+          ? '<span style="font-size:.7em;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:10px;margin-left:4px">Inactivo</span>'
+          : ''
+        const jefeHtml = c.profesor_jefe
+          ? `<span style="font-size:.85em">${c.profesor_jefe}</span>`
+          : `<span style="color:#aaa;font-size:.8em">Sin asignar</span>`
+        tr.innerHTML = `
+          <td>${c.id}${badge}</td>
+          <td><strong>${c.nombre}</strong></td>
+          <td>${c.nivel || '—'}</td>
+          <td>${c.anio}</td>
+          <td>${jefeHtml}</td>
+          <td>${c.total_alumnos}</td>
+          <td>
+            ${inactivo
+              ? `<button class="btn-sm btn-primary" onclick="reactivarCurso(${c.id},'${c.nombre}')">🔄 Reactivar</button>
+                 <button class="btn-sm btn-delete"  onclick="eliminarCurso(${c.id},'${c.nombre}')">🗑️ Eliminar</button>`
+              : `<button class="btn-sm btn-face"   onclick="verAlumnosCurso(${c.id},'${c.nombre}')">👥 ${c.total_alumnos}</button>
+                 <button class="btn-sm btn-edit"   onclick="editarCurso(${c.id})">✏️ Editar</button>
+                 <button class="btn-sm btn-delete" onclick="eliminarCurso(${c.id},'${c.nombre}')">🗑️</button>`}
+          </td>`
+        tbody.appendChild(tr)
+      })
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="7" class="mensaje-err">Error: ${err.message}</td></tr>`
+    }
+  }
+
+  async function reactivarCurso(id, nombre) {
+    if (!confirm(`¿Reactivar el curso ${nombre}?`)) return
+    const { ok, data } = await apiPatch(`${API1}/cursos/${id}/reactivar`, {})
+    document.getElementById('msg-cursos').innerHTML =
+      ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+         : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarTablaCursos()
+  }
+
+  async function editarCurso(id) {
+    const c = await apiGet(`${API1}/cursos/${id}`)
+    await abrirModal('curso', c)
+  }
+
+  async function eliminarCurso(id, nombre) {
+    if (!confirm(`⚠️ ¿Eliminar permanentemente el curso ${nombre}?\n\nSe eliminarán también sus horarios y registros de asistencia.\n(No se puede deshacer)`)) return
+    const { ok, data } = await apiDelete(`${API1}/cursos/${id}`)
+    document.getElementById('msg-cursos').innerHTML =
+      ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+         : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarTablaCursos()
+  }
+
+  async function verAlumnosCurso(id, nombre) {
+    const curso = await apiGet(`${API1}/cursos/${id}`)
+    let html = ''
+    if (!curso.alumnos || !curso.alumnos.length) {
+      html = '<p style="color:gray; text-align:center; padding:16px">No hay alumnos activos en este curso</p>'
+    } else {
+      html = `<p style="margin:0 0 8px; color:#555; font-size:.9em">${curso.alumnos.length} alumno(s) activo(s):</p>`
+      html += '<div style="max-height:320px; overflow-y:auto">'
+      html += '<table style="width:100%; font-size:.88em; border-collapse:collapse">'
+      html += '<thead><tr><th style="background:#2563eb;color:#fff;padding:6px 8px">RUT</th>'
+      html +=              '<th style="background:#2563eb;color:#fff;padding:6px 8px">Nombre completo</th></tr></thead><tbody>'
+      curso.alumnos.forEach((a, i) => {
+        const bg = i % 2 === 0 ? '#f9f9f9' : '#fff'
+        html += `<tr style="background:${bg}">
+          <td style="padding:5px 8px; border-bottom:1px solid #eee">${a.rut}</td>
+          <td style="padding:5px 8px; border-bottom:1px solid #eee">${a.nombre} ${a.apellido_paterno} ${a.apellido_materno || ''}</td>
+        </tr>`
+      })
+      html += '</tbody></table></div>'
+    }
+    // Mostrar modal en modo "solo ver"
+    document.getElementById('modal-titulo').textContent = `👥 ${nombre} — Alumnos`
+    document.getElementById('modal-form-container').innerHTML = html
+    document.getElementById('modal-msg').innerHTML = ''
+    document.querySelector('#modal-box .form-actions').innerHTML =
+      '<button class="btn-secondary" onclick="cerrarModal()">Cerrar</button>'
+    modalTipo = null; modalId = null
+    document.getElementById('modal-overlay').style.display = 'block'
+  }
+
+  /* ── TABLA: PROFESORES ─────────────────────────────────────────── */
+  async function cargarTablaProfesores() {
+    const tbody = document.getElementById('tbodyProfesores')
+    tbody.innerHTML = '<tr><td colspan="6">Cargando...</td></tr>'
+    try {
+      const profs = await apiGet(`${API1}/profesores`)
+      // Solo los activos van al listado de selección de cursos
+      listaProfesores = profs.filter(p => p.activo)
+      tbody.innerHTML = ''
+      if (!profs.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:gray">No hay profesores</td></tr>'; return
+      }
+      profs.forEach(p => {
+        const tr       = document.createElement('tr')
+        const inactivo = !p.activo
+        if (inactivo) tr.style.cssText = 'background:#f9f0f0; color:#aaa;'
+        const badge = inactivo
+          ? '<span style="font-size:.7em;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:10px;margin-left:4px">Inactivo</span>'
+          : ''
+        tr.innerHTML = `
+          <td>${p.id}${badge}</td>
+          <td>${p.rut}</td>
+          <td>${p.nombre} ${p.apellido_paterno}</td>
+          <td>${p.email || '—'}</td>
+          <td>${p.especialidad || '—'}</td>
+          <td>
+            ${inactivo
+              ? `<button class="btn-sm btn-primary" onclick="reactivarProfesor(${p.id},'${p.nombre}')">🔄 Reactivar</button>
+                 <button class="btn-sm btn-delete"  onclick="eliminarProfesor(${p.id},'${p.nombre}')">🗑️ Eliminar</button>`
+              : `<button class="btn-sm btn-edit"   onclick="editarProfesor(${p.id})">✏️ Editar</button>
+                 <button class="btn-sm btn-delete" onclick="eliminarProfesor(${p.id},'${p.nombre}')">🗑️</button>`}
+          </td>`
+        tbody.appendChild(tr)
+      })
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="6" class="mensaje-err">Error: ${err.message}</td></tr>`
+    }
+  }
+
+  async function reactivarProfesor(id, nombre) {
+    if (!confirm(`¿Reactivar al profesor ${nombre}?`)) return
+    const { ok, data } = await apiPatch(`${API1}/profesores/${id}/reactivar`, {})
+    document.getElementById('msg-profesores').innerHTML =
+      ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+         : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarTablaProfesores()
+  }
+
+  async function editarProfesor(id) {
+    const p = await apiGet(`${API1}/profesores/${id}`)
+    await abrirModal('profesor', p)
+  }
+
+  async function eliminarProfesor(id, nombre) {
+    if (!confirm(`⚠️ ¿Eliminar permanentemente al profesor ${nombre}?\n\nSe eliminarán también sus horarios asignados.\n(No se puede deshacer)`)) return
+    const { ok, data } = await apiDelete(`${API1}/profesores/${id}`)
+    document.getElementById('msg-profesores').innerHTML =
+      ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+         : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarTablaProfesores()
+  }
+
+  /* ── PANEL DE ADMINISTRACIÓN ──────────────────────────────────── */
+  async function cargarPanel() {
+    const statsEl  = document.getElementById('panel-stats')
+    const alertEl  = document.getElementById('panel-alertas')
+    const guiaEl   = document.getElementById('panel-guia')
+    if (!statsEl) return
+    statsEl.innerHTML = '<p style="color:gray;font-size:.9em">⏳ Cargando estadísticas...</p>'
+
+    try {
+      const [alumnos, cursos, profesores, horarios, usuarios, asignaturas, aulas] = await Promise.all([
+        apiGet(`${API1}/alumnos`),
+        apiGet(`${API1}/cursos`),
+        apiGet(`${API1}/profesores`),
+        apiGet(`${API1}/horarios`),
+        apiGet(`${API1}/usuarios`),
+        apiGet(`${API1}/asignaturas`),
+        apiGet(`${API1}/aulas`)
+      ])
+
+      const alActivos  = alumnos.filter(a => a.activo)
+      const cuActivos  = cursos.filter(c => c.activo)
+      const prActivos  = profesores.filter(p => p.activo)
+      const asActivas  = asignaturas.filter(a => a.activo)
+      const usActivos  = usuarios.filter(u => u.activo)
+
+      // ── Tarjetas de estadísticas ────────────────────────────────
+      const tarjetas = [
+        { n: alActivos.length,  lbl:'Alumnos',      icon:'👤', color:'#2563eb', tab:'alumnos' },
+        { n: cuActivos.length,  lbl:'Cursos',        icon:'📚', color:'#7c3aed', tab:'cursos' },
+        { n: prActivos.length,  lbl:'Profesores',    icon:'👨‍🏫', color:'#059669', tab:'profesores' },
+        { n: horarios.length,   lbl:'Horarios',      icon:'📅', color:'#d97706', tab:'horarios' },
+        { n: usActivos.length,  lbl:'Usuarios',      icon:'🔑', color:'#dc2626', tab:'usuarios' },
+        { n: asActivas.length,  lbl:'Asignaturas',   icon:'📖', color:'#0891b2', tab:'asignaturas' },
+        { n: aulas.length,      lbl:'Aulas',         icon:'🏫', color:'#7c3aed', tab:'aulas' },
+      ]
+
+      const card = (t, big) => `
+        <div onclick="mostrarTab('${t.tab}')"
+             style="background:${t.color};color:#fff;padding:${big?'18px':'13px'};border-radius:8px;
+                    text-align:center;cursor:pointer;user-select:none"
+             onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
+          <div style="font-size:${big?'1.6em':'1.3em'}">${t.icon}</div>
+          <div style="font-size:${big?'2em':'1.5em'};font-weight:700;line-height:1.1">${t.n}</div>
+          <div style="font-size:.8em;opacity:.9;margin-top:2px">${t.lbl}</div>
+        </div>`
+
+      statsEl.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:8px">
+          ${tarjetas.slice(0,4).map(t => card(t,true)).join('')}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:0">
+          ${tarjetas.slice(4).map(t => card(t,false)).join('')}
+        </div>`
+
+      // ── Alertas pendientes ──────────────────────────────────────
+      const alertas = []
+      const alSinCurso = alActivos.filter(a => !a.id_curso)
+      if (alSinCurso.length)
+        alertas.push({ tipo:'warn', msg:`${alSinCurso.length} alumno(s) activo(s) sin curso asignado`, tab:'alumnos' })
+
+      const profConUser = new Set(usuarios.filter(u => u.id_profesor).map(u => u.id_profesor))
+      const prSinUser   = prActivos.filter(p => !profConUser.has(p.id))
+      if (prSinUser.length)
+        alertas.push({ tipo:'warn', msg:`${prSinUser.length} profesor(es) sin cuenta de acceso al sistema`, tab:'usuarios' })
+
+      const cuSinJefe = cuActivos.filter(c => !c.id_profesor_jefe)
+      if (cuSinJefe.length)
+        alertas.push({ tipo:'info', msg:`${cuSinJefe.length} curso(s) sin profesor jefe asignado`, tab:'cursos' })
+
+      const cuSinHorario = cuActivos.filter(c => !horarios.some(h => h.id_curso === c.id))
+      if (cuSinHorario.length)
+        alertas.push({ tipo:'info', msg:`${cuSinHorario.length} curso(s) sin horario configurado`, tab:'horarios' })
+
+      if (!alertas.length)
+        alertas.push({ tipo:'ok', msg:'Todo está configurado correctamente 🎉' })
+
+      const colorAlerta = { warn:'#fef3c7', info:'#dbeafe', ok:'#dcfce7' }
+      const bordeAlerta = { warn:'#f59e0b', info:'#2563eb', ok:'#16a34a' }
+      const textoAlerta = { warn:'#92400e', info:'#1e40af', ok:'#166534' }
+      const iconAlerta  = { warn:'⚠️', info:'ℹ️', ok:'✅' }
+
+      alertEl.innerHTML = `<h3 style="margin:0 0 8px;font-size:.95em;color:#374151">Estado del sistema</h3>` +
+        alertas.map(a => `
+          <div onclick="${a.tab?`mostrarTab('${a.tab}')`:''}"
+               style="padding:9px 13px;border-radius:6px;margin-bottom:5px;cursor:${a.tab?'pointer':'default'};
+                      background:${colorAlerta[a.tipo]};border-left:4px solid ${bordeAlerta[a.tipo]};
+                      color:${textoAlerta[a.tipo]};display:flex;justify-content:space-between;align-items:center">
+            <span>${iconAlerta[a.tipo]} ${a.msg}</span>
+            ${a.tab?`<span style="font-size:.8em;opacity:.7">ir →</span>`:''}
+          </div>`).join('')
+
+      // ── Guía de pasos ───────────────────────────────────────────
+      const pasos = [
+        { lbl:'Crear asignaturas (Matemáticas, Historia…)',          hecho: asActivas.length > 0,            tab:'asignaturas' },
+        { lbl:'Registrar aulas y salas',                             hecho: aulas.length > 0,                tab:'aulas' },
+        { lbl:'Registrar profesores con su especialidad',            hecho: prActivos.length > 0,            tab:'profesores' },
+        { lbl:'Crear cursos (3°A, 1° Medio B…) y asignar jefe',     hecho: cuActivos.length > 0,            tab:'cursos' },
+        { lbl:'Registrar alumnos y asignarlos a un curso',           hecho: alActivos.length > 0,            tab:'alumnos' },
+        { lbl:'Configurar horarios de clases',                       hecho: horarios.length > 0,             tab:'horarios' },
+        { lbl:'Crear cuentas de acceso para profesores',             hecho: usuarios.some(u=>u.tipo_persona==='profesor'&&u.activo), tab:'usuarios' },
+      ]
+      const done = pasos.filter(p => p.hecho).length
+      const pct  = Math.round(done / pasos.length * 100)
+
+      guiaEl.innerHTML = `
+        <div style="background:#f0f4ff;border-radius:8px;padding:16px;border:1px solid #c7d2fe">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h3 style="margin:0;color:#1e40af;font-size:.95em">📋 Guía de configuración inicial</h3>
+            <span style="font-size:.85em;color:#3730a3;font-weight:600">${done}/${pasos.length} — ${pct}%</span>
+          </div>
+          <div style="background:#e0e7ff;height:7px;border-radius:4px;margin-bottom:12px">
+            <div style="background:#2563eb;height:100%;width:${pct}%;border-radius:4px;transition:width .5s"></div>
+          </div>
+          ${pasos.map((p,i) => `
+            <div onclick="mostrarTab('${p.tab}')"
+                 style="display:flex;align-items:center;gap:10px;padding:7px 10px;margin-bottom:4px;
+                        border-radius:6px;cursor:pointer;
+                        background:${p.hecho?'#dcfce7':'#fff'};border:1px solid ${p.hecho?'#86efac':'#e5e7eb'}">
+              <div style="width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;
+                          justify-content:center;font-size:.8em;font-weight:700;
+                          background:${p.hecho?'#16a34a':'#9ca3af'};color:#fff">
+                ${p.hecho?'✓':i+1}
+              </div>
+              <span style="color:${p.hecho?'#166534':'#374151'};font-size:.9em;
+                           ${p.hecho?'text-decoration:line-through;opacity:.65':''}">${p.lbl}</span>
+              ${!p.hecho?'<span style="margin-left:auto;font-size:.75em;color:#6b7280">→</span>':''}
+            </div>`).join('')}
+        </div>`
+
+    } catch (err) {
+      statsEl.innerHTML = `<p class="mensaje-err">Error al cargar el panel: ${err.message}</p>`
+    }
+  }
+
+  /* ── TABLA: HORARIOS ──────────────────────────────────────────── */
+  async function cargarTablaHorarios() {
+    const tbody = document.getElementById('tbodyHorarios')
+    tbody.innerHTML = '<tr><td colspan="7">Cargando...</td></tr>'
+    try {
+      const dia = document.getElementById('filtro-dia-horario')?.value || ''
+      const url = dia ? `${API1}/horarios?dia_semana=${dia}` : `${API1}/horarios`
+      const horarios = await apiGet(url)
+      tbody.innerHTML = ''
+      if (!horarios.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="color:gray">No hay bloques horarios</td></tr>'; return
+      }
+      horarios.forEach(h => {
+        const tr = document.createElement('tr')
+        tr.innerHTML = `
+          <td><strong>${DIAS_SEMANA[h.dia_semana] || h.dia_semana}</strong></td>
+          <td>${h.hora_inicio.slice(0,5)} – ${h.hora_fin.slice(0,5)}</td>
+          <td>${h.curso}</td>
+          <td>${h.asignatura}</td>
+          <td>${h.profesor}</td>
+          <td>${h.sala || '—'}</td>
+          <td>
+            <button class="btn-sm btn-edit"   onclick="editarHorario(${h.id})">✏️</button>
+            <button class="btn-sm btn-delete" onclick="eliminarHorario(${h.id})">🗑️</button>
+          </td>`
+        tbody.appendChild(tr)
+      })
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="7" class="mensaje-err">Error: ${err.message}</td></tr>`
+    }
+  }
+
+  async function editarHorario(id) {
+    // Obtener datos del horario desde la lista cargada en la tabla
+    const rows = document.querySelectorAll('#tbodyHorarios tr')
+    // Re-carga todos los horarios para buscar el ID
+    const horarios = await apiGet(`${API1}/horarios`)
+    const h = horarios.find(x => x.id === id)
+    if (h) await abrirModal('horario', h)
+  }
+
+  async function eliminarHorario(id) {
+    if (!confirm('⚠️ ¿Eliminar este bloque horario?\n\nSe eliminarán también los registros de asistencia asociados.')) return
+    const { ok, data } = await apiDelete(`${API1}/horarios/${id}`)
+    document.getElementById('msg-horarios').innerHTML =
+      ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+         : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarTablaHorarios()
+  }
+
+  /* ── TABLA: USUARIOS ───────────────────────────────────────────── */
+  async function cargarTablaUsuarios() {
+    const tbody = document.getElementById('tbodyUsuarios')
+    tbody.innerHTML = '<tr><td colspan="7">Cargando...</td></tr>'
+    try {
+      const usuarios = await apiGet(`${API1}/usuarios`)
+      tbody.innerHTML = ''
+      if (!usuarios.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="color:gray">No hay usuarios</td></tr>'; return
+      }
+      usuarios.forEach(u => {
+        const tr = document.createElement('tr')
+        const inactivo = !u.activo
+        if (inactivo) tr.style.cssText = 'background:#f9f0f0; color:#aaa;'
+        const badge = inactivo
+          ? '<span style="font-size:.7em;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:10px;margin-left:4px">Inactivo</span>'
+          : '<span style="font-size:.7em;background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:10px;margin-left:4px">Activo</span>'
+        const ultimoAcceso = u.ultimo_acceso
+          ? new Date(u.ultimo_acceso).toLocaleDateString('es-CL') + ' ' + new Date(u.ultimo_acceso).toLocaleTimeString('es-CL', {hour:'2-digit',minute:'2-digit'})
+          : 'Nunca'
+        tr.innerHTML = `
+          <td>${u.id}</td>
+          <td><strong>${u.nombre_usuario}</strong>${badge}</td>
+          <td><span style="background:${u.tipo_persona==='admin'?'#dbeafe':'#f0fdf4'};padding:2px 8px;border-radius:10px;font-size:.8em">${u.tipo_persona}</span></td>
+          <td>${u.nombre_profesor || '—'}</td>
+          <td>${u.activo ? '✅ Activo' : '🔴 Inactivo'}</td>
+          <td style="font-size:.82em;color:#666">${ultimoAcceso}</td>
+          <td>
+            <button class="btn-sm btn-edit"   onclick="editarUsuario(${u.id})">✏️ Editar</button>
+            <button class="btn-sm" style="background:#8b5cf6;color:#fff" onclick="resetPasswordUsuario(${u.id},'${u.nombre_usuario}')">🔑</button>
+            <button class="btn-sm ${u.activo?'btn-secondary':'btn-face'}" onclick="toggleUsuario(${u.id},'${u.nombre_usuario}',${u.activo})">${u.activo?'🔒 Desact.':'🔓 Activar'}</button>
+            <button class="btn-sm btn-delete" onclick="eliminarUsuario(${u.id},'${u.nombre_usuario}')">🗑️</button>
+          </td>`
+        tbody.appendChild(tr)
+      })
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="7" class="mensaje-err">Error: ${err.message}</td></tr>`
+    }
+  }
+
+  async function editarUsuario(id) {
+    const usuarios = await apiGet(`${API1}/usuarios`)
+    const u = usuarios.find(x => x.id === id)
+    if (u) await abrirModal('usuario', u)
+  }
+
+  async function toggleUsuario(id, nombre, activo) {
+    const accion = activo ? 'desactivar' : 'activar'
+    if (!confirm(`¿${accion.charAt(0).toUpperCase()+accion.slice(1)} al usuario "${nombre}"?`)) return
+    const { ok, data } = await apiPatch(`${API1}/usuarios/${id}/toggle`, {})
+    document.getElementById('msg-usuarios').innerHTML =
+      ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+         : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarTablaUsuarios()
+  }
+
+  async function resetPasswordUsuario(id, nombre) {
+    await abrirModal('usuario-password', { id, nombre_usuario: nombre })
+  }
+
+  async function eliminarUsuario(id, nombre) {
+    if (!confirm(`⚠️ ¿Eliminar permanentemente al usuario "${nombre}"?\n\nEsta acción no se puede deshacer.`)) return
+    const { ok, data } = await apiDelete(`${API1}/usuarios/${id}`)
+    document.getElementById('msg-usuarios').innerHTML =
+      ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+         : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarTablaUsuarios()
+  }
+
+  /* ── TABLA: ASIGNATURAS ────────────────────────────────────────── */
+  async function cargarTablaAsignaturas() {
+    const tbody = document.getElementById('tbodyAsignaturas')
+    tbody.innerHTML = '<tr><td colspan="6">Cargando...</td></tr>'
+    try {
+      const asigs = await apiGet(`${API1}/asignaturas`)
+      listaAsignaturas = asigs.filter(a => a.activo)
+      tbody.innerHTML = ''
+      if (!asigs.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:gray">No hay asignaturas</td></tr>'; return
+      }
+      asigs.forEach(a => {
+        const tr = document.createElement('tr')
+        const inactivo = !a.activo
+        if (inactivo) tr.style.cssText = 'background:#f9f0f0; color:#aaa;'
+        tr.innerHTML = `
+          <td>${a.id}</td>
+          <td><strong>${a.nombre}</strong></td>
+          <td>${a.codigo || '—'}</td>
+          <td>${a.horas_semanales} hrs</td>
+          <td>${a.activo ? '✅ Activa' : '🔴 Inactiva'}</td>
+          <td>
+            <button class="btn-sm btn-edit"   onclick="editarAsignatura(${a.id})">✏️ Editar</button>
+            <button class="btn-sm btn-delete" onclick="eliminarAsignatura(${a.id},'${a.nombre.replace(/'/g,"\\'")}')">🗑️</button>
+          </td>`
+        tbody.appendChild(tr)
+      })
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="6" class="mensaje-err">Error: ${err.message}</td></tr>`
+    }
+  }
+
+  async function editarAsignatura(id) {
+    const asigs = await apiGet(`${API1}/asignaturas`)
+    const a = asigs.find(x => x.id === id)
+    if (a) await abrirModal('asignatura', a)
+  }
+
+  async function eliminarAsignatura(id, nombre) {
+    if (!confirm(`⚠️ ¿Eliminar la asignatura "${nombre}"?\n\nSe eliminarán también sus horarios.`)) return
+    const { ok, data } = await apiDelete(`${API1}/asignaturas/${id}`)
+    document.getElementById('msg-asignaturas').innerHTML =
+      ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+         : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarTablaAsignaturas()
+  }
+
+  /* ── TABLA: AULAS ──────────────────────────────────────────────── */
+  async function cargarTablaAulas() {
+    const tbody = document.getElementById('tbodyAulas')
+    tbody.innerHTML = '<tr><td colspan="5">Cargando...</td></tr>'
+    try {
+      const aulas = await apiGet(`${API1}/aulas`)
+      listaAulas = aulas
+      tbody.innerHTML = ''
+      if (!aulas.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color:gray">No hay aulas registradas</td></tr>'; return
+      }
+      aulas.forEach(a => {
+        const tr = document.createElement('tr')
+        tr.innerHTML = `
+          <td>${a.id}</td>
+          <td><strong>${a.codigo}</strong></td>
+          <td>${a.nombre || '—'}</td>
+          <td>${a.capacidad} alumnos</td>
+          <td>
+            <button class="btn-sm btn-edit"   onclick="editarAula(${a.id})">✏️ Editar</button>
+            <button class="btn-sm btn-delete" onclick="eliminarAula(${a.id},'${a.codigo}')">🗑️</button>
+          </td>`
+        tbody.appendChild(tr)
+      })
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="5" class="mensaje-err">Error: ${err.message}</td></tr>`
+    }
+  }
+
+  async function editarAula(id) {
+    const aulas = await apiGet(`${API1}/aulas`)
+    const a = aulas.find(x => x.id === id)
+    if (a) await abrirModal('aula', a)
+  }
+
+  async function eliminarAula(id, codigo) {
+    if (!confirm(`⚠️ ¿Eliminar el aula ${codigo}?`)) return
+    const { ok, data } = await apiDelete(`${API1}/aulas/${id}`)
+    document.getElementById('msg-aulas').innerHTML =
+      ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+         : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarTablaAulas()
+  }
+
+  /* ── MODAL CRUD ────────────────────────────────────────────────── */
+  async function abrirModal(tipo, datos = null) {
+    modalTipo = tipo
+    modalId   = datos ? datos.id : null
+    document.getElementById('modal-msg').innerHTML = ''
+    const titulos = {
+      alumno: 'Alumno', curso: 'Curso', profesor: 'Profesor',
+      horario: 'Bloque Horario', usuario: 'Usuario',
+      'usuario-password': 'Cambiar Contraseña',
+      asignatura: 'Asignatura', aula: 'Aula'
+    }
+    document.getElementById('modal-titulo').textContent =
+      (modalId ? 'Editar' : 'Nuevo/a') + ' ' + (titulos[tipo] || tipo)
+
+    // Siempre obtener datos frescos para los selectores del formulario
+    if (tipo === 'alumno') {
+      listaCursos = (await apiGet(`${API1}/cursos`)).filter(c => c.activo)
+    }
+    if (tipo === 'curso') {
+      listaProfesores = (await apiGet(`${API1}/profesores`)).filter(p => p.activo)
+    }
+    if (tipo === 'profesor') {
+      const [cursos, asigs] = await Promise.all([
+        apiGet(`${API1}/cursos`),
+        apiGet(`${API1}/asignaturas`)
+      ])
+      listaCursos      = cursos.filter(c => c.activo)
+      listaAsignaturas = asigs.filter(a => a.activo)
+    }
+    if (tipo === 'horario') {
+      // Necesita todos los selectores
+      const [cursos, asigs, profs, aulas] = await Promise.all([
+        apiGet(`${API1}/cursos`),
+        apiGet(`${API1}/asignaturas`),
+        apiGet(`${API1}/profesores`),
+        apiGet(`${API1}/aulas`)
+      ])
+      listaCursos      = cursos.filter(c => c.activo)
+      listaAsignaturas = asigs.filter(a => a.activo)
+      listaProfesores  = profs.filter(p => p.activo)
+      listaAulas       = aulas
+    }
+    if (tipo === 'usuario') {
+      listaProfesores = (await apiGet(`${API1}/profesores`)).filter(p => p.activo)
     }
 
-    // ─── MODO DE CÁMARA ────────────────────────────────────
-    function cambiarModo(modo) {
-      modoIP = (modo === 'ip')
-      document.getElementById('config-ip').style.display = modoIP ? 'block' : 'none'
-      detenerPreview()
-    }
+    // Restaurar botones del modal (en caso de que estuvieran en modo "ver")
+    document.querySelector('#modal-box .form-actions').innerHTML = `
+      <button class="btn-secondary" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-primary"   onclick="guardarModal()">Guardar</button>`
 
-    async function conectarIP() {
-      const url = getUrlIP()
-      if (!url) return alert('Ingresa la URL de IP Webcam')
-      if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
-      document.getElementById('resultadoRegistro').innerHTML = 'Conectando...'
-      iniciarPreviewIP(url)
-    }
+    document.getElementById('modal-form-container').innerHTML = renderFormulario(tipo, datos)
+    aplicarRestriccionesInput()
+    document.getElementById('modal-overlay').style.display = 'block'
+  }
 
-    function getUrlIP() {
-      return document.getElementById('urlIP').value.trim().replace(/\/$/, '')
-    }
-
-    // ─── MODELOS ───────────────────────────────────────────
-    async function cargarModelos() {
-      const RUTA = './assets/models'
-      await faceapi.nets.tinyFaceDetector.loadFromUri(RUTA)
-      await faceapi.nets.faceLandmark68Net.loadFromUri(RUTA)
-      await faceapi.nets.faceRecognitionNet.loadFromUri(RUTA)
-      console.log('Modelos cargados')
-    }
-
-    // ─── WEBCAM PC ─────────────────────────────────────────
-    async function activarWebcam() {
-      const video = document.getElementById('video')
-      if (video.srcObject) return
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-      video.srcObject = stream
-      iniciarPreviewWebcam()
-    }
-
-    function iniciarPreviewWebcam() {
-      detenerPreview()
-      const video  = document.getElementById('video')
-      const canvas = document.getElementById('canvas')
-      intervaloPreview = setInterval(async () => {
-        if (video.readyState < 2) return
-        const detecciones = await faceapi
-          .detectAllFaces(video, OPCIONES_DETECTOR)
-          .withFaceLandmarks()
-        faceapi.matchDimensions(canvas, { width: video.videoWidth, height: video.videoHeight })
-        const ctx = canvas.getContext('2d')
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
-        faceapi.draw.drawDetections(canvas, faceapi.resizeResults(detecciones, { width: video.videoWidth, height: video.videoHeight }))
-      }, 300)
-    }
-
-    // ─── IP WEBCAM ─────────────────────────────────────────
-    function iniciarPreviewIP(url) {
-      detenerPreview()
-      const canvas = document.getElementById('canvas')
-      const ctx    = canvas.getContext('2d')
-      intervaloPreview = setInterval(async () => {
-        try {
-          const img = await cargarSnapshot(url)
-          canvas.width = 640; canvas.height = 480
-          ctx.drawImage(img, 0, 0, 640, 480)
-          const detecciones = await faceapi.detectAllFaces(canvas, OPCIONES_DETECTOR).withFaceLandmarks()
-          faceapi.draw.drawDetections(canvas, detecciones)
-          document.getElementById('estadoCamara').innerHTML =
-            detecciones.length > 0 ? '✅ Rostro detectado' : '🔍 Buscando rostro...'
-        } catch (err) { console.warn('Preview error:', err.message) }
-      }, 500)
-    }
-
-    function detenerPreview() {
-      if (intervaloPreview) { clearInterval(intervaloPreview); intervaloPreview = null }
-    }
-
-    function cargarSnapshot(url) {
-      return new Promise((resolve, reject) => {
-        const img = new Image()
-        img.crossOrigin = 'anonymous'
-        img.onload  = () => resolve(img)
-        img.onerror = () => reject(new Error('No se pudo cargar snapshot'))
-        img.src = `${url}/shot.jpg?t=${Date.now()}`
-        setTimeout(() => reject(new Error('Timeout')), 5000)
+  function aplicarRestriccionesInput() {
+    /* ── RUT ─────────────────────────────────────────────────
+       Formato en tiempo real: guión antes del último dígito.
+       Ej: "2169256" → "216925-6" → "2169256-3" (al agregar 3)
+       Acepta solo dígitos y K (dígito verificador).         */
+    const rutInput = document.getElementById('f-rut')
+    if (rutInput) {
+      function formatearRut(valor) {
+        // 1. Eliminar todo excepto dígitos y K
+        let v = valor.toUpperCase().replace(/[^0-9K]/g, '')
+        // 2. Máximo 9 caracteres limpios (8 dígitos cuerpo + 1 verificador)
+        if (v.length > 9) v = v.slice(0, 9)
+        // 3. Insertar guión antes del último carácter cuando hay 2+
+        if (v.length >= 2) v = v.slice(0, -1) + '-' + v.slice(-1)
+        return v
+      }
+      // Formatear en tiempo real mientras escribe
+      rutInput.addEventListener('input', () => {
+        rutInput.value = formatearRut(rutInput.value)
+      })
+      // También al salir del campo (por si pegó texto)
+      rutInput.addEventListener('blur', () => {
+        rutInput.value = formatearRut(rutInput.value)
       })
     }
 
-    async function getFrame() {
-      return modoIP ? await cargarSnapshot(getUrlIP()) : document.getElementById('video')
+    /* ── Teléfono: solo dígitos, máx 9 ───────────────────── */
+    const telInput = document.getElementById('f-telefono')
+    if (telInput) {
+      telInput.addEventListener('input', () => {
+        telInput.value = telInput.value.replace(/\D/g, '').slice(0, 9)
+      })
     }
 
-    // ─── WEBSOCKET ─────────────────────────────────────────
-    function conectarWebSocket() {
-      ws = new WebSocket(WS_URL)
-      ws.onopen  = () => console.log('Conectado a API3 via WebSocket')
-      ws.onerror = (e) => console.error('Error WebSocket:', e)
-      ws.onmessage = (evento) => {
-        const r   = JSON.parse(evento.data)
-        const div = document.getElementById('resultado')
-        div.innerHTML = r.exito
-          ? `✅ <strong>${r.alumno.nombre} ${r.alumno.apellido}</strong><br>
-             RUT: ${r.alumno.rut}<br>
-             Confianza: ${r.alumno.confianza}<br>
-             <small style="color:green">Asistencia registrada ✓</small>`
-          : `❌ ${r.mensaje}`
-      }
-    }
-
-    // ─── REGISTRAR ROSTRO ──────────────────────────────────
-    async function registrarRostro() {
-      const idAlumno = document.getElementById('idAlumno').value
-      const divReg   = document.getElementById('resultadoRegistro')
-
-      if (!idAlumno) { divReg.innerHTML = '⚠️ Ingresa el ID del alumno'; return }
-
-      divReg.innerHTML = 'Cargando modelos...'
-      if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
-      if (!modoIP) await activarWebcam()
-
-      divReg.innerHTML = 'Capturando rostro...'
-      let elemento
-      try { elemento = await getFrame() }
-      catch (err) { divReg.innerHTML = `❌ Error cámara: ${err.message}`; return }
-
-      const deteccion = await faceapi
-        .detectSingleFace(elemento, OPCIONES_DETECTOR)
-        .withFaceLandmarks()
-        .withFaceDescriptor()
-
-      if (!deteccion) {
-        divReg.innerHTML = '❌ No se detectó ningún rostro. Posiciónate frente a la cámara.'
-        return
-      }
-
-      const descriptor = Array.from(deteccion.descriptor)
-
-      try {
-        const respuesta = await fetch(`${API3}/rostros`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ id_alumno: parseInt(idAlumno), descriptor })
-        })
-        const datos = await respuesta.json()
-        divReg.innerHTML = respuesta.ok
-          ? `✅ ${datos.mensaje} (ID alumno: ${idAlumno})`
-          : `❌ Error: ${datos.error}`
-      } catch (err) {
-        divReg.innerHTML = `❌ Error de red: ${err.message}`
-      }
-    }
-
-    // ─── RECONOCIMIENTO AUTOMÁTICO ─────────────────────────
-    async function enviarFrame() {
-      const id_horario = parseInt(document.getElementById('selectorHorario').value)
-      const fecha      = document.getElementById('fechaClase').value
-
-      if (!id_horario || !fecha) {
-        document.getElementById('resultado').innerHTML =
-          '⚠️ Selecciona la clase activa antes de iniciar'
-        return
-      }
-
-      try {
-        const elemento  = await getFrame()
-        const deteccion = await faceapi
-          .detectSingleFace(elemento, OPCIONES_DETECTOR)
-          .withFaceLandmarks()
-          .withFaceDescriptor()
-
-        if (!deteccion) {
-          document.getElementById('resultado').innerHTML = '🔍 Buscando rostro...'
-          return
+    /* ── Campos de solo letras (nombres y especialidad) ─────
+       Permite: letras con tilde, espacios, puntos, guiones.
+       Bloquea: números y caracteres especiales.             */
+    if (modalTipo === 'alumno' || modalTipo === 'profesor') {
+      ;['f-nombre', 'f-apellido_paterno', 'f-apellido_materno'].forEach(id => {
+        const el = document.getElementById(id)
+        if (el) {
+          el.addEventListener('input', () => {
+            el.value = el.value.replace(/[^a-zA-ZáéíóúüñÁÉÍÓÚÜÑ\s.\-']/g, '')
+          })
         }
-
-        const descriptor = Array.from(deteccion.descriptor)
-
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          // FIX: ahora envía descriptor + id_horario + fecha
-          ws.send(JSON.stringify({ descriptor, id_horario, fecha }))
-        }
-      } catch (err) {
-        document.getElementById('resultado').innerHTML = `❌ Error cámara: ${err.message}`
-      }
+      })
     }
 
-    function detener() {
-      detenerPreview()
-      if (intervaloReconocimiento) { clearInterval(intervaloReconocimiento); intervaloReconocimiento = null }
-      if (ws) { ws.close(); ws = null }
-      document.getElementById('resultado').innerHTML = 'Reconocimiento detenido.'
+    /* ── Letra del curso: una sola letra mayúscula ────────── */
+    const letraInput = document.getElementById('f-letra')
+    if (letraInput) {
+      letraInput.addEventListener('input', () => {
+        letraInput.value = letraInput.value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 1)
+      })
     }
 
-    async function iniciar() {
-      const id_horario = document.getElementById('selectorHorario').value
-      const fecha      = document.getElementById('fechaClase').value
+    /* ── Nivel del curso: ahora es <select> con opciones predefinidas ─
+       No requiere filtro de texto. La función autoNombreCurso()
+       se invoca desde el onchange del select y el oninput de letra. */
+  }
 
-      if (!id_horario || !fecha) {
-        alert('Selecciona la clase activa antes de iniciar')
-        return
-      }
+  function cerrarModal() {
+    document.getElementById('modal-overlay').style.display = 'none'
+    modalTipo = null; modalId = null
+  }
 
-      document.getElementById('resultado').innerHTML = 'Cargando modelos...'
-      if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
-      if (!modoIP) await activarWebcam()
+  function renderFormulario(tipo, d) {
+    const v = (campo) => d ? (d[campo] ?? '') : ''
 
-      conectarWebSocket()
-      if (intervaloReconocimiento) clearInterval(intervaloReconocimiento)
-      intervaloReconocimiento = setInterval(enviarFrame, 2000)
-      document.getElementById('resultado').innerHTML = 'Sistema listo, buscando rostros...'
+    if (tipo === 'alumno') {
+      const opsCursos = listaCursos.map(c =>
+        `<option value="${c.id}" ${d && d.id_curso == c.id ? 'selected' : ''}>${c.nombre}</option>`
+      ).join('')
+
+      // Rango válido de fecha de nacimiento para un alumno escolar
+      const hoy      = new Date()
+      // Máximo: hace 4 años (mínimo 4 años de edad)
+      const maxFecha = new Date(hoy.getFullYear() - 4, hoy.getMonth(), hoy.getDate())
+                         .toISOString().split('T')[0]
+      // Mínimo: hace 25 años (máximo 25 años de edad)
+      const minFecha = new Date(hoy.getFullYear() - 25, hoy.getMonth(), hoy.getDate())
+                         .toISOString().split('T')[0]
+
+      return `
+        <div class="form-group">
+          <label>RUT * <small style="color:#888">Ej: 12345678-9</small></label>
+          <input type="text" id="f-rut" value="${v('rut')}" maxlength="10"
+                 placeholder="12345678-9" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label>Nombre * <small style="color:#888">Solo letras</small></label>
+          <input type="text" id="f-nombre" value="${v('nombre')}" placeholder="Juan" />
+        </div>
+        <div class="form-group">
+          <label>Apellido Paterno * <small style="color:#888">Solo letras</small></label>
+          <input type="text" id="f-apellido_paterno" value="${v('apellido_paterno')}" placeholder="Pérez" />
+        </div>
+        <div class="form-group">
+          <label>Apellido Materno</label>
+          <input type="text" id="f-apellido_materno" value="${v('apellido_materno')}" placeholder="García" />
+        </div>
+        <div class="form-group">
+          <label>Email * <small style="color:#888">Ej: alumno@colegio.cl</small></label>
+          <input type="email" id="f-email" value="${v('email')}" placeholder="alumno@colegio.cl" />
+        </div>
+        <div class="form-group">
+          <label>Teléfono <small style="color:#888">9 dígitos</small></label>
+          <input type="text" id="f-telefono" value="${v('telefono')}" maxlength="9" placeholder="912345678" />
+        </div>
+        <div class="form-group">
+          <label>Fecha Nacimiento * <small style="color:#888">Entre 4 y 25 años de edad</small></label>
+          <input type="date" id="f-fecha_nacimiento"
+                 min="${minFecha}" max="${maxFecha}"
+                 value="${v('fecha_nacimiento') ? v('fecha_nacimiento').split('T')[0] : ''}" />
+        </div>
+        <div class="form-group">
+          <label>Curso * <small style="color:#888">Obligatorio</small></label>
+          <select id="f-id_curso">
+            <option value="">— Selecciona un curso —</option>
+            ${opsCursos}
+          </select>
+        </div>`
     }
 
-    // Recargar horarios cuando cambia la fecha
-    document.addEventListener('DOMContentLoaded', () => {
-      const fechaInput = document.getElementById('fechaClase')
-      if (fechaInput) fechaInput.addEventListener('change', cargarHorarios)
+    if (tipo === 'curso') {
+      // Opciones de nivel del sistema escolar chileno
+      // Básica: 1° a 8°   |   Media: 1° a 4°
+      const nivelesBasica = ['1°','2°','3°','4°','5°','6°','7°','8°']
+      const nivelesMedia  = ['1° Medio','2° Medio','3° Medio','4° Medio']
+      const nivelActual   = v('nivel')
+
+      const opsBasica = nivelesBasica.map(n =>
+        `<option value="${n}" ${nivelActual === n ? 'selected' : ''}>${n} Básico</option>`
+      ).join('')
+      const opsMedia = nivelesMedia.map(n =>
+        `<option value="${n}" ${nivelActual === n ? 'selected' : ''}>${n}</option>`
+      ).join('')
+
+      return `
+        <div class="form-group">
+          <label>Nivel * <small style="color:#888">Grado del curso</small></label>
+          <select id="f-nivel" onchange="autoNombreCurso()">
+            <option value="">-- Selecciona nivel --</option>
+            <optgroup label="Educación Básica">${opsBasica}</optgroup>
+            <optgroup label="Educación Media">${opsMedia}</optgroup>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Letra/Sección * <small style="color:#888">Una letra (A, B, C…)</small></label>
+          <input type="text" id="f-letra" value="${v('letra')}" placeholder="A" maxlength="1"
+                 oninput="this.value=this.value.replace(/[^a-zA-Z]/g,'').toUpperCase().slice(0,1); autoNombreCurso()" />
+        </div>
+        <div class="form-group">
+          <label>Nombre del curso * <small style="color:#888"></small></label>
+          <input type="text" id="f-nombre" value="${v('nombre')}" placeholder="3°A"
+                 style="background:#f8f8f8" title="Se completa solo al elegir nivel y letra" />
+        </div>
+        <div class="form-group">
+          <label>Año <small style="color:#888"></small></label>
+          <input type="number" id="f-anio" value="${new Date().getFullYear()}"
+                 readonly style="width:110px; background:#f0f0f0; color:#666; cursor:not-allowed;" />
+        </div>`
+    }
+
+    if (tipo === 'profesor') {
+      // Detectar el curso del que este profesor es jefe (si está editando)
+      const idProf = d ? d.id : null
+      const cursoJefe = idProf ? listaCursos.find(c => c.id_profesor_jefe == idProf) : null
+      const opsCursosJefe = listaCursos.map(c =>
+        `<option value="${c.id}" ${cursoJefe && cursoJefe.id === c.id ? 'selected' : ''}>${c.nombre} (${c.anio})</option>`
+      ).join('')
+
+      return `
+        <div class="form-group">
+          <label>RUT * <small style="color:#888">Ej: 12345678-9</small></label>
+          <input type="text" id="f-rut" value="${v('rut')}" maxlength="10"
+                 placeholder="12345678-9" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label>Nombre * <small style="color:#888">Solo letras</small></label>
+          <input type="text" id="f-nombre" value="${v('nombre')}" placeholder="Carlos" />
+        </div>
+        <div class="form-group">
+          <label>Apellido Paterno * <small style="color:#888">Solo letras</small></label>
+          <input type="text" id="f-apellido_paterno" value="${v('apellido_paterno')}" placeholder="González" />
+        </div>
+        <div class="form-group">
+          <label>Apellido Materno</label>
+          <input type="text" id="f-apellido_materno" value="${v('apellido_materno')}" placeholder="Pérez" />
+        </div>
+        <div class="form-group">
+          <label>Email * <small style="color:#888">Ej: profesor@colegio.cl</small></label>
+          <input type="text" id="f-email" value="${v('email')}" placeholder="profesor@colegio.cl" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label>Teléfono <small style="color:#888">9 dígitos</small></label>
+          <input type="text" id="f-telefono" value="${v('telefono')}" maxlength="9" placeholder="912345678" />
+        </div>
+        <div class="form-group">
+          <label>Especialidad *</label>
+          <select id="f-especialidad">
+            <option value="">— Selecciona asignatura —</option>
+            ${listaAsignaturas.map(a =>
+              `<option value="${a.nombre}" ${v('especialidad')===a.nombre?'selected':''}>${a.nombre}${a.codigo?' ('+a.codigo+')':''}</option>`
+            ).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Jefe del Curso <small style="color:#888">Opcional</small></label>
+          <select id="f-id_curso_jefe">
+            <option value="">— Sin curso asignado —</option>
+            ${opsCursosJefe}
+          </select>
+        </div>`
+    }
+    /* ── HORARIO ─────────────────────────────────────────────── */
+    if (tipo === 'horario') {
+      const opsCursos = listaCursos.map(c =>
+        `<option value="${c.id}" ${d && d.id_curso==c.id?'selected':''}>${c.nombre}</option>`
+      ).join('')
+      const opsAsigs = listaAsignaturas.map(a =>
+        `<option value="${a.id}" ${d && d.id_asignatura==a.id?'selected':''}>${a.nombre}</option>`
+      ).join('')
+      const opsProfs = listaProfesores.map(p =>
+        `<option value="${p.id}" ${d && d.id_profesor==p.id?'selected':''}>${p.nombre} ${p.apellido_paterno}</option>`
+      ).join('')
+      const opsAulas = listaAulas.map(a =>
+        `<option value="${a.codigo}" ${d && d.sala===a.codigo?'selected':''}>${a.codigo}${a.nombre?' — '+a.nombre:''} (cap. ${a.capacidad})</option>`
+      ).join('')
+
+      return `
+        <div class="form-group">
+          <label>Curso *</label>
+          <select id="f-id_curso"><option value="">— Selecciona —</option>${opsCursos}</select>
+        </div>
+        <div class="form-group">
+          <label>Asignatura *</label>
+          <select id="f-id_asignatura" onchange="filtrarProfesoresPorAsignatura()">
+            <option value="">— Selecciona —</option>${opsAsigs}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Profesor * <small style="color:#888">Solo disponibles para la asignatura elegida</small></label>
+          <select id="f-id_profesor" ${d && d.id_asignatura ? '' : 'disabled'}>
+            <option value="">— Selecciona primero la asignatura —</option>${d && d.id_asignatura ? opsProfs : ''}
+          </select>
+          <div id="info-profs-filtro" style="margin-top:4px">
+            ${d && d.id_asignatura ? '' : '<small style="color:#888">Selecciona la asignatura para ver los profesores disponibles.</small>'}
+          </div>
+        </div>
+        <div style="display:flex; gap:12px">
+          <div class="form-group" style="flex:1">
+            <label>Día *</label>
+            <select id="f-dia_semana">
+              <option value="">— Día —</option>
+              ${[1,2,3,4,5].map(d2 => `<option value="${d2}" ${d && d.dia_semana==d2?'selected':''}>${DIAS_SEMANA[d2]}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="flex:1">
+            <label>Hora inicio *</label>
+            <input type="time" id="f-hora_inicio" value="${v('hora_inicio')?.slice(0,5)||''}" />
+          </div>
+          <div class="form-group" style="flex:1">
+            <label>Hora fin *</label>
+            <input type="time" id="f-hora_fin" value="${v('hora_fin')?.slice(0,5)||''}" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Sala * <small style="color:#888">Obligatoria</small></label>
+          <select id="f-sala">
+            <option value="">— Selecciona una sala —</option>
+            ${opsAulas}
+          </select>
+        </div>`
+    }
+
+    /* ── USUARIO ─────────────────────────────────────────────── */
+    if (tipo === 'usuario') {
+      const opsProfs = listaProfesores.map(p =>
+        `<option value="${p.id}" ${d && d.id_profesor==p.id?'selected':''}>${p.nombre} ${p.apellido_paterno} — ${p.rut}</option>`
+      ).join('')
+      return `
+        <div class="form-group">
+          <label>Nombre de usuario * <small style="color:#888">Solo letras, números, punto o guión</small></label>
+          <input type="text" id="f-nombre_usuario" value="${v('nombre_usuario')}" placeholder="profe_gonzalez"
+                 autocomplete="off"
+                 oninput="this.value=this.value.replace(/\\s/g,'').replace(/[^a-zA-Z0-9_.\\-]/g,'')"
+                 onpaste="setTimeout(()=>{ this.value=this.value.replace(/\\s/g,'').replace(/[^a-zA-Z0-9_.\\-]/g,'') },0)" />
+        </div>
+        ${!modalId ? `
+        <div class="form-group">
+          <label>Contraseña *</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="password" id="f-password" placeholder="Mínimo 8 caracteres" autocomplete="new-password"
+                   style="flex:1" oninput="verificarFortalezaPassword()" />
+            <button type="button" onclick="generarPasswordSegura()"
+                    style="background:#7c3aed;color:#fff;border:none;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:.82em;white-space:nowrap">
+              🎲 Generar
+            </button>
+            <button type="button" onclick="toggleVerPassword('f-password')"
+                    style="background:#e5e7eb;border:none;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:.82em">
+              👁️
+            </button>
+          </div>
+          <!-- Barra de fortaleza -->
+          <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
+            <div style="flex:1;height:6px;background:#e5e7eb;border-radius:3px">
+              <div id="pwd-bar" style="width:0%;height:100%;background:#e5e7eb;border-radius:3px;transition:all .3s"></div>
+            </div>
+            <span id="pwd-label" style="font-size:.78em;min-width:80px"></span>
+          </div>
+          <!-- Requisitos -->
+          <div style="margin-top:6px;font-size:.8em;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px">
+            <div id="req-len">○ Mínimo 8 caracteres</div>
+            <div id="req-upper">○ Al menos 1 mayúscula</div>
+            <div id="req-lower">○ Al menos 1 minúscula</div>
+            <div id="req-num">○ Al menos 1 número</div>
+            <div id="req-sym">○ Al menos 1 símbolo (!@#...)</div>
+            <div id="req-nouser">○ Sin nombre de usuario</div>
+          </div>
+        </div>` : '<p style="color:#888;font-size:.85em;margin:0 0 8px">💡 Para cambiar la contraseña usa el botón 🔑 en la tabla.</p>'}
+        <div class="form-group">
+          <label>Tipo de acceso *</label>
+          <select id="f-tipo_persona" onchange="toggleCampoProfesor()">
+            <option value="">— Selecciona —</option>
+            <option value="admin"   ${v('tipo_persona')==='admin'   ?'selected':''}>Admin</option>
+            <option value="profesor" ${v('tipo_persona')==='profesor'?'selected':''}>Profesor</option>
+          </select>
+        </div>
+        <div class="form-group" id="campo-id-profesor" style="${v('tipo_persona')==='profesor'?'':'display:none'}">
+          <label>Profesor vinculado <small style="color:#888">Obligatorio si es tipo Profesor</small></label>
+          <select id="f-id_profesor">
+            <option value="">— Selecciona profesor —</option>
+            ${opsProfs}
+          </select>
+        </div>`
+    }
+
+    /* ── USUARIO - RESET PASSWORD ─────────────────────────────── */
+    if (tipo === 'usuario-password') {
+      return `
+        <p style="margin:0 0 10px">Nueva contraseña para <strong>${v('nombre_usuario')}</strong>:</p>
+        <div class="form-group">
+          <label>Nueva contraseña *</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="password" id="f-nueva_password" placeholder="Mínimo 8 caracteres"
+                   autocomplete="new-password" style="flex:1" oninput="verificarFortalezaPassword()" />
+            <button type="button" onclick="generarPasswordSegura()"
+                    style="background:#7c3aed;color:#fff;border:none;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:.82em;white-space:nowrap">
+              🎲 Generar
+            </button>
+            <button type="button" onclick="toggleVerPassword('f-nueva_password')"
+                    style="background:#e5e7eb;border:none;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:.82em">
+              👁️
+            </button>
+          </div>
+          <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
+            <div style="flex:1;height:6px;background:#e5e7eb;border-radius:3px">
+              <div id="pwd-bar" style="width:0%;height:100%;background:#e5e7eb;border-radius:3px;transition:all .3s"></div>
+            </div>
+            <span id="pwd-label" style="font-size:.78em;min-width:80px"></span>
+          </div>
+          <div style="margin-top:6px;font-size:.8em;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px">
+            <div id="req-len">○ Mínimo 8 caracteres</div>
+            <div id="req-upper">○ Al menos 1 mayúscula</div>
+            <div id="req-lower">○ Al menos 1 minúscula</div>
+            <div id="req-num">○ Al menos 1 número</div>
+            <div id="req-sym">○ Al menos 1 símbolo (!@#...)</div>
+            <div id="req-nouser" style="display:none"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Repetir contraseña *</label>
+          <input type="password" id="f-nueva_password2" placeholder="••••••••" autocomplete="new-password" />
+        </div>`
+    }
+
+    /* ── ASIGNATURA ───────────────────────────────────────────── */
+    if (tipo === 'asignatura') {
+      return `
+        <div class="form-group">
+          <label>Nombre * <small style="color:#888">Solo letras — Ej: Matemáticas</small></label>
+          <input type="text" id="f-nombre" value="${v('nombre')}" placeholder="Matemáticas"
+                 oninput="this.value=this.value.replace(/[^a-zA-ZáéíóúüñÁÉÍÓÚÜÑ\\s.\\-']/g,'')" />
+        </div>
+        <div class="form-group">
+          <label>Código <small style="color:#888">Solo letras, sin números — Ej: MAT</small></label>
+          <input type="text" id="f-codigo" value="${v('codigo')}" placeholder="MAT" maxlength="3"
+                 oninput="this.value=this.value.replace(/[^a-zA-Z]/g,'').toUpperCase()"
+                 style="text-transform:uppercase; letter-spacing:3px; font-weight:bold; width:80px" />
+        </div>
+        <div class="form-group">
+          <label>Horas semanales</label>
+          <input type="number" id="f-horas_semanales" value="${v('horas_semanales') || 4}" min="1" max="10" style="width:90px" />
+        </div>`
+    }
+
+    /* ── AULA ─────────────────────────────────────────────────── */
+    if (tipo === 'aula') {
+      return `
+        <div class="form-group">
+          <label>Código * <small style="color:#888">Solo letras — Ej: GIM, LAB, COMP</small></label>
+          <input type="text" id="f-codigo" value="${v('codigo')}" placeholder="GIM" maxlength="6"
+                 oninput="this.value=this.value.replace(/[^a-zA-Z]/g,'').toUpperCase()"
+                 style="text-transform:uppercase; letter-spacing:2px; font-weight:bold; width:120px" />
+        </div>
+        <div class="form-group">
+          <label>Nombre <small style="color:#888">Opcional — Ej: Sala de Computación</small></label>
+          <input type="text" id="f-nombre" value="${v('nombre')}" placeholder="Sala de Computación" />
+        </div>
+        <div class="form-group">
+          <label>Capacidad <small style="color:#888">N° de alumnos</small></label>
+          <input type="number" id="f-capacidad" value="${v('capacidad') || 30}" min="1" max="200" style="width:90px" />
+        </div>`
+    }
+
+    return ''
+  }
+
+  // Muestra/oculta el campo de profesor según el tipo de usuario seleccionado
+  function toggleCampoProfesor() {
+    const tipo = document.getElementById('f-tipo_persona')?.value
+    const campo = document.getElementById('campo-id-profesor')
+    if (campo) campo.style.display = tipo === 'profesor' ? 'block' : 'none'
+  }
+
+  function leerCampo(id) {
+    const el = document.getElementById(id)
+    return el ? el.value.trim() : null
+  }
+
+  /* ── HORARIOS: filtrar profesores por especialidad ────────────── */
+  function filtrarProfesoresPorAsignatura() {
+    const asigId     = document.getElementById('f-id_asignatura')?.value
+    const selectProf = document.getElementById('f-id_profesor')
+    const infoEl     = document.getElementById('info-profs-filtro')
+    if (!selectProf) return
+
+    const currentVal = selectProf.value
+
+    if (!asigId) {
+      // Sin asignatura: mostrar todos
+      selectProf.innerHTML = `<option value="">— Selecciona primero la asignatura —</option>`
+      selectProf.disabled = true
+      if (infoEl) infoEl.innerHTML = '<small style="color:#888">Selecciona la asignatura para ver los profesores disponibles.</small>'
+      return
+    }
+
+    const asig = listaAsignaturas.find(a => a.id == asigId)
+    if (!asig) return
+
+    const nom = asig.nombre.toLowerCase().trim()
+
+    // Filtro estricto: solo profesores cuya especialidad coincide con la asignatura
+    // Los profesores sin especialidad asignada NO aparecen (deben tener especialidad)
+    const profsFiltrados = listaProfesores.filter(p => {
+      if (!p.especialidad) return false
+      const esp = p.especialidad.toLowerCase().trim()
+      return esp.includes(nom) || nom.includes(esp)
     })
-  </script>
+
+    selectProf.disabled = false
+
+    if (profsFiltrados.length === 0) {
+      selectProf.innerHTML = `<option value="">— Sin profesores con especialidad "${asig.nombre}" —</option>`
+      if (infoEl) infoEl.innerHTML = `<small style="color:#ef4444">⚠️ No hay profesores con especialidad "${asig.nombre}". Agrega uno en la pestaña Profesores.</small>`
+    } else {
+      selectProf.innerHTML = `<option value="">— Selecciona —</option>` +
+        profsFiltrados.map(p =>
+          `<option value="${p.id}" ${p.id == currentVal ? 'selected' : ''}>`+
+          `${p.nombre} ${p.apellido_paterno} — ${p.especialidad}</option>`
+        ).join('')
+      if (infoEl) infoEl.innerHTML = `<small style="color:#16a34a">✅ ${profsFiltrados.length} profesor(es) disponible(s) para "${asig.nombre}".</small>`
+    }
+  }
+
+  /* ── CONTRASEÑA SEGURA ─────────────────────────────────────────── */
+  function generarPasswordSegura() {
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+    const lower = 'abcdefghjkmnpqrstuvwxyz'
+    const nums  = '23456789'
+    const syms  = '!@#$%&*-_=+'
+    const all   = upper + lower + nums + syms
+    // Garantizar al menos uno de cada tipo
+    let pwd = [
+      upper[Math.floor(Math.random() * upper.length)],
+      lower[Math.floor(Math.random() * lower.length)],
+      nums [Math.floor(Math.random() * nums.length)],
+      syms [Math.floor(Math.random() * syms.length)]
+    ]
+    for (let i = 4; i < 14; i++) pwd.push(all[Math.floor(Math.random() * all.length)])
+    const resultado = pwd.sort(() => Math.random() - 0.5).join('')
+
+    const input = document.getElementById('f-password') || document.getElementById('f-nueva_password')
+    if (input) {
+      input.type  = 'text'   // Mostrar la contraseña generada
+      input.value = resultado
+      verificarFortalezaPassword()
+    }
+  }
+
+  function toggleVerPassword(inputId) {
+    const input = document.getElementById(inputId || 'f-password') ||
+                  document.getElementById('f-nueva_password')
+    if (input) input.type = input.type === 'password' ? 'text' : 'password'
+  }
+
+  function verificarFortalezaPassword() {
+    const input = document.getElementById('f-password') || document.getElementById('f-nueva_password')
+    if (!input) return
+    const pwd  = input.value
+    const user = (document.getElementById('f-nombre_usuario')?.value || '').toLowerCase()
+
+    const reqs = [
+      { id:'req-len',     ok: pwd.length >= 8,               txt: 'Mínimo 8 caracteres' },
+      { id:'req-upper',   ok: /[A-Z]/.test(pwd),             txt: 'Al menos 1 mayúscula (A-Z)' },
+      { id:'req-lower',   ok: /[a-z]/.test(pwd),             txt: 'Al menos 1 minúscula (a-z)' },
+      { id:'req-num',     ok: /[0-9]/.test(pwd),             txt: 'Al menos 1 número' },
+      { id:'req-sym',     ok: /[^a-zA-Z0-9]/.test(pwd),      txt: 'Al menos 1 símbolo (!@#$%...)' },
+      { id:'req-nouser',  ok: !user || pwd.length < 3 || !pwd.toLowerCase().includes(user),
+                                                             txt: 'No contiene el nombre de usuario' }
+    ]
+
+    const score = reqs.filter(r => r.ok).length
+
+    reqs.forEach(r => {
+      const el = document.getElementById(r.id)
+      if (el) {
+        el.textContent = (r.ok ? '✅ ' : '○ ') + r.txt
+        el.style.color = r.ok ? '#16a34a' : '#6b7280'
+      }
+    })
+
+    const bar  = document.getElementById('pwd-bar')
+    const lbl  = document.getElementById('pwd-label')
+    if (!bar || !lbl) return
+
+    const niveles = ['','Muy débil','Débil','Regular','Fuerte','Muy fuerte','Excelente']
+    const colores = ['#e5e7eb','#ef4444','#f97316','#eab308','#22c55e','#16a34a','#15803d']
+    const c = pwd.length > 0 ? colores[score] : '#e5e7eb'
+    bar.style.width      = pwd.length > 0 ? `${Math.round(score/6*100)}%` : '0%'
+    bar.style.background = c
+    lbl.textContent      = pwd.length > 0 ? (niveles[score] || '') : ''
+    lbl.style.color      = c
+  }
+
+  // Auto-genera el nombre del curso al seleccionar nivel + letra
+  // Básica: "3°" + "A" → "3°A"
+  // Media:  "1° Medio" + "A" → "1° Medio A"
+  function autoNombreCurso() {
+    const nivel = document.getElementById('f-nivel')?.value  || ''
+    const letra = document.getElementById('f-letra')?.value  || ''
+    const nombreInput = document.getElementById('f-nombre')
+    if (!nombreInput) return
+    if (!nivel || !letra) return   // Espera a que ambos tengan valor
+    const nombre = nivel.includes('Medio')
+      ? `${nivel} ${letra}`   // "1° Medio A"
+      : `${nivel}${letra}`    // "3°A"
+    nombreInput.value = nombre
+  }
+
+  function validarRut(rut) {
+    // Formato: 7 u 8 dígitos, guión, 1 dígito o K
+    return /^\d{7,8}-[\dkK]$/.test(rut)
+  }
+
+  function validarEmail(email) {
+    // Valida email real: solo letras en el TLD (cl, com, org, edu…), sin números al final
+    // Acepta: alumno@colegio.cl, usuario@gmail.com, etc.
+    // Rechaza: texto@dominio.cl123, texto@dominio (sin punto), etc.
+    return /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,6}$/.test(email)
+  }
+
+  function tieneNumeros(str) {
+    // Detecta si un campo de texto tiene números (para bloquear en nombres)
+    return str ? /\d/.test(str) : false
+  }
+
+  async function guardarModal() {
+    const msg = document.getElementById('modal-msg')
+    msg.innerHTML = 'Guardando...'
+    let body = {}, url = '', method = ''
+
+    /* ──────────────── ALUMNO ──────────────── */
+    if (modalTipo === 'alumno') {
+      const rut      = leerCampo('f-rut')
+      const nombre   = leerCampo('f-nombre')
+      const ap       = leerCampo('f-apellido_paterno')
+      const am       = leerCampo('f-apellido_materno')
+      const email    = leerCampo('f-email')
+      const id_curso = leerCampo('f-id_curso')
+
+      // Campos obligatorios
+      if (!rut || !nombre || !ap) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ RUT, Nombre y Apellido Paterno son obligatorios</span>'; return
+      }
+      // RUT chileno
+      if (!validarRut(rut)) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ RUT inválido — formato esperado: 12345678-9</span>'; return
+      }
+      // Nombres sin números
+      if (tieneNumeros(nombre)) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ El nombre no puede contener números</span>'; return
+      }
+      if (tieneNumeros(ap)) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ El apellido paterno no puede contener números</span>'; return
+      }
+      if (am && tieneNumeros(am)) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ El apellido materno no puede contener números</span>'; return
+      }
+      // Curso obligatorio
+      if (!id_curso) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ Debes seleccionar un curso</span>'; return
+      }
+      // Email obligatorio y con formato real
+      if (!email) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ El email es obligatorio</span>'; return
+      }
+      if (!validarEmail(email)) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ Email inválido — debe ser formato real: alumno@colegio.cl</span>'; return
+      }
+      // Fecha de nacimiento obligatoria con rango de edad válido
+      const fechaNac = leerCampo('f-fecha_nacimiento')
+      if (!fechaNac) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ La fecha de nacimiento es obligatoria</span>'; return
+      }
+      const hoy       = new Date()
+      const nacimiento = new Date(fechaNac + 'T12:00:00')
+      if (nacimiento > hoy) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ La fecha de nacimiento no puede ser una fecha futura</span>'; return
+      }
+      // Calcular edad exacta
+      let edad = hoy.getFullYear() - nacimiento.getFullYear()
+      if (hoy.getMonth() < nacimiento.getMonth() ||
+         (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() < nacimiento.getDate())) {
+        edad--
+      }
+      if (edad < 4) {
+        msg.innerHTML = `<span class="mensaje-err">⚠️ Edad calculada: ${edad} año(s). Un alumno debe tener al menos 4 años</span>`; return
+      }
+      if (edad > 25) {
+        msg.innerHTML = `<span class="mensaje-err">⚠️ Edad calculada: ${edad} años. Verifica la fecha de nacimiento</span>`; return
+      }
+
+      body = {
+        rut, nombre, apellido_paterno: ap,
+        apellido_materno: am || null,
+        email,
+        telefono: leerCampo('f-telefono') || null,
+        fecha_nacimiento: fechaNac,
+        id_curso: parseInt(id_curso)
+      }
+      url    = modalId ? `${API1}/alumnos/${modalId}` : `${API1}/alumnos`
+      method = modalId ? 'PUT' : 'POST'
+    }
+
+    /* ──────────────── CURSO ──────────────── */
+    if (modalTipo === 'curso') {
+      const nivel  = leerCampo('f-nivel')
+      const letra  = leerCampo('f-letra')
+      const nombre = leerCampo('f-nombre')
+      const anio   = parseInt(leerCampo('f-anio'))
+
+      if (!nivel) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ Selecciona el nivel del curso (Básico o Medio)</span>'; return
+      }
+      if (!letra) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ Ingresa la letra/sección (A, B, C…)</span>'; return
+      }
+      if (!nombre) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ El nombre del curso es obligatorio</span>'; return
+      }
+      if (!anio || anio < 2020 || anio > 2035) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ El año debe estar entre 2020 y 2035</span>'; return
+      }
+
+      body = { nombre, nivel, letra, anio }
+      url    = modalId ? `${API1}/cursos/${modalId}` : `${API1}/cursos`
+      method = modalId ? 'PUT' : 'POST'
+    }
+
+    /* ──────────────── PROFESOR ──────────────── */
+    if (modalTipo === 'profesor') {
+      const rut   = leerCampo('f-rut')
+      const nombre = leerCampo('f-nombre')
+      const ap    = leerCampo('f-apellido_paterno')
+      const am    = leerCampo('f-apellido_materno')
+      const email = leerCampo('f-email')
+
+      if (!rut || !nombre || !ap) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ RUT, Nombre y Apellido Paterno son obligatorios</span>'; return
+      }
+      if (!validarRut(rut)) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ RUT inválido — formato esperado: 12345678-9</span>'; return
+      }
+      if (tieneNumeros(nombre)) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ El nombre no puede contener números</span>'; return
+      }
+      if (tieneNumeros(ap)) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ El apellido paterno no puede contener números</span>'; return
+      }
+      if (am && tieneNumeros(am)) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ El apellido materno no puede contener números</span>'; return
+      }
+      // Email obligatorio con formato real
+      if (!email) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ El email es obligatorio</span>'; return
+      }
+      if (!validarEmail(email)) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ Email inválido — debe ser formato real: profesor@colegio.cl</span>'; return
+      }
+
+      const especialidad = leerCampo('f-especialidad')
+      if (!especialidad) {
+        msg.innerHTML = '<span class="mensaje-err">⚠️ Selecciona la especialidad del profesor</span>'; return
+      }
+
+      body = {
+        rut, nombre, apellido_paterno: ap,
+        apellido_materno: am || null,
+        email,
+        telefono: leerCampo('f-telefono') || null,
+        especialidad
+      }
+      url    = modalId ? `${API1}/profesores/${modalId}` : `${API1}/profesores`
+      method = modalId ? 'PUT' : 'POST'
+    }
+
+    /* ──────────────── HORARIO ──────────────── */
+    if (modalTipo === 'horario') {
+      const id_curso      = leerCampo('f-id_curso')
+      const id_asignatura = leerCampo('f-id_asignatura')
+      const id_profesor   = leerCampo('f-id_profesor')
+      const dia_semana    = leerCampo('f-dia_semana')
+      const hora_inicio   = leerCampo('f-hora_inicio')
+      const hora_fin      = leerCampo('f-hora_fin')
+      const sala          = leerCampo('f-sala')
+
+      if (!id_curso)      { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona el curso</span>'; return }
+      if (!id_asignatura) { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona la asignatura</span>'; return }
+      if (!id_profesor)   { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona el profesor</span>'; return }
+      if (!dia_semana)    { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona el día</span>'; return }
+      if (!hora_inicio)   { msg.innerHTML='<span class="mensaje-err">⚠️ Ingresa la hora de inicio</span>'; return }
+      if (!hora_fin)      { msg.innerHTML='<span class="mensaje-err">⚠️ Ingresa la hora de fin</span>'; return }
+      if (hora_inicio >= hora_fin) { msg.innerHTML='<span class="mensaje-err">⚠️ La hora de fin debe ser mayor a la de inicio</span>'; return }
+      if (!sala)        { msg.innerHTML='<span class="mensaje-err">⚠️ Debes seleccionar una sala</span>'; return }
+
+      body   = { id_curso: parseInt(id_curso), id_asignatura: parseInt(id_asignatura),
+                 id_profesor: parseInt(id_profesor), dia_semana: parseInt(dia_semana),
+                 hora_inicio, hora_fin, sala: sala || null }
+      url    = modalId ? `${API1}/horarios/${modalId}` : `${API1}/horarios`
+      method = modalId ? 'PUT' : 'POST'
+    }
+
+    /* ──────────────── USUARIO ──────────────── */
+    if (modalTipo === 'usuario') {
+      const nombre_usuario = leerCampo('f-nombre_usuario')
+      const tipo_persona   = leerCampo('f-tipo_persona')
+      const password       = leerCampo('f-password')
+      const id_profesor    = leerCampo('f-id_profesor')
+
+      if (!nombre_usuario) { msg.innerHTML='<span class="mensaje-err">⚠️ El nombre de usuario es obligatorio</span>'; return }
+      if (!/^[a-zA-Z0-9_.-]{3,50}$/.test(nombre_usuario)) {
+        msg.innerHTML='<span class="mensaje-err">⚠️ Usuario: solo letras, números, punto, guión o guión bajo (3-50 caracteres)</span>'; return
+      }
+      if (!tipo_persona) { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona el tipo de acceso</span>'; return }
+      if (!modalId) {
+        if (!password || password.length < 8) {
+          msg.innerHTML='<span class="mensaje-err">⚠️ La contraseña debe tener al menos 8 caracteres</span>'; return
+        }
+        if (!/[A-Z]/.test(password)) {
+          msg.innerHTML='<span class="mensaje-err">⚠️ La contraseña debe contener al menos una mayúscula</span>'; return
+        }
+        if (!/[0-9]/.test(password)) {
+          msg.innerHTML='<span class="mensaje-err">⚠️ La contraseña debe contener al menos un número</span>'; return
+        }
+        if (!/[^a-zA-Z0-9]/.test(password)) {
+          msg.innerHTML='<span class="mensaje-err">⚠️ La contraseña debe contener al menos un símbolo (!@#$...)</span>'; return
+        }
+        if (nombre_usuario && password.toLowerCase().includes(nombre_usuario.toLowerCase())) {
+          msg.innerHTML='<span class="mensaje-err">⚠️ La contraseña no puede contener el nombre de usuario</span>'; return
+        }
+      }
+      if (tipo_persona === 'profesor' && !id_profesor) {
+        msg.innerHTML='<span class="mensaje-err">⚠️ Debes vincular a un profesor cuando el tipo es "Profesor"</span>'; return
+      }
+
+      body   = { nombre_usuario, tipo_persona,
+                 id_profesor: id_profesor ? parseInt(id_profesor) : null }
+      if (!modalId) body.password = password
+      url    = modalId ? `${API1}/usuarios/${modalId}` : `${API1}/usuarios`
+      method = modalId ? 'PUT' : 'POST'
+    }
+
+    /* ──────────────── USUARIO - RESET PASSWORD ──────────────── */
+    if (modalTipo === 'usuario-password') {
+      const pass1 = leerCampo('f-nueva_password')
+      const pass2 = leerCampo('f-nueva_password2')
+      if (!pass1 || pass1.length < 8)     { msg.innerHTML='<span class="mensaje-err">⚠️ La contraseña debe tener al menos 8 caracteres</span>'; return }
+      if (!/[A-Z]/.test(pass1))            { msg.innerHTML='<span class="mensaje-err">⚠️ Debe contener al menos una mayúscula</span>'; return }
+      if (!/[0-9]/.test(pass1))            { msg.innerHTML='<span class="mensaje-err">⚠️ Debe contener al menos un número</span>'; return }
+      if (!/[^a-zA-Z0-9]/.test(pass1))     { msg.innerHTML='<span class="mensaje-err">⚠️ Debe contener al menos un símbolo (!@#$...)</span>'; return }
+      if (pass1 !== pass2) { msg.innerHTML='<span class="mensaje-err">⚠️ Las contraseñas no coinciden</span>'; return }
+
+      const { ok, data } = await apiPatch(`${API1}/usuarios/${modalId}/password`, { nueva_password: pass1 })
+      msg.innerHTML = ok
+        ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+        : `<span class="mensaje-err">❌ ${data.error}</span>`
+      if (ok) setTimeout(() => cerrarModal(), 1200)
+      return
+    }
+
+    /* ──────────────── ASIGNATURA ──────────────── */
+    if (modalTipo === 'asignatura') {
+      const nombre = leerCampo('f-nombre')
+      const codigo = leerCampo('f-codigo')
+      const horas  = parseInt(leerCampo('f-horas_semanales'))
+      if (!nombre) { msg.innerHTML='<span class="mensaje-err">⚠️ El nombre es obligatorio</span>'; return }
+      if (/\d/.test(nombre)) { msg.innerHTML='<span class="mensaje-err">⚠️ El nombre no puede contener números</span>'; return }
+      if (codigo && /[^a-zA-Z]/.test(codigo)) {
+        msg.innerHTML='<span class="mensaje-err">⚠️ El código solo puede contener letras (Ej: MAT, HIS)</span>'; return
+      }
+      if (isNaN(horas) || horas < 1) { msg.innerHTML='<span class="mensaje-err">⚠️ Las horas semanales deben ser al menos 1</span>'; return }
+      body   = { nombre, codigo: codigo ? codigo.toUpperCase() : null, horas_semanales: horas }
+      url    = modalId ? `${API1}/asignaturas/${modalId}` : `${API1}/asignaturas`
+      method = modalId ? 'PUT' : 'POST'
+    }
+
+    /* ──────────────── AULA ──────────────── */
+    if (modalTipo === 'aula') {
+      const codigo    = leerCampo('f-codigo')
+      const nombre    = leerCampo('f-nombre')
+      const capacidad = parseInt(leerCampo('f-capacidad'))
+      if (!codigo) { msg.innerHTML='<span class="mensaje-err">⚠️ El código del aula es obligatorio</span>'; return }
+      if (/[^a-zA-Z]/.test(codigo)) { msg.innerHTML='<span class="mensaje-err">⚠️ El código solo puede contener letras (Ej: GIM, LAB)</span>'; return }
+      if (isNaN(capacidad) || capacidad < 1) { msg.innerHTML='<span class="mensaje-err">⚠️ La capacidad debe ser al menos 1</span>'; return }
+      body   = { codigo: codigo.toUpperCase(), nombre: nombre || null, capacidad }
+      url    = modalId ? `${API1}/aulas/${modalId}` : `${API1}/aulas`
+      method = modalId ? 'PUT' : 'POST'
+    }
+
+    // Si ninguno de los tipos generó body, salir
+    if (!url) return
+
+    const fn = method === 'PUT' ? apiPut : apiPost
+    const { ok, data } = await fn(url, body)
+
+    if (ok) {
+      msg.innerHTML = `<span class="mensaje-ok">✅ ${data.mensaje || 'Guardado correctamente'}</span>`
+      const tipoGuardado = modalTipo
+
+      // ── Asignar / quitar jefe de curso al guardar un profesor ──
+      if (tipoGuardado === 'profesor') {
+        const profesorId   = data.id || modalId
+        const nuevoCursoId = leerCampo('f-id_curso_jefe')
+        // Buscar si este profesor ya era jefe de algún curso
+        const cursoAnterior = listaCursos.find(c => c.id_profesor_jefe == profesorId)
+
+        // Si tenía un curso anterior y ahora cambió (o se quitó), limpiar el anterior
+        if (cursoAnterior && String(cursoAnterior.id) !== String(nuevoCursoId)) {
+          await apiPatch(`${API1}/cursos/${cursoAnterior.id}/jefe`, { id_profesor_jefe: null })
+        }
+        // Si eligió un curso nuevo distinto al anterior, asignarlo
+        if (nuevoCursoId && String(nuevoCursoId) !== String(cursoAnterior?.id)) {
+          await apiPatch(`${API1}/cursos/${nuevoCursoId}/jefe`, { id_profesor_jefe: parseInt(profesorId) })
+        }
+      }
+
+      setTimeout(() => {
+        cerrarModal()
+        if (tipoGuardado === 'alumno')      cargarTablaAlumnos()
+        if (tipoGuardado === 'curso')       cargarTablaCursos()
+        if (tipoGuardado === 'profesor')    cargarTablaProfesores()
+        if (tipoGuardado === 'horario')     cargarTablaHorarios()
+        if (tipoGuardado === 'usuario')     cargarTablaUsuarios()
+        if (tipoGuardado === 'asignatura')  cargarTablaAsignaturas()
+        if (tipoGuardado === 'aula')        cargarTablaAulas()
+      }, 800)
+    } else {
+      msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    }
+  }
+
+  /* ── HORARIOS ──────────────────────────────────────────────────── */
+  async function cargarHorarios() {
+    const fecha    = document.getElementById('fechaClase').value
+    const infoClase = document.getElementById('infoClase')
+    const selector  = document.getElementById('selectorHorario')
+    if (!fecha) return
+    const diaSemana  = new Date(fecha + 'T12:00:00').getDay()
+    const diaAjustado = diaSemana === 0 ? 7 : diaSemana
+    try {
+      const horarios = await apiGet(`${API1}/horarios?dia_semana=${diaAjustado}`)
+      selector.innerHTML = '<option value="">-- Selecciona --</option>'
+      if (!horarios.length) { infoClase.textContent = 'No hay clases para ese día'; return }
+      horarios.forEach(h => {
+        const op = document.createElement('option')
+        op.value = h.id
+        op.textContent = `${h.hora_inicio.slice(0,5)} - ${h.asignatura} (${h.curso}) — ${h.profesor}`
+        selector.appendChild(op)
+      })
+      infoClase.textContent = `${horarios.length} clase(s) encontradas`
+    } catch (err) { infoClase.textContent = `Error: ${err.message}` }
+  }
+
+  /* ── CÁMARA ────────────────────────────────────────────────────── */
+  function cambiarModo(modo) {
+    modoIP = (modo === 'ip')
+    document.getElementById('config-ip').style.display = modoIP ? 'block' : 'none'
+    detenerPreview()
+  }
+
+  async function conectarIP() {
+    const url = getUrlIP()
+    if (!url) return alert('Ingresa la URL de IP Webcam')
+    if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
+    iniciarPreviewIP(url)
+  }
+
+  function getUrlIP() {
+    return document.getElementById('urlIP').value.trim().replace(/\/$/, '')
+  }
+
+  async function cargarModelos() {
+    const RUTA = './assets/models'
+    await faceapi.nets.tinyFaceDetector.loadFromUri(RUTA)
+    await faceapi.nets.faceLandmark68Net.loadFromUri(RUTA)
+    await faceapi.nets.faceRecognitionNet.loadFromUri(RUTA)
+  }
+
+  async function activarWebcam() {
+    const video = document.getElementById('video')
+    if (video.srcObject) return
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+    video.srcObject = stream
+    iniciarPreviewWebcam()
+  }
+
+  function iniciarPreviewWebcam() {
+    detenerPreview()
+    const video = document.getElementById('video'), canvas = document.getElementById('canvas')
+    intervaloPreview = setInterval(async () => {
+      if (video.readyState < 2) return
+      const det = await faceapi.detectAllFaces(video, OPCIONES_DETECTOR).withFaceLandmarks()
+      faceapi.matchDimensions(canvas, { width: video.videoWidth, height: video.videoHeight })
+      const ctx = canvas.getContext('2d')
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      faceapi.draw.drawDetections(canvas, faceapi.resizeResults(det, { width: video.videoWidth, height: video.videoHeight }))
+    }, 300)
+  }
+
+  function iniciarPreviewIP(url) {
+    detenerPreview()
+    const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d')
+    intervaloPreview = setInterval(async () => {
+      try {
+        const img = await cargarSnapshot(url)
+        canvas.width = 560; canvas.height = 420
+        ctx.drawImage(img, 0, 0, 560, 420)
+        const det = await faceapi.detectAllFaces(canvas, OPCIONES_DETECTOR).withFaceLandmarks()
+        faceapi.draw.drawDetections(canvas, det)
+        document.getElementById('estadoCamara').innerHTML =
+          det.length > 0 ? '✅ Rostro detectado' : '🔍 Buscando rostro...'
+      } catch (err) { console.warn(err.message) }
+    }, 500)
+  }
+
+  function detenerPreview() {
+    if (intervaloPreview) { clearInterval(intervaloPreview); intervaloPreview = null }
+  }
+
+  function cargarSnapshot(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload  = () => resolve(img)
+      img.onerror = () => reject(new Error('No se pudo cargar snapshot'))
+      img.src = `${url}/shot.jpg?t=${Date.now()}`
+      setTimeout(() => reject(new Error('Timeout')), 5000)
+    })
+  }
+
+  async function getFrame() {
+    return modoIP ? await cargarSnapshot(getUrlIP()) : document.getElementById('video')
+  }
+
+  /* ── REGISTRAR ROSTRO ──────────────────────────────────────────── */
+  async function registrarRostro() {
+    const idAlumno = document.getElementById('idAlumno').value
+    const divReg   = document.getElementById('resultadoRegistro')
+    if (!idAlumno) { divReg.innerHTML = '⚠️ Ingresa el ID del alumno'; return }
+    divReg.innerHTML = 'Cargando modelos...'
+    if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
+    if (!modoIP) await activarWebcam()
+    divReg.innerHTML = 'Capturando rostro...'
+    let elemento
+    try { elemento = await getFrame() }
+    catch (err) { divReg.innerHTML = `❌ Error cámara: ${err.message}`; return }
+    const deteccion = await faceapi.detectSingleFace(elemento, OPCIONES_DETECTOR)
+      .withFaceLandmarks().withFaceDescriptor()
+    if (!deteccion) { divReg.innerHTML = '❌ No se detectó ningún rostro'; return }
+    const descriptor = Array.from(deteccion.descriptor)
+    try {
+      const r = await fetch(`${API3}/rostros`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ id_alumno: parseInt(idAlumno), descriptor })
+      })
+      const d = await r.json()
+      divReg.innerHTML = r.ok ? `<span class="mensaje-ok">✅ ${d.mensaje}</span>`
+                               : `<span class="mensaje-err">❌ ${d.error}</span>`
+    } catch (err) { divReg.innerHTML = `❌ Error de red: ${err.message}` }
+  }
+
+  /* ── WEBSOCKET ─────────────────────────────────────────────────── */
+  function conectarWebSocket() {
+    ws = new WebSocket(WS_URL)
+    ws.onopen  = () => console.log('WebSocket conectado')
+    ws.onerror = (e) => console.error('WS error', e)
+    ws.onmessage = (evento) => {
+      const r   = JSON.parse(evento.data)
+      const div = document.getElementById('resultado')
+      div.innerHTML = r.exito
+        ? `✅ <strong>${r.alumno.nombre} ${r.alumno.apellido}</strong><br>
+           RUT: ${r.alumno.rut} — Confianza: ${r.alumno.confianza}<br>
+           <small class="mensaje-ok">Asistencia registrada ✓</small>`
+        : `❌ ${r.mensaje}`
+    }
+  }
+
+  /* ── RECONOCIMIENTO ────────────────────────────────────────────── */
+  async function enviarFrame() {
+    const id_horario = parseInt(document.getElementById('selectorHorario').value)
+    const fecha      = document.getElementById('fechaClase').value
+    if (!id_horario || !fecha) {
+      document.getElementById('resultado').innerHTML = '⚠️ Selecciona la clase activa'
+      return
+    }
+    try {
+      const elemento  = await getFrame()
+      const deteccion = await faceapi.detectSingleFace(elemento, OPCIONES_DETECTOR)
+        .withFaceLandmarks().withFaceDescriptor()
+      if (!deteccion) { document.getElementById('resultado').innerHTML = '🔍 Buscando rostro...'; return }
+      const descriptor = Array.from(deteccion.descriptor)
+      if (ws && ws.readyState === WebSocket.OPEN)
+        ws.send(JSON.stringify({ descriptor, id_horario, fecha }))
+    } catch (err) {
+      document.getElementById('resultado').innerHTML = `❌ Error cámara: ${err.message}`
+    }
+  }
+
+  function detener() {
+    detenerPreview()
+    if (intervaloReconocimiento) { clearInterval(intervaloReconocimiento); intervaloReconocimiento = null }
+    if (ws) { ws.close(); ws = null }
+    document.getElementById('resultado').innerHTML = 'Reconocimiento detenido.'
+  }
+
+  async function iniciar() {
+    const id_horario = document.getElementById('selectorHorario').value
+    const fecha      = document.getElementById('fechaClase').value
+    if (!id_horario || !fecha) { alert('Selecciona la clase activa primero'); return }
+    document.getElementById('resultado').innerHTML = 'Cargando modelos...'
+    if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
+    if (!modoIP) await activarWebcam()
+    conectarWebSocket()
+    if (intervaloReconocimiento) clearInterval(intervaloReconocimiento)
+    intervaloReconocimiento = setInterval(enviarFrame, 2000)
+    document.getElementById('resultado').innerHTML = 'Buscando rostros...'
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const fi = document.getElementById('fechaClase')
+    if (fi) fi.addEventListener('change', cargarHorarios)
+  })
+</script>
 
 </body>
 </html>

@@ -4,11 +4,14 @@ const cors      = require('cors');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-const authRoutes       = require('./routes/auth');
-const alumnosRoutes    = require('./routes/alumno');
-const cursosRoutes     = require('./routes/cursos');
-const profesoresRoutes = require('./routes/profesores');
-const horariosRoutes   = require('./routes/horarios');
+const authRoutes        = require('./routes/auth');
+const alumnosRoutes     = require('./routes/alumno');
+const cursosRoutes      = require('./routes/cursos');
+const profesoresRoutes  = require('./routes/profesores');
+const horariosRoutes    = require('./routes/horarios');
+const usuariosRoutes    = require('./routes/usuarios');
+const asignaturasRoutes = require('./routes/asignaturas');
+const aulasRoutes       = require('./routes/aulas');
 
 const app = express();
 
@@ -17,7 +20,7 @@ app.use(helmet());
 
 app.use(cors({
   origin: ['http://localhost', 'http://localhost:3000'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
@@ -34,11 +37,14 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // ── Rutas ──────────────────────────────────────────────
-app.use('/login',      authRoutes);
-app.use('/alumnos',    alumnosRoutes);
-app.use('/cursos',     cursosRoutes);
-app.use('/profesores', profesoresRoutes);
-app.use('/horarios',   horariosRoutes);
+app.use('/login',       authRoutes);
+app.use('/alumnos',     alumnosRoutes);
+app.use('/cursos',      cursosRoutes);
+app.use('/profesores',  profesoresRoutes);
+app.use('/horarios',    horariosRoutes);
+app.use('/usuarios',    usuariosRoutes);
+app.use('/asignaturas', asignaturasRoutes);
+app.use('/aulas',       aulasRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

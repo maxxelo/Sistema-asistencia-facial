@@ -11,29 +11,33 @@ const { verificarToken, soloAdmin, adminOProfesor } = require('../middleware/aut
 // =====================================================
 router.get('/', verificarToken, adminOProfesor, async (req, res) => {
   const { id_curso } = req.query;
+  const esAdmin = req.usuario.tipo_persona === 'admin';
 
   if (id_curso && isNaN(id_curso)) {
     return res.status(400).json({ error: 'id_curso debe ser un número' });
   }
 
   try {
+    // Admin ve TODOS (activos e inactivos). Profesor solo ve activos.
     let query = `
       SELECT
         a.id, a.rut, a.nombre, a.apellido_paterno, a.apellido_materno,
         a.email, a.telefono, a.fecha_nacimiento, a.activo,
-        c.nombre AS curso
+        c.nombre AS curso, c.id AS id_curso
       FROM alumnos a
       LEFT JOIN cursos c ON a.id_curso = c.id
-      WHERE a.activo = TRUE
+      WHERE 1=1
     `;
-    const params = [];
+    if (!esAdmin) query += ' AND a.activo = TRUE';
 
+    const params = [];
     if (id_curso) {
       params.push(id_curso);
       query += ` AND a.id_curso = $${params.length}`;
     }
 
-    query += ' ORDER BY a.apellido_paterno, a.apellido_materno, a.nombre';
+    // Activos primero, luego inactivos; dentro de cada grupo por apellido
+    query += ' ORDER BY a.activo DESC, a.apellido_paterno, a.nombre';
 
     const result = await pool.query(query, params);
     res.json(result.rows);
@@ -153,8 +157,35 @@ router.put('/:id', verificarToken, soloAdmin, async (req, res) => {
 });
 
 // =====================================================
+// PATCH /alumnos/:id/reactivar
+// Reactiva un alumno que fue desactivado (activo = TRUE)
+// Auth: JWT (Solo Admin)
+// =====================================================
+router.patch('/:id/reactivar', verificarToken, soloAdmin, async (req, res) => {
+  const { id } = req.params;
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+  try {
+    const result = await pool.query(
+      'UPDATE alumnos SET activo = TRUE WHERE id = $1 RETURNING id, nombre, apellido_paterno',
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Alumno no encontrado' });
+    const a = result.rows[0];
+    res.json({ mensaje: `Alumno ${a.nombre} ${a.apellido_paterno} reactivado correctamente` });
+  } catch (err) {
+    console.error('[PATCH /alumnos/:id/reactivar]', err.message);
+    res.status(500).json({ error: 'Error al reactivar alumno' });
+  }
+});
+
+// =====================================================
 // DELETE /alumnos/:id
-// Desactivar un alumno (soft delete — no se borra de la BD)
+// Elimina permanentemente al alumno de la BD.
+// Las FK con CASCADE borran automáticamente:
+//   rostros, asistencia_detalle, calificaciones, alumnos_apoderados
+// Las FK con SET NULL dejan el id_alumno en NULL:
+//   asistencia_facial_log, intentos_reconocimiento
 // Auth: JWT (Solo Admin)
 // =====================================================
 router.delete('/:id', verificarToken, soloAdmin, async (req, res) => {
@@ -163,17 +194,18 @@ router.delete('/:id', verificarToken, soloAdmin, async (req, res) => {
 
   try {
     const result = await pool.query(
-      'UPDATE alumnos SET activo = FALSE WHERE id = $1 RETURNING id, nombre, apellido_paterno',
+      'DELETE FROM alumnos WHERE id = $1 RETURNING id, nombre, apellido_paterno',
       [id]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
-    res.json({ mensaje: 'Alumno desactivado correctamente', alumno: result.rows[0] });
+    const a = result.rows[0];
+    res.json({ mensaje: `Alumno ${a.nombre} ${a.apellido_paterno} eliminado correctamente` });
   } catch (err) {
     console.error('[DELETE /alumnos/:id]', err.message);
-    res.status(500).json({ error: 'Error al desactivar alumno' });
+    res.status(500).json({ error: 'Error al eliminar alumno' });
   }
 });
 
