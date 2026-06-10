@@ -703,9 +703,11 @@
         `${payload.nombre_usuario} (${payload.rol})`
     }
 
-    // Ocultar tabs y secciones de solo-admin si es profesor
+    // Mostrar/ocultar tabs y secciones de solo-admin según rol
     if (rolUsuario !== 'admin') {
       document.querySelectorAll('.solo-admin').forEach(el => el.style.display = 'none')
+    } else {
+      document.querySelectorAll('.solo-admin').forEach(el => el.style.display = '')
     }
 
     // Mostrar nombre en el panel de bienvenida
@@ -726,6 +728,7 @@
   function cerrarSesion() {
     token = null; rolUsuario = null
     localStorage.removeItem('token'); localStorage.removeItem('rolUsuario')
+    listaCursos = []; listaProfesores = []; listaAsignaturas = []; listaAulas = []; listaAlumnos = []; listaAlumnosCompleta = []
     detener()
     detenerAutoRefresh()
     document.getElementById('seccionLogin').style.display = 'block'
@@ -1181,9 +1184,16 @@
   async function rellenarSelectsManual() {
     if (!listaCursos.length) listaCursos = (await apiGet(`${API1}/cursos`)).filter(c=>c.activo)
     const sel = document.getElementById('m-id-curso')
-    if (sel && (sel.options.length <= 1)) {
+    if (sel) {
+      let cursosFiltrados = listaCursos
+      const payload = decodificarToken(token)
+      if (rolUsuario !== 'admin' && payload?.id_profesor) {
+        const todosHorarios = await apiGet(`${API1}/horarios`)
+        const misCursos = new Set(todosHorarios.filter(h => h.id_profesor == payload.id_profesor).map(h => h.id_curso))
+        cursosFiltrados = listaCursos.filter(c => misCursos.has(c.id))
+      }
       sel.innerHTML = '<option value="">— Selecciona —</option>' +
-        listaCursos.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')
+        cursosFiltrados.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')
     }
     if (!document.getElementById('m-fecha').value) {
       document.getElementById('m-fecha').value = new Date().toISOString().slice(0,10)
@@ -1506,7 +1516,7 @@
   }
 
   async function eliminarProfesor(id, nombre) {
-    if (!confirm(`⚠️ ¿Eliminar permanentemente al profesor ${nombre}?\n\nSe eliminarán también sus horarios asignados.\n(No se puede deshacer)`)) return
+    if (!confirm(`⚠️ ¿Eliminar permanentemente al profesor ${nombre}?\n\nSe eliminarán también sus horarios asignados y TODOS los registros de asistencia de esas clases.\n(No se puede deshacer)`)) return
     const { ok, data } = await apiDelete(`${API1}/profesores/${id}`)
     document.getElementById('msg-profesores').innerHTML =
       ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
@@ -1831,7 +1841,7 @@
   }
 
   async function eliminarAsignatura(id, nombre) {
-    if (!confirm(`⚠️ ¿Eliminar la asignatura "${nombre}"?\n\nSe eliminarán también sus horarios.`)) return
+    if (!confirm(`⚠️ ¿Eliminar la asignatura "${nombre}"?\n\nSe eliminarán también sus horarios y TODOS los registros de asistencia asociados. (No se puede deshacer)`)) return
     const { ok, data } = await apiDelete(`${API1}/asignaturas/${id}`)
     document.getElementById('msg-asignaturas').innerHTML =
       ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
@@ -2113,7 +2123,7 @@
         </div>
         <div class="form-group">
           <label>Año <small style="color:#888"></small></label>
-          <input type="number" id="f-anio" value="${new Date().getFullYear()}"
+          <input type="number" id="f-anio" value="${v('anio') || new Date().getFullYear()}"
                  readonly style="width:110px; background:#f0f0f0; color:#666; cursor:not-allowed;" />
         </div>`
     }
@@ -2222,7 +2232,7 @@
           </div>
         </div>
         <div class="form-group">
-          <label>Sala * <small style="color:#888">Obligatoria</small></label>
+          <label>Sala <small style="color:#888">Opcional</small></label>
           <select id="f-sala">
             <option value="">— Selecciona una sala —</option>
             ${opsAulas}
@@ -2792,7 +2802,6 @@
       if (!hora_inicio)   { msg.innerHTML='<span class="mensaje-err">⚠️ Ingresa la hora de inicio</span>'; return }
       if (!hora_fin)      { msg.innerHTML='<span class="mensaje-err">⚠️ Ingresa la hora de fin</span>'; return }
       if (hora_inicio >= hora_fin) { msg.innerHTML='<span class="mensaje-err">⚠️ La hora de fin debe ser mayor a la de inicio</span>'; return }
-      if (!sala)        { msg.innerHTML='<span class="mensaje-err">⚠️ Debes seleccionar una sala</span>'; return }
 
       body   = { id_curso: parseInt(id_curso), id_asignatura: parseInt(id_asignatura),
                  id_profesor: parseInt(id_profesor), dia_semana: parseInt(dia_semana),
@@ -2881,7 +2890,7 @@
       const nombre    = leerCampo('f-nombre')
       const capacidad = parseInt(leerCampo('f-capacidad'))
       if (!codigo) { msg.innerHTML='<span class="mensaje-err">⚠️ El código del aula es obligatorio</span>'; return }
-      if (/[^a-zA-Z]/.test(codigo)) { msg.innerHTML='<span class="mensaje-err">⚠️ El código solo puede contener letras (Ej: GIM, LAB)</span>'; return }
+      if (/[^a-zA-Z0-9]/.test(codigo)) { msg.innerHTML='<span class="mensaje-err">⚠️ El código solo puede contener letras y números (Ej: A1, LAB2, GIM)</span>'; return }
       if (isNaN(capacidad) || capacidad < 1) { msg.innerHTML='<span class="mensaje-err">⚠️ La capacidad debe ser al menos 1</span>'; return }
       body   = { codigo: codigo.toUpperCase(), nombre: nombre || null, capacidad }
       url    = modalId ? `${API1}/aulas/${modalId}` : `${API1}/aulas`
@@ -2969,7 +2978,11 @@
     const diaSemana  = new Date(fecha + 'T12:00:00').getDay()
     const diaAjustado = diaSemana === 0 ? 7 : diaSemana
     try {
-      const horarios = await apiGet(`${API1}/horarios?dia_semana=${diaAjustado}`)
+      const todos = await apiGet(`${API1}/horarios?dia_semana=${diaAjustado}`)
+      const payload = decodificarToken(token)
+      const horarios = (rolUsuario !== 'admin' && payload?.id_profesor)
+        ? todos.filter(h => h.id_profesor == payload.id_profesor)
+        : todos
       selector.innerHTML = '<option value="">-- Selecciona --</option>'
       if (!horarios.length) { infoClase.textContent = 'No hay clases para ese día'; return }
       horarios.forEach(h => {
@@ -3218,7 +3231,7 @@
   }
 
   async function eliminarPeriodo(id, nombre) {
-    if (!confirm(`¿Eliminar el período "${nombre}"?`)) return
+    if (!confirm(`⚠️ ¿Eliminar el período "${nombre}"?\n\nSe eliminarán también todas sus evaluaciones y las notas ingresadas. (No se puede deshacer)`)) return
     const { ok, data } = await apiDelete(`${API1}/periodos/${id}`)
     document.getElementById('msg-periodos').innerHTML = ok
       ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
@@ -3438,7 +3451,7 @@
           <button class="btn-primary" onclick="guardarModalNotas()">💾 Guardar</button>
         </div>
       </div>`
-    overlay.classList.add('visible')
+    overlay.style.display = 'block'
   }
 
   async function guardarModalNotas() {
