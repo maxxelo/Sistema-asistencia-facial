@@ -9,9 +9,14 @@ const alumnosRoutes     = require('./routes/alumno');
 const cursosRoutes      = require('./routes/cursos');
 const profesoresRoutes  = require('./routes/profesores');
 const horariosRoutes    = require('./routes/horarios');
-const usuariosRoutes    = require('./routes/usuarios');
-const asignaturasRoutes = require('./routes/asignaturas');
-const aulasRoutes       = require('./routes/aulas');
+const usuariosRoutes     = require('./routes/usuarios');
+const asignaturasRoutes  = require('./routes/asignaturas');
+const aulasRoutes        = require('./routes/aulas');
+const periodosRoutes     = require('./routes/periodos');
+const evaluacionesRoutes = require('./routes/evaluaciones');
+const apoderadosRoutes   = require('./routes/apoderados');
+const fichaMedicaRoutes  = require('./routes/ficha_medica');
+const comunicadosRoutes  = require('./routes/comunicados');
 
 const app = express();
 
@@ -42,9 +47,14 @@ app.use('/alumnos',     alumnosRoutes);
 app.use('/cursos',      cursosRoutes);
 app.use('/profesores',  profesoresRoutes);
 app.use('/horarios',    horariosRoutes);
-app.use('/usuarios',    usuariosRoutes);
-app.use('/asignaturas', asignaturasRoutes);
-app.use('/aulas',       aulasRoutes);
+app.use('/usuarios',     usuariosRoutes);
+app.use('/asignaturas',  asignaturasRoutes);
+app.use('/aulas',        aulasRoutes);
+app.use('/periodos',     periodosRoutes);
+app.use('/evaluaciones', evaluacionesRoutes);
+app.use('/apoderados',   apoderadosRoutes);
+app.use('/ficha-medica', fichaMedicaRoutes);
+app.use('/comunicados',  comunicadosRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

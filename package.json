@@ -4,7 +4,9 @@
   "description": "",
   "main": "generar-token.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "frontend": "http-server ./frontend -p 3000 --cors -c-1 -o",
+    "start": "docker compose up -d"
   },
   "repository": {
     "type": "git",

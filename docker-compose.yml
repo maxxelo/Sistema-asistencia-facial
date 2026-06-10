@@ -79,19 +79,36 @@ services:
       - ./api3-facial:/app
       - /app/node_modules
 
-  # ─── API 4: Reportes (pendiente) ───────────────────────
-  # api4:
-  #   build: ./api4-reportes
-  #   container_name: api4_reportes
-  #   ports:
-  #     - "3004:3004"
-  #   env_file: .env
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   networks:
-  #     - red_interna
-  #   restart: unless-stopped
+  # ─── API 4: Reportes ───────────────────────────────────
+  api4:
+    build: ./api4-reportes
+    container_name: api4_reportes
+    ports:
+      - "3004:3004"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - red_interna
+    restart: unless-stopped
+    volumes:
+      - ./api4-reportes:/app
+      - /app/node_modules
+
+  # ─── Frontend (http-server sirviendo index.html) ───────
+  frontend:
+    image: node:20-alpine
+    container_name: frontend_web
+    working_dir: /app
+    command: sh -c "npm install -g http-server && http-server /app -p 3000 --cors -c-1"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+    networks:
+      - red_interna
+    restart: unless-stopped
 
 networks:
   red_interna:
