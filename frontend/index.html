@@ -106,6 +106,9 @@
     <button class="tab-btn solo-admin" onclick="mostrarTab('notas')" id="tab-notas">📝 Notas</button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('apoderados')" id="tab-apoderados">👨‍👩‍👦 Apoderados</button>
     <button class="tab-btn" onclick="mostrarTab('comunicados')" id="tab-comunicados">📢 Comunicados</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('justificaciones')" id="tab-justificaciones">📝 Justificaciones</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('configuracion')" id="tab-configuracion">⚙️ Configuración</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('bitacora')" id="tab-bitacora">🗂️ Bitácora</button>
   </div>
 
   <!-- ── TAB: PANEL ────────────────────────────────────────────── -->
@@ -514,6 +517,90 @@
     </div>
   </div>
 
+  <!-- ── TAB: JUSTIFICACIONES ──────────────────────────────── -->
+  <div class="tab-section solo-admin" id="sec-justificaciones">
+    <div class="seccion">
+      <h2 style="margin-bottom:4px">📝 Justificaciones de Inasistencia</h2>
+      <p style="font-size:.85em;color:#6b7280;margin:0 0 14px">Gestiona las ausencias justificadas por licencia médica, actividades o motivos familiares</p>
+
+      <!-- Filtros -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+        <div>
+          <label style="font-size:.82em;display:block;margin-bottom:3px">Estado</label>
+          <select id="filtro-estado-just" onchange="cargarJustificaciones()"
+                  style="padding:6px 10px;border-radius:6px;border:1px solid #ccc;font-size:.88em">
+            <option value="">Todos</option>
+            <option value="pendiente" selected>⏳ Pendientes</option>
+            <option value="aprobada">✅ Aprobadas</option>
+            <option value="rechazada">❌ Rechazadas</option>
+          </select>
+        </div>
+        <button class="btn-primary" onclick="cargarJustificaciones()" style="font-size:.83em">🔄 Actualizar</button>
+      </div>
+
+      <div id="msg-justificaciones" style="margin-bottom:8px"></div>
+      <div id="tabla-justificaciones"></div>
+    </div>
+  </div>
+
+  <!-- ── TAB: CONFIGURACIÓN ────────────────────────────────── -->
+  <div class="tab-section solo-admin" id="sec-configuracion">
+    <div class="seccion">
+      <h2 style="margin-bottom:4px">⚙️ Configuración del Sistema</h2>
+      <p style="font-size:.85em;color:#6b7280;margin:0 0 16px">Parámetros generales del establecimiento</p>
+      <div id="msg-configuracion" style="margin-bottom:10px"></div>
+      <div id="form-configuracion">
+        <p style="color:gray;font-size:.88em">⏳ Cargando...</p>
+      </div>
+      <div style="margin-top:16px">
+        <button class="btn-primary" onclick="guardarConfiguracion()">💾 Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: BITÁCORA ─────────────────────────────────────── -->
+  <div class="tab-section solo-admin" id="sec-bitacora">
+    <div class="seccion">
+      <h2 style="margin-bottom:4px">🗂️ Bitácora de Operaciones</h2>
+      <p style="font-size:.85em;color:#6b7280;margin:0 0 12px">Registro de todas las acciones realizadas en el sistema</p>
+
+      <!-- Filtros -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+        <div>
+          <label style="font-size:.82em;display:block;margin-bottom:3px">Desde</label>
+          <input type="date" id="bitacora-desde" style="padding:6px;border-radius:6px;border:1px solid #ccc;font-size:.85em" />
+        </div>
+        <div>
+          <label style="font-size:.82em;display:block;margin-bottom:3px">Hasta</label>
+          <input type="date" id="bitacora-hasta" style="padding:6px;border-radius:6px;border:1px solid #ccc;font-size:.85em" />
+        </div>
+        <div>
+          <label style="font-size:.82em;display:block;margin-bottom:3px">Tabla</label>
+          <select id="bitacora-tabla" style="padding:6px 10px;border-radius:6px;border:1px solid #ccc;font-size:.85em">
+            <option value="">Todas</option>
+            <option value="alumnos">alumnos</option>
+            <option value="usuarios">usuarios</option>
+            <option value="profesores">profesores</option>
+            <option value="cursos">cursos</option>
+            <option value="horarios">horarios</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:.82em;display:block;margin-bottom:3px">Límite</label>
+          <select id="bitacora-limite" style="padding:6px;border-radius:6px;border:1px solid #ccc;font-size:.85em">
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+          </select>
+        </div>
+        <button class="btn-primary" onclick="cargarBitacora()" style="font-size:.83em">🔍 Filtrar</button>
+      </div>
+
+      <div id="tabla-bitacora"><p style="color:gray;font-size:.88em">⏳ Cargando...</p></div>
+    </div>
+  </div>
+
 </div><!-- fin seccionApp -->
 
 <!-- ═══ MODAL CRUD ═══════════════════════════════════════════════════ -->
@@ -658,8 +745,10 @@
       if (tabActual === 'horarios')    cargarTablaHorarios()
       if (tabActual === 'usuarios')    cargarTablaUsuarios()
       if (tabActual === 'asignaturas') cargarTablaAsignaturas()
-      if (tabActual === 'aulas')       cargarTablaAulas()
-      if (tabActual === 'asistencia')  cargarHorarios()
+      if (tabActual === 'aulas')          cargarTablaAulas()
+      if (tabActual === 'asistencia')     cargarHorarios()
+      if (tabActual === 'justificaciones') cargarJustificaciones()
+      if (tabActual === 'bitacora')       cargarBitacora()
     }, 30000)
   }
 
@@ -685,7 +774,20 @@
     if (nombre === 'aulas')        cargarTablaAulas()
     if (nombre === 'notas')        cargarTablaNotas()
     if (nombre === 'apoderados')   cargarTablaApoderados()
-    if (nombre === 'comunicados')  cargarComunicados()
+    if (nombre === 'comunicados')     cargarComunicados()
+    if (nombre === 'justificaciones') cargarJustificaciones()
+    if (nombre === 'configuracion')   cargarConfiguracion()
+    if (nombre === 'bitacora') {
+      const hoy = new Date().toISOString().slice(0,10)
+      const hEl = document.getElementById('bitacora-hasta')
+      const dEl = document.getElementById('bitacora-desde')
+      if (hEl && !hEl.value) hEl.value = hoy
+      if (dEl && !dEl.value) {
+        const hace7 = new Date(Date.now() - 7*24*60*60*1000).toISOString().slice(0,10)
+        dEl.value = hace7
+      }
+      cargarBitacora()
+    }
   }
 
   /* ── HELPERS API ───────────────────────────────────────────────── */
@@ -888,18 +990,32 @@
         <th style="background:#1e40af;color:#fff;padding:6px 10px">Hora</th>
         <th style="background:#1e40af;color:#fff;padding:6px 10px">Estado</th>
         <th style="background:#1e40af;color:#fff;padding:6px 10px">Tipo</th>
+        <th style="background:#1e40af;color:#fff;padding:6px 10px">Acción</th>
       </tr></thead><tbody>`
       historial.slice(0,30).forEach((h,i) => {
         const bg      = i%2===0?'#f9f9f9':'#fff'
-        const estado  = h.presente ? '<span style="color:#16a34a;font-weight:600">✅ Presente</span>' : '<span style="color:#dc2626;font-weight:600">❌ Ausente</span>'
+        const justEstado = h.estado_justificacion
+        const justBadge = justEstado === 'aprobada'   ? '<span style="font-size:.75em;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:10px;margin-left:4px">✅ Justificada</span>'
+                        : justEstado === 'pendiente'  ? '<span style="font-size:.75em;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:10px;margin-left:4px">⏳ Pendiente</span>'
+                        : justEstado === 'rechazada'  ? '<span style="font-size:.75em;background:#fee2e2;color:#7f1d1d;padding:1px 6px;border-radius:10px;margin-left:4px">❌ Rechazada</span>'
+                        : ''
+        const estado  = h.presente
+          ? `<span style="color:#16a34a;font-weight:600">✅ Presente</span>`
+          : `<span style="color:#dc2626;font-weight:600">❌ Ausente</span>${justBadge}`
+        const justifTexto = h.justificacion ? `<br><span style="font-size:.78em;color:#d97706">📝 ${h.justificacion}</span>` : ''
         const tipo    = h.tipo_asistencia === 'facial' ? '🤖 Facial' : h.tipo_asistencia === 'manual' ? '✋ Manual' : h.tipo_asistencia||'—'
-        const justif  = h.justificacion ? `<br><span style="font-size:.8em;color:#d97706">📝 ${h.justificacion}</span>` : ''
+        const btnJust = (!h.presente && !justEstado)
+          ? `<button class="btn-sm" style="background:#d97706;color:#fff;font-size:.75em"
+               onclick="abrirJustificar(${h.id_detalle||h.id},'${(nombre).replace(/'/g,"\\'")}','${new Date(h.fecha).toLocaleDateString('es-CL')}','${h.asignatura}')">📝 Justificar</button>`
+          : (justEstado === 'pendiente' ? `<button class="btn-sm" style="background:#16a34a;color:#fff;font-size:.75em"
+               onclick="aprobarJustificacion(${h.id_justificacion})">✅ Aprobar</button>` : '')
         html += `<tr style="background:${bg}">
           <td style="padding:5px 10px">${new Date(h.fecha).toLocaleDateString('es-CL')}</td>
           <td style="padding:5px 10px">${h.asignatura}</td>
           <td style="padding:5px 10px">${h.hora_inicio?.slice(0,5)||''}–${h.hora_fin?.slice(0,5)||''}</td>
-          <td style="padding:5px 10px">${estado}${justif}</td>
+          <td style="padding:5px 10px">${estado}${justifTexto}</td>
           <td style="padding:5px 10px;color:#6b7280">${tipo}</td>
+          <td style="padding:5px 10px">${btnJust}</td>
         </tr>`
       })
       html += '</tbody></table></div>'
@@ -3546,6 +3662,295 @@
       setTimeout(() => cerrarModal(), 1200)
     } else {
       msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     MÓDULO: JUSTIFICACIONES
+  ══════════════════════════════════════════════════════════════════ */
+
+  async function cargarJustificaciones() {
+    const el     = document.getElementById('tabla-justificaciones')
+    const estado = document.getElementById('filtro-estado-just')?.value || ''
+    el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+    try {
+      const url  = `${API2}/asistencia/justificaciones${estado ? '?estado=' + estado : ''}`
+      const data = await apiGet(url)
+      if (!data.length) {
+        el.innerHTML = `<p style="color:#aaa;text-align:center;padding:24px">
+          ${estado === 'pendiente' ? '✅ No hay justificaciones pendientes' : 'No hay registros'}</p>`
+        return
+      }
+      const colorEstado = { pendiente:'#fef3c7', aprobada:'#dcfce7', rechazada:'#fee2e2' }
+      const textoEstado = { pendiente:'#92400e', aprobada:'#166534', rechazada:'#7f1d1d' }
+      const labelEstado = { pendiente:'⏳ Pendiente', aprobada:'✅ Aprobada', rechazada:'❌ Rechazada' }
+      el.innerHTML = `<div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.85em">
+          <thead><tr style="background:#1e40af;color:#fff">
+            <th style="padding:8px 10px;text-align:left">Fecha</th>
+            <th style="padding:8px 10px;text-align:left">Alumno</th>
+            <th style="padding:8px 10px;text-align:left">Curso</th>
+            <th style="padding:8px 10px;text-align:left">Asignatura</th>
+            <th style="padding:8px 10px;text-align:left">Motivo</th>
+            <th style="padding:8px 10px;text-align:center">Estado</th>
+            <th style="padding:8px 10px;text-align:center">Acciones</th>
+          </tr></thead><tbody>` +
+        data.map((j, i) => {
+          const bg = i%2===0 ? '#fff' : '#f9fafb'
+          const est = j.estado || 'pendiente'
+          const acciones = est === 'pendiente' ? `
+            <button class="btn-sm" style="background:#16a34a;color:#fff" onclick="cambiarEstadoJustificacion(${j.id},'aprobada')">✅ Aprobar</button>
+            <button class="btn-sm" style="background:#dc2626;color:#fff" onclick="cambiarEstadoJustificacion(${j.id},'rechazada')">❌ Rechazar</button>`
+            : `<button class="btn-sm btn-secondary" onclick="cambiarEstadoJustificacion(${j.id},'pendiente')">↩️ Reabrir</button>`
+          return `<tr style="background:${bg}">
+            <td style="padding:7px 10px">${new Date(j.fecha).toLocaleDateString('es-CL')}<br>
+              <span style="font-size:.78em;color:#6b7280">${j.hora_inicio?.slice(0,5)||''}–${j.hora_fin?.slice(0,5)||''}</span></td>
+            <td style="padding:7px 10px"><strong>${j.alumno}</strong><br>
+              <span style="font-size:.78em;color:#6b7280">${j.rut||''}</span></td>
+            <td style="padding:7px 10px">${j.curso||'—'}</td>
+            <td style="padding:7px 10px">${j.asignatura}</td>
+            <td style="padding:7px 10px;max-width:200px;font-size:.83em">${j.motivo}</td>
+            <td style="padding:7px 10px;text-align:center">
+              <span style="background:${colorEstado[est]};color:${textoEstado[est]};padding:2px 10px;border-radius:12px;font-size:.8em;font-weight:600">
+                ${labelEstado[est]}</span></td>
+            <td style="padding:7px 10px;text-align:center">${acciones}</td>
+          </tr>`
+        }).join('') +
+        '</tbody></table></div>'
+    } catch(err) {
+      el.innerHTML = `<p class="mensaje-err">❌ Error: ${err.message}</p>`
+    }
+  }
+
+  async function cambiarEstadoJustificacion(id, estado) {
+    const msg = document.getElementById('msg-justificaciones')
+    const { ok, data } = await apiPut(`${API2}/asistencia/justificacion/${id}`, { estado })
+    if (ok) {
+      msg.innerHTML = `<span class="mensaje-ok">✅ Justificación marcada como "${estado}"</span>`
+      setTimeout(() => { msg.innerHTML = ''; cargarJustificaciones() }, 1500)
+    } else {
+      msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    }
+  }
+
+  async function aprobarJustificacion(id) {
+    if (!id) return
+    await cambiarEstadoJustificacion(id, 'aprobada')
+  }
+
+  // Abre el modal CRUD reutilizando el overlay para ingresar una justificación
+  function abrirJustificar(idDetalle, nombreAlumno, fecha, asignatura) {
+    const overlay = document.getElementById('modal-overlay')
+    const titulo  = document.getElementById('modal-titulo')
+    const form    = document.getElementById('modal-form-container')
+    const actions = document.querySelector('#modal-box .form-actions')
+    const msg     = document.getElementById('modal-msg')
+    titulo.textContent = `📝 Justificar ausencia — ${nombreAlumno}`
+    msg.innerHTML = ''
+    form.innerHTML = `
+      <div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:9px 13px;font-size:.85em;color:#713f12;margin-bottom:12px">
+        📅 ${fecha} &nbsp;|&nbsp; 📖 ${asignatura}
+      </div>
+      <div class="form-group"><label>Motivo de la justificación *</label>
+        <select id="just-tipo" onchange="document.getElementById('just-motivo').value=this.value"
+                style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;margin-bottom:8px">
+          <option value="">— Selecciona un tipo —</option>
+          <option value="Licencia médica">Licencia médica</option>
+          <option value="Control médico">Control médico</option>
+          <option value="Enfermedad sin licencia">Enfermedad sin licencia</option>
+          <option value="Actividad deportiva oficial">Actividad deportiva oficial</option>
+          <option value="Actividad cultural oficial">Actividad cultural oficial</option>
+          <option value="Motivo familiar">Motivo familiar</option>
+          <option value="Otro">Otro</option>
+        </select>
+        <textarea id="just-motivo" rows="3" placeholder="Describe o detalla el motivo..."
+                  style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;resize:vertical;font-size:.9em"></textarea>
+      </div>`
+    actions.innerHTML = `
+      <button class="btn-secondary" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-primary"   onclick="guardarJustificacion(${idDetalle})">💾 Guardar justificación</button>`
+    overlay.style.display = 'block'
+  }
+
+  async function guardarJustificacion(idDetalle) {
+    const motivo = document.getElementById('just-motivo')?.value.trim()
+    const msg    = document.getElementById('modal-msg')
+    if (!motivo) { msg.innerHTML = '<span class="mensaje-err">⚠️ El motivo es obligatorio</span>'; return }
+    const { ok, data } = await apiPost(`${API2}/asistencia/justificar`,
+      { id_asistencia_detalle: idDetalle, motivo })
+    if (ok) {
+      msg.innerHTML = '<span class="mensaje-ok">✅ Justificación registrada</span>'
+      setTimeout(() => {
+        cerrarModal()
+        // Refrescar el reporte del alumno actual
+        if (alumnoReporteActual) seleccionarAlumnoReporte(alumnoReporteActual.id, alumnoReporteActual.nombre)
+      }, 1000)
+    } else {
+      msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     MÓDULO: CONFIGURACIÓN DEL SISTEMA
+  ══════════════════════════════════════════════════════════════════ */
+
+  let _parametrosCache = []
+
+  async function cargarConfiguracion() {
+    const el = document.getElementById('form-configuracion')
+    const msg = document.getElementById('msg-configuracion')
+    el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+    try {
+      _parametrosCache = await apiGet(`${API1}/parametros`)
+      const get = (clave) => _parametrosCache.find(p => p.clave === clave)?.valor || ''
+      el.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="form-group">
+            <label>🏫 Nombre del colegio</label>
+            <input type="text" id="cfg-nombre_colegio" value="${get('nombre_colegio')}" placeholder="Colegio San Martín" />
+          </div>
+          <div class="form-group">
+            <label>📅 Año lectivo</label>
+            <input type="number" id="cfg-anio_lectivo" value="${get('anio_lectivo')}" min="2020" max="2040" style="width:120px" />
+          </div>
+          <div class="form-group">
+            <label>👤 Director/a</label>
+            <input type="text" id="cfg-director_nombre" value="${get('director_nombre')}" placeholder="Nombre completo" />
+          </div>
+          <div class="form-group">
+            <label>📊 Umbral de asistencia (%)</label>
+            <input type="number" id="cfg-umbral_asistencia" value="${get('umbral_asistencia') || 85}" min="50" max="100" style="width:90px" />
+            <small style="color:#6b7280;display:block;margin-top:3px">Mínimo legal: 85%</small>
+          </div>
+          <div class="form-group">
+            <label>📞 Teléfono</label>
+            <input type="text" id="cfg-telefono_colegio" value="${get('telefono_colegio')}" placeholder="+56 2 2345 6789" />
+          </div>
+          <div class="form-group">
+            <label>✉️ Correo</label>
+            <input type="text" id="cfg-correo_colegio" value="${get('correo_colegio')}" placeholder="contacto@colegio.cl" />
+          </div>
+          <div class="form-group">
+            <label>📍 Dirección</label>
+            <input type="text" id="cfg-direccion_colegio" value="${get('direccion_colegio')}" placeholder="Av. Siempre Viva 742" />
+          </div>
+          <div class="form-group">
+            <label>🏙️ Comuna</label>
+            <input type="text" id="cfg-comuna" value="${get('comuna')}" placeholder="Santiago" />
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:4px">
+          <label>🗺️ Región</label>
+          <select id="cfg-region" style="width:100%;max-width:360px">
+            ${['Región de Arica y Parinacota','Región de Tarapacá','Región de Antofagasta',
+               'Región de Atacama','Región de Coquimbo','Región de Valparaíso',
+               'Región Metropolitana','Región del Libertador Gral. B. O\'Higgins',
+               'Región del Maule','Región del Ñuble','Región del Biobío',
+               'Región de La Araucanía','Región de Los Ríos','Región de Los Lagos',
+               'Región de Aysén','Región de Magallanes'].map(r =>
+                 `<option value="${r}" ${get('region')===r?'selected':''}>${r}</option>`).join('')}
+          </select>
+        </div>`
+    } catch(err) {
+      el.innerHTML = `<p class="mensaje-err">❌ Error al cargar: ${err.message}</p>`
+    }
+  }
+
+  async function guardarConfiguracion() {
+    const msg = document.getElementById('msg-configuracion')
+    const leer = id => document.getElementById(id)?.value?.trim() || ''
+    const items = [
+      { clave: 'nombre_colegio',    valor: leer('cfg-nombre_colegio') },
+      { clave: 'anio_lectivo',      valor: leer('cfg-anio_lectivo') },
+      { clave: 'director_nombre',   valor: leer('cfg-director_nombre') },
+      { clave: 'umbral_asistencia', valor: leer('cfg-umbral_asistencia') },
+      { clave: 'telefono_colegio',  valor: leer('cfg-telefono_colegio') },
+      { clave: 'correo_colegio',    valor: leer('cfg-correo_colegio') },
+      { clave: 'direccion_colegio', valor: leer('cfg-direccion_colegio') },
+      { clave: 'comuna',            valor: leer('cfg-comuna') },
+      { clave: 'region',            valor: leer('cfg-region') },
+    ]
+    const umbral = parseInt(items.find(i=>i.clave==='umbral_asistencia')?.valor)
+    if (isNaN(umbral) || umbral < 50 || umbral > 100) {
+      msg.innerHTML = '<span class="mensaje-err">⚠️ El umbral debe estar entre 50 y 100%</span>'; return
+    }
+    msg.innerHTML = '<span style="color:gray;font-size:.88em">💾 Guardando...</span>'
+    const { ok, data } = await apiPost(`${API1}/parametros/bulk`, items)
+    if (ok) {
+      _parametrosCache = data
+      msg.innerHTML = '<span class="mensaje-ok">✅ Configuración guardada correctamente</span>'
+      setTimeout(() => msg.innerHTML = '', 2500)
+    } else {
+      msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     MÓDULO: BITÁCORA
+  ══════════════════════════════════════════════════════════════════ */
+
+  async function cargarBitacora() {
+    const el     = document.getElementById('tabla-bitacora')
+    const desde  = document.getElementById('bitacora-desde')?.value || ''
+    const hasta  = document.getElementById('bitacora-hasta')?.value || ''
+    const tabla  = document.getElementById('bitacora-tabla')?.value || ''
+    const limite = document.getElementById('bitacora-limite')?.value || '100'
+    el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+    try {
+      const params = new URLSearchParams({ limite })
+      if (desde) params.set('desde', desde)
+      if (hasta) params.set('hasta', hasta)
+      if (tabla) params.set('tabla', tabla)
+      const data = await apiGet(`${API1}/bitacora?${params}`)
+      if (!data.length) {
+        el.innerHTML = '<p style="color:#aaa;text-align:center;padding:24px">No hay registros en este rango</p>'
+        return
+      }
+      const colorAccion = (acc) => {
+        if (acc?.startsWith('CREAR'))    return '#dcfce7'
+        if (acc?.startsWith('EDITAR'))   return '#dbeafe'
+        if (acc?.startsWith('ELIMINAR')) return '#fee2e2'
+        if (acc?.startsWith('LOGIN'))    return '#f3e8ff'
+        return '#f9fafb'
+      }
+      const iconAccion = (acc) => {
+        if (acc?.startsWith('CREAR'))    return '➕'
+        if (acc?.startsWith('EDITAR'))   return '✏️'
+        if (acc?.startsWith('ELIMINAR')) return '🗑️'
+        if (acc?.startsWith('LOGIN'))    return '🔑'
+        return '📋'
+      }
+      el.innerHTML = `<div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.84em">
+          <thead><tr style="background:#374151;color:#fff">
+            <th style="padding:8px 10px;text-align:left">Fecha y hora</th>
+            <th style="padding:8px 10px;text-align:left">Usuario</th>
+            <th style="padding:8px 10px;text-align:left">Acción</th>
+            <th style="padding:8px 10px;text-align:left">Tabla</th>
+            <th style="padding:8px 10px;text-align:center">ID reg.</th>
+          </tr></thead><tbody>` +
+        data.map((b, i) => {
+          const dt = new Date(b.fecha_hora)
+          const fecha = dt.toLocaleDateString('es-CL', {day:'2-digit',month:'short',year:'numeric'})
+          const hora  = dt.toLocaleTimeString('es-CL', {hour:'2-digit',minute:'2-digit',second:'2-digit'})
+          const bg    = colorAccion(b.accion)
+          return `<tr style="background:${i%2===0?bg:'#fff'}">
+            <td style="padding:6px 10px;white-space:nowrap">
+              <span style="font-weight:600">${fecha}</span><br>
+              <span style="color:#6b7280;font-size:.85em">${hora}</span></td>
+            <td style="padding:6px 10px">
+              <span style="font-weight:500">${b.nombre_usuario||'Sistema'}</span><br>
+              <span style="font-size:.78em;color:#6b7280">${b.tipo_persona||''}</span></td>
+            <td style="padding:6px 10px">${iconAccion(b.accion)} ${b.accion||'—'}</td>
+            <td style="padding:6px 10px">
+              <code style="background:#e5e7eb;padding:2px 6px;border-radius:4px;font-size:.82em">${b.tabla_afectada||'—'}</code></td>
+            <td style="padding:6px 10px;text-align:center;color:#6b7280">${b.registro_id||'—'}</td>
+          </tr>`
+        }).join('') +
+        '</tbody></table></div>' +
+        `<p style="font-size:.78em;color:#9ca3af;margin:6px 0 0;text-align:right">Mostrando ${data.length} registro(s)</p>`
+    } catch(err) {
+      el.innerHTML = `<p class="mensaje-err">❌ Error: ${err.message}</p>`
     }
   }
 
