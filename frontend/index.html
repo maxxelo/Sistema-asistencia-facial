@@ -103,6 +103,9 @@
     <button class="tab-btn solo-admin" onclick="mostrarTab('usuarios')" id="tab-usuarios">🔑 Usuarios</button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('asignaturas')" id="tab-asignaturas">📖 Asignaturas</button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('aulas')" id="tab-aulas">🏫 Aulas</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('notas')" id="tab-notas">📝 Notas</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('apoderados')" id="tab-apoderados">👨‍👩‍👦 Apoderados</button>
+    <button class="tab-btn" onclick="mostrarTab('comunicados')" id="tab-comunicados">📢 Comunicados</button>
   </div>
 
   <!-- ── TAB: PANEL ────────────────────────────────────────────── -->
@@ -179,6 +182,7 @@
         <button id="rtab-curso"   class="btn-secondary" onclick="mostrarReporteTab('curso')"   style="font-size:.88em">📚 Por curso</button>
         <button id="rtab-dia"     class="btn-secondary" onclick="mostrarReporteTab('dia')"     style="font-size:.88em">📅 Resumen del día</button>
         <button id="rtab-manual"  class="btn-secondary" onclick="mostrarReporteTab('manual')"  style="font-size:.88em">✋ Pasar lista manual</button>
+        <button id="rtab-riesgo"  class="btn-secondary solo-admin" onclick="mostrarReporteTab('riesgo')"  style="font-size:.88em;background:#dc2626;color:#fff;border-color:#dc2626">🔴 En riesgo</button>
       </div>
 
       <!-- Reporte: Por alumno -->
@@ -252,6 +256,24 @@
           </div>
         </div>
         <div id="resultado-lista-manual"></div>
+      </div>
+
+      <!-- Reporte: Alumnos en riesgo -->
+      <div id="rsec-riesgo" style="display:none">
+        <h2 style="margin-bottom:4px;color:#dc2626">🔴 Alumnos en Riesgo de Reprobación</h2>
+        <p style="font-size:.85em;color:#6b7280;margin:0 0 12px">Alumnos con asistencia por debajo del <strong>85%</strong> mínimo legal</p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+          <label style="font-size:.85em">Umbral de riesgo:</label>
+          <select id="r-umbral-riesgo" onchange="cargarAlumnosRiesgo()"
+                  style="padding:6px;border-radius:6px;border:1px solid #ccc;font-size:.88em">
+            <option value="85" selected>85% (mínimo legal)</option>
+            <option value="90">90%</option>
+            <option value="75">75%</option>
+            <option value="70">70%</option>
+          </select>
+          <button class="btn-primary" onclick="cargarAlumnosRiesgo()" style="font-size:.83em">🔄 Actualizar</button>
+        </div>
+        <div id="resultado-riesgo"></div>
       </div>
     </div>
   </div>
@@ -407,6 +429,91 @@
     </div>
   </div>
 
+  <!-- ── TAB: NOTAS ──────────────────────────────────────────── -->
+  <div class="tab-section solo-admin" id="sec-notas">
+    <div class="seccion">
+      <!-- Sub-tabs de notas -->
+      <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+        <button id="ntab-periodos"     class="btn-primary"   onclick="mostrarNotasTab('periodos')"   style="font-size:.88em">📅 Períodos</button>
+        <button id="ntab-evaluaciones" class="btn-secondary" onclick="mostrarNotasTab('evaluaciones')" style="font-size:.88em">📋 Evaluaciones</button>
+        <button id="ntab-calificaciones" class="btn-secondary" onclick="mostrarNotasTab('calificaciones')" style="font-size:.88em">📝 Ingresar Notas</button>
+      </div>
+
+      <!-- Períodos académicos -->
+      <div id="nsec-periodos">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h2 style="margin:0">📅 Períodos Académicos</h2>
+          <button class="btn-primary" onclick="abrirModalNotas('periodo')">+ Nuevo Período</button>
+        </div>
+        <div id="msg-periodos" style="margin-bottom:8px"></div>
+        <table><thead><tr><th>ID</th><th>Nombre</th><th>Inicio</th><th>Fin</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody id="tbodyPeriodos"></tbody></table>
+      </div>
+
+      <!-- Evaluaciones -->
+      <div id="nsec-evaluaciones" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <h2 style="margin:0">📋 Evaluaciones</h2>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="filtro-periodo-eval" onchange="cargarEvaluaciones()" style="padding:6px;border-radius:6px;border:1px solid #ccc">
+              <option value="">Todos los períodos</option>
+            </select>
+            <button class="btn-primary" onclick="abrirModalNotas('evaluacion')">+ Nueva Evaluación</button>
+          </div>
+        </div>
+        <div id="msg-evaluaciones" style="margin-bottom:8px"></div>
+        <table><thead><tr><th>ID</th><th>Nombre</th><th>Tipo</th><th>Asignatura</th><th>Fecha</th><th>Ponderación</th><th>Período</th><th>Acciones</th></tr></thead>
+        <tbody id="tbodyEvaluaciones"></tbody></table>
+      </div>
+
+      <!-- Ingresar notas -->
+      <div id="nsec-calificaciones" style="display:none">
+        <h2 style="margin:0 0 12px">📝 Ingresar / Editar Notas</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end">
+          <div>
+            <label style="font-size:.85em;display:block;margin-bottom:4px">Evaluación</label>
+            <select id="cal-id-evaluacion" onchange="cargarCalificaciones()" style="padding:7px;border-radius:6px;border:1px solid #ccc;min-width:250px">
+              <option value="">— Selecciona evaluación —</option>
+            </select>
+          </div>
+        </div>
+        <div id="resultado-calificaciones"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: APODERADOS ─────────────────────────────────────── -->
+  <div class="tab-section solo-admin" id="sec-apoderados">
+    <div class="seccion">
+      <h2>Gestión de Apoderados
+        <span style="float:right">
+          <button class="btn-primary" onclick="abrirModal('apoderado')">+ Nuevo Apoderado</button>
+        </span>
+      </h2>
+      <input type="text" id="buscar-apoderados" placeholder="🔍 Buscar por nombre, RUT o alumno vinculado..."
+             oninput="filtrarTabla('tbodyApoderados', this.value)"
+             style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;margin-bottom:8px;box-sizing:border-box" />
+      <div id="msg-apoderados" style="margin-bottom:8px"></div>
+      <table><thead>
+        <tr><th>ID</th><th>RUT</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Parentesco</th><th>Alumno(s)</th><th>Acciones</th></tr>
+      </thead><tbody id="tbodyApoderados"></tbody></table>
+    </div>
+  </div>
+
+  <!-- ── TAB: COMUNICADOS ────────────────────────────────────── -->
+  <div class="tab-section" id="sec-comunicados">
+    <div class="seccion">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h2 style="margin:0">📢 Comunicados del Colegio</h2>
+        <span class="solo-admin">
+          <button class="btn-primary" onclick="abrirModal('comunicado')">+ Nuevo Comunicado</button>
+        </span>
+      </div>
+      <div id="msg-comunicados" style="margin-bottom:8px"></div>
+      <div id="lista-comunicados"></div>
+    </div>
+  </div>
+
 </div><!-- fin seccionApp -->
 
 <!-- ═══ MODAL CRUD ═══════════════════════════════════════════════════ -->
@@ -427,6 +534,7 @@
   const API1   = 'http://localhost:3001'
   const API2   = 'http://localhost:3002'
   const API3   = 'http://localhost:3003'
+  const API4   = 'http://localhost:3004'
   const WS_URL = 'ws://localhost:3003'
   const OPCIONES_DETECTOR = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 })
 
@@ -438,7 +546,7 @@
   let rolUsuario = localStorage.getItem('rolUsuario') || null
   let modalTipo  = null   // 'alumno' | 'curso' | 'profesor' | 'horario' | 'usuario' | 'asignatura' | 'aula'
   let modalId    = null   // null = crear, número = editar
-  let listaCursos = [], listaProfesores = [], listaAsignaturas = [], listaAulas = []
+  let listaCursos = [], listaProfesores = [], listaAsignaturas = [], listaAulas = [], listaAlumnos = []
 
   const DIAS_SEMANA = { 1:'Lunes', 2:'Martes', 3:'Miércoles', 4:'Jueves', 5:'Viernes', 6:'Sábado', 7:'Domingo' }
 
@@ -573,8 +681,11 @@
     if (nombre === 'profesores')  cargarTablaProfesores()
     if (nombre === 'horarios')    cargarTablaHorarios()
     if (nombre === 'usuarios')    cargarTablaUsuarios()
-    if (nombre === 'asignaturas') cargarTablaAsignaturas()
-    if (nombre === 'aulas')       cargarTablaAulas()
+    if (nombre === 'asignaturas')  cargarTablaAsignaturas()
+    if (nombre === 'aulas')        cargarTablaAulas()
+    if (nombre === 'notas')        cargarTablaNotas()
+    if (nombre === 'apoderados')   cargarTablaApoderados()
+    if (nombre === 'comunicados')  cargarComunicados()
   }
 
   /* ── HELPERS API ───────────────────────────────────────────────── */
@@ -619,16 +730,39 @@
     })
   }
 
+  /* ── DESCARGA CSV AUTENTICADA ─────────────────────────────────── */
+  async function descargarCSV(url, nombreArchivo) {
+    try {
+      const token = localStorage.getItem('token')
+      const resp  = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      if (!resp.ok) { alert('No se pudo generar el CSV'); return }
+      const blob   = await resp.blob()
+      const link   = document.createElement('a')
+      link.href    = URL.createObjectURL(blob)
+      link.download = nombreArchivo
+      link.click()
+      URL.revokeObjectURL(link.href)
+    } catch (err) {
+      alert('Error al descargar: ' + err.message)
+    }
+  }
+
   /* ── REPORTES ──────────────────────────────────────────────────── */
   let reporteTabActual = 'alumno'
   let listaAlumnosCompleta = []   // cache para búsqueda
+  let alumnoReporteActual  = null // { id, nombre } del último alumno visualizado
 
   function mostrarReporteTab(tab) {
     reporteTabActual = tab
-    ;['alumno','curso','dia','manual'].forEach(t => {
+    ;['alumno','curso','dia','manual','riesgo'].forEach(t => {
       document.getElementById(`rsec-${t}`).style.display    = t === tab ? '' : 'none'
       const btn = document.getElementById(`rtab-${t}`)
-      if (btn) {
+      if (!btn) return
+      if (t === 'riesgo') {
+        btn.style.background    = t === tab ? '#991b1b' : '#dc2626'
+        btn.style.borderColor   = t === tab ? '#991b1b' : '#dc2626'
+        btn.style.color         = '#fff'
+      } else {
         btn.className = t === tab ? 'btn-primary' : 'btn-secondary'
         btn.style.fontSize = '.88em'
       }
@@ -644,6 +778,7 @@
     }
     if (tab === 'manual') rellenarSelectsManual()
     if (tab === 'alumno') cargarAlumnosParaReporte()
+    if (tab === 'riesgo') cargarAlumnosRiesgo()
   }
 
   async function cargarReportes() {
@@ -686,26 +821,33 @@
     document.getElementById('lista-alumnos-reporte').innerHTML = ''
     const el = document.getElementById('resultado-reporte-alumno')
     el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+    alumnoReporteActual = { id, nombre }
     try {
       const [resumen, historial] = await Promise.all([
         apiGet(`${API2}/asistencia/resumen/alumno/${id}`),
         apiGet(`${API2}/asistencia/alumno/${id}`)
       ])
-      el.innerHTML = renderReporteAlumno(nombre, resumen, historial)
+      el.innerHTML = renderReporteAlumno(id, nombre, resumen, historial)
     } catch (err) {
       el.innerHTML = `<p class="mensaje-err">Error: ${err.message}</p>`
     }
   }
 
-  function renderReporteAlumno(nombre, resumen, historial) {
+  function renderReporteAlumno(id, nombre, resumen, historial) {
     const totalClases    = resumen.reduce((s,r)=>s+parseInt(r.total_clases),0)
     const totalPresentes = resumen.reduce((s,r)=>s+parseInt(r.clases_presentes),0)
     const pctTotal       = totalClases ? Math.round(100*totalPresentes/totalClases) : null
     const pctColor       = pctTotal===null?'#888' : pctTotal>=85?'#16a34a' : pctTotal>=70?'#d97706':'#dc2626'
     const pctIcon        = pctTotal===null?'—'     : pctTotal>=85?'✅' : pctTotal>=70?'⚠️':'🔴'
+    const nombreSafe     = nombre.replace(/\s+/g,'-').replace(/[^a-zA-Z0-9-]/g,'')
 
     let html = `<div style="background:#f8fafc;border-radius:8px;padding:16px;border:1px solid #e2e8f0;margin-bottom:12px">
-      <h3 style="margin:0 0 12px;color:#1e40af">📊 ${nombre}</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0;color:#1e40af">📊 ${nombre}</h3>
+        <button onclick="descargarCSV('${API4}/reportes/csv/alumno/${id}','asistencia-${nombreSafe}.csv')"
+          style="background:#0891b2;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.83em">
+          📥 Exportar CSV</button>
+      </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">`
 
     // Tarjeta global
@@ -796,7 +938,12 @@
         if (!byHorario[key]) byHorario[key] = { asignatura: r.asignatura, hora_inicio: r.hora_inicio, hora_fin: r.hora_fin, alumnos: [] }
         byHorario[key].alumnos.push(r)
       })
-      let html = ''
+      const nombreCurso = (listaCursos.find(c=>String(c.id)===String(idCurso))?.nombre||'curso').replace(/\s+/g,'-')
+      let html = `<div style="text-align:right;margin-bottom:8px">
+        <button onclick="descargarCSV('${API4}/reportes/csv/curso/${idCurso}','asistencia-${encodeURIComponent(nombreCurso)}-${fecha}.csv')"
+          style="background:#0891b2;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.83em">
+          📥 Exportar CSV del curso</button>
+      </div>`
       Object.values(byHorario).forEach(bloque => {
         const presentes = bloque.alumnos.filter(a=>a.presente).length
         const total     = bloque.alumnos.length
@@ -862,6 +1009,55 @@
       el.innerHTML = html
     } catch(err) {
       el.innerHTML = `<p class="mensaje-err">Error: ${err.message}</p>`
+    }
+  }
+
+  /* ── REPORTES: Alumnos en riesgo (API4) ───────────────────────── */
+  async function cargarAlumnosRiesgo() {
+    const el     = document.getElementById('resultado-riesgo')
+    const umbral = document.getElementById('r-umbral-riesgo')?.value || 85
+    el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+    try {
+      const resp   = await apiGet(`${API4}/reportes/asistencia/riesgo?umbral=${umbral}`)
+      const alumnos = resp.alumnos || []
+      if (!alumnos.length) {
+        el.innerHTML = `<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:20px;text-align:center;color:#166534">
+          ✅ <strong>¡Ningún alumno en riesgo!</strong> Todos superan el ${umbral}% de asistencia.</div>`
+        return
+      }
+      let html = `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:12px;color:#7f1d1d;font-size:.88em">
+        ⚠️ <strong>${alumnos.length} alumno${alumnos.length>1?'s':''}</strong> con asistencia por debajo del <strong>${umbral}%</strong>
+      </div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85em">
+        <thead><tr style="background:#7f1d1d;color:#fff">
+          <th style="padding:8px 10px;text-align:left">Alumno</th>
+          <th style="padding:8px 10px;text-align:left">Curso</th>
+          <th style="padding:8px 10px;text-align:center">Asistencia</th>
+          <th style="padding:8px 10px;text-align:center">Clases</th>
+          <th style="padding:8px 10px;text-align:center">Ver</th>
+        </tr></thead><tbody>`
+      alumnos.forEach((a, i) => {
+        const pct   = parseFloat(a.porcentaje) || 0
+        const color = pct >= 70 ? '#d97706' : '#dc2626'
+        const bg    = i%2===0 ? '#fff5f5' : '#fff'
+        const nomSafe = (a.nombre_completo||'').replace(/'/g,"\\'")
+        html += `<tr style="background:${bg}">
+          <td style="padding:7px 10px"><strong>${a.nombre_completo||'—'}</strong><br>
+            <span style="font-size:.8em;color:#6b7280">${a.rut||''}</span></td>
+          <td style="padding:7px 10px">${a.curso||'—'}</td>
+          <td style="padding:7px 10px;text-align:center">
+            <span style="background:${color};color:#fff;padding:3px 10px;border-radius:12px;font-weight:700">${pct}%</span></td>
+          <td style="padding:7px 10px;text-align:center;color:#6b7280">${a.presentes||0}/${a.total_clases||0}</td>
+          <td style="padding:7px 10px;text-align:center">
+            <button class="btn-sm" style="background:#1e40af;color:#fff"
+              onclick="verAsistenciaAlumno(${a.id},'${nomSafe}')">📊</button>
+          </td>
+        </tr>`
+      })
+      html += '</tbody></table></div>'
+      el.innerHTML = html
+    } catch(err) {
+      el.innerHTML = `<p class="mensaje-err">❌ Error: ${err.message}</p>`
     }
   }
 
@@ -1002,6 +1198,7 @@
                     <button class="btn-sm btn-delete"  onclick="eliminarAlumno(${a.id},'${a.nombre}')">🗑️ Eliminar</button>`
                 : /* Activo: todas las acciones */`
                     <button class="btn-sm" style="background:#0891b2;color:#fff" onclick="verAsistenciaAlumno(${a.id},'${a.nombre} ${a.apellido_paterno}')" title="Ver asistencia">📊</button>
+                    <button class="btn-sm" style="background:#059669;color:#fff" onclick="verFichaMedica(${a.id},'${a.nombre} ${a.apellido_paterno}')" title="Ficha médica">🏥</button>
                     <button class="btn-sm btn-face"   onclick="irARegistrarRostro(${a.id})" title="Registrar rostro">📸</button>
                     <button class="btn-sm btn-edit"   onclick="editarAlumno(${a.id})" title="Editar">✏️</button>
                     <button class="btn-sm btn-delete" onclick="eliminarAlumno(${a.id},'${a.nombre}')" title="Eliminar">🗑️</button>`
@@ -1210,15 +1407,17 @@
     statsEl.innerHTML = '<p style="color:gray;font-size:.9em">⏳ Cargando estadísticas...</p>'
 
     try {
-      const [alumnos, cursos, profesores, horarios, usuarios, asignaturas, aulas] = await Promise.all([
+      const [alumnos, cursos, profesores, horarios, usuarios, asignaturas, aulas, riesgoResp] = await Promise.all([
         apiGet(`${API1}/alumnos`),
         apiGet(`${API1}/cursos`),
         apiGet(`${API1}/profesores`),
         apiGet(`${API1}/horarios`),
         apiGet(`${API1}/usuarios`),
         apiGet(`${API1}/asignaturas`),
-        apiGet(`${API1}/aulas`)
+        apiGet(`${API1}/aulas`),
+        apiGet(`${API4}/reportes/asistencia/riesgo`).catch(() => ({ total_en_riesgo: '?' }))
       ])
+      const enRiesgo = riesgoResp.total_en_riesgo ?? riesgoResp.alumnos?.length ?? '?'
 
       const alActivos  = alumnos.filter(a => a.activo)
       const cuActivos  = cursos.filter(c => c.activo)
@@ -1232,13 +1431,15 @@
         { n: cuActivos.length,  lbl:'Cursos',        icon:'📚', color:'#7c3aed', tab:'cursos' },
         { n: prActivos.length,  lbl:'Profesores',    icon:'👨‍🏫', color:'#059669', tab:'profesores' },
         { n: horarios.length,   lbl:'Horarios',      icon:'📅', color:'#d97706', tab:'horarios' },
-        { n: usActivos.length,  lbl:'Usuarios',      icon:'🔑', color:'#dc2626', tab:'usuarios' },
-        { n: asActivas.length,  lbl:'Asignaturas',   icon:'📖', color:'#0891b2', tab:'asignaturas' },
-        { n: aulas.length,      lbl:'Aulas',         icon:'🏫', color:'#7c3aed', tab:'aulas' },
+      ]
+      const tarjetasPeq = [
+        { n: usActivos.length,  lbl:'Usuarios',      icon:'🔑', color:'#0891b2', tab:'usuarios' },
+        { n: asActivas.length,  lbl:'Asignaturas',   icon:'📖', color:'#7c3aed', tab:'asignaturas' },
+        { n: aulas.length,      lbl:'Aulas',         icon:'🏫', color:'#374151', tab:'aulas' },
       ]
 
       const card = (t, big) => `
-        <div onclick="mostrarTab('${t.tab}')"
+        <div onclick="${t.onclick||`mostrarTab('${t.tab}')`}"
              style="background:${t.color};color:#fff;padding:${big?'18px':'13px'};border-radius:8px;
                     text-align:center;cursor:pointer;user-select:none"
              onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
@@ -1247,12 +1448,22 @@
           <div style="font-size:.8em;opacity:.9;margin-top:2px">${t.lbl}</div>
         </div>`
 
+      const riesgoCard = `
+        <div onclick="mostrarTab('reportes');mostrarReporteTab('riesgo')"
+             style="background:${enRiesgo>0?'#dc2626':'#16a34a'};color:#fff;padding:18px;border-radius:8px;
+                    text-align:center;cursor:pointer;user-select:none;grid-column:span 1"
+             onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
+          <div style="font-size:1.6em">${enRiesgo>0?'🔴':'✅'}</div>
+          <div style="font-size:2em;font-weight:700;line-height:1.1">${enRiesgo}</div>
+          <div style="font-size:.8em;opacity:.9;margin-top:2px">En Riesgo <85%</div>
+        </div>`
+
       statsEl.innerHTML = `
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:8px">
-          ${tarjetas.slice(0,4).map(t => card(t,true)).join('')}
+          ${tarjetas.map(t => card(t,true)).join('')}
         </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:0">
-          ${tarjetas.slice(4).map(t => card(t,false)).join('')}
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:0">
+          ${tarjetasPeq.map(t => card(t,false)).join('')}${riesgoCard}
         </div>`
 
       // ── Alertas pendientes ──────────────────────────────────────
@@ -1274,6 +1485,10 @@
       if (cuSinHorario.length)
         alertas.push({ tipo:'info', msg:`${cuSinHorario.length} curso(s) sin horario configurado`, tab:'horarios' })
 
+      if (enRiesgo > 0)
+        alertas.push({ tipo:'warn', msg:`${enRiesgo} alumno(s) con asistencia por debajo del 85% mínimo legal`,
+                       onclick:`mostrarTab('reportes');mostrarReporteTab('riesgo')` })
+
       if (!alertas.length)
         alertas.push({ tipo:'ok', msg:'Todo está configurado correctamente 🎉' })
 
@@ -1283,14 +1498,16 @@
       const iconAlerta  = { warn:'⚠️', info:'ℹ️', ok:'✅' }
 
       alertEl.innerHTML = `<h3 style="margin:0 0 8px;font-size:.95em;color:#374151">Estado del sistema</h3>` +
-        alertas.map(a => `
-          <div onclick="${a.tab?`mostrarTab('${a.tab}')`:''}"
-               style="padding:9px 13px;border-radius:6px;margin-bottom:5px;cursor:${a.tab?'pointer':'default'};
+        alertas.map(a => {
+          const accion = a.onclick || (a.tab ? `mostrarTab('${a.tab}')` : '')
+          return `
+          <div onclick="${accion}"
+               style="padding:9px 13px;border-radius:6px;margin-bottom:5px;cursor:${accion?'pointer':'default'};
                       background:${colorAlerta[a.tipo]};border-left:4px solid ${bordeAlerta[a.tipo]};
                       color:${textoAlerta[a.tipo]};display:flex;justify-content:space-between;align-items:center">
             <span>${iconAlerta[a.tipo]} ${a.msg}</span>
-            ${a.tab?`<span style="font-size:.8em;opacity:.7">ir →</span>`:''}
-          </div>`).join('')
+            ${accion?`<span style="font-size:.8em;opacity:.7">ir →</span>`:''}
+          </div>`}).join('')
 
       // ── Guía de pasos ───────────────────────────────────────────
       const pasos = [
@@ -1559,7 +1776,8 @@
       alumno: 'Alumno', curso: 'Curso', profesor: 'Profesor',
       horario: 'Bloque Horario', usuario: 'Usuario',
       'usuario-password': 'Cambiar Contraseña',
-      asignatura: 'Asignatura', aula: 'Aula'
+      asignatura: 'Asignatura', aula: 'Aula',
+      apoderado: 'Apoderado', comunicado: 'Comunicado'
     }
     document.getElementById('modal-titulo').textContent =
       (modalId ? 'Editar' : 'Nuevo/a') + ' ' + (titulos[tipo] || tipo)
@@ -1603,8 +1821,11 @@
       )
       // Al crear: solo profesores SIN cuenta. Al editar: incluir el vinculado actualmente
       listaProfesores = profs.filter(p =>
-        p.activo && (!profsConCuenta.has(p.id) || (d && d.id_profesor == p.id))
+        p.activo && (!profsConCuenta.has(p.id) || (datos && datos.id_profesor == p.id))
       )
+    }
+    if (tipo === 'apoderado') {
+      listaAlumnos = (await apiGet(`${API1}/alumnos`)).filter(a => a.activo)
     }
 
     // Restaurar botones del modal (en caso de que estuvieran en modo "ver")
@@ -2065,6 +2286,43 @@
         </div>`
     }
 
+    /* ── APODERADO ───────────────────────────────────────────── */
+    if (tipo === 'apoderado') {
+      const opsAlumnos = listaAlumnos.map(a =>
+        `<option value="${a.id}" ${d&&d.id_alumno==a.id?'selected':''}>${a.nombre} ${a.apellido_paterno} — ${a.curso||'Sin curso'}</option>`
+      ).join('')
+      return `
+        <div class="form-group"><label>RUT * <small style="color:#888">Ej: 12345678-9</small></label>
+          <input type="text" id="f-rut" value="${v('rut')}" maxlength="10" placeholder="12345678-9" autocomplete="off" /></div>
+        <div class="form-group"><label>Nombre completo *</label>
+          <input type="text" id="f-nombre" value="${v('nombre')}" placeholder="María González" /></div>
+        <div style="display:flex;gap:12px">
+          <div class="form-group" style="flex:1"><label>Teléfono</label>
+            <input type="text" id="f-telefono" value="${v('telefono')}" maxlength="15" placeholder="912345678" /></div>
+          <div class="form-group" style="flex:1"><label>Parentesco</label>
+            <select id="f-parentesco">
+              ${['','Madre','Padre','Abuelo/a','Tío/a','Tutor legal','Otro'].map(p=>
+                `<option value="${p}" ${v('parentesco')===p?'selected':''}>${p||'— Selecciona —'}</option>`).join('')}
+            </select></div>
+        </div>
+        <div class="form-group"><label>Email</label>
+          <input type="text" id="f-email" value="${v('email')}" placeholder="maria@gmail.com" autocomplete="off" /></div>
+        <div class="form-group"><label>Dirección</label>
+          <input type="text" id="f-direccion" value="${v('direccion')}" placeholder="Calle Los Álamos 123" /></div>
+        <div class="form-group"><label>Vincular al alumno <small style="color:#888">Opcional</small></label>
+          <select id="f-id_alumno"><option value="">— Sin vincular por ahora —</option>${opsAlumnos}</select></div>`
+    }
+
+    /* ── COMUNICADO ──────────────────────────────────────────── */
+    if (tipo === 'comunicado') {
+      return `
+        <div class="form-group"><label>Título *</label>
+          <input type="text" id="f-titulo" value="${v('titulo')}" placeholder="Reunión de apoderados — Viernes 15" maxlength="100" /></div>
+        <div class="form-group"><label>Contenido *</label>
+          <textarea id="f-contenido" rows="6" placeholder="Escribe el mensaje aquí..."
+                    style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;resize:vertical;font-size:.9em">${v('contenido')}</textarea></div>`
+    }
+
     return ''
   }
 
@@ -2514,6 +2772,34 @@
       method = modalId ? 'PUT' : 'POST'
     }
 
+    /* ──────────────── APODERADO ──────────────── */
+    if (modalTipo === 'apoderado') {
+      const rut      = leerCampo('f-rut')
+      const nombre   = leerCampo('f-nombre')
+      const email    = leerCampo('f-email')
+      if (!rut)    { msg.innerHTML='<span class="mensaje-err">⚠️ El RUT es obligatorio</span>'; return }
+      if (!nombre) { msg.innerHTML='<span class="mensaje-err">⚠️ El nombre es obligatorio</span>'; return }
+      if (email && !validarEmail(email)) { msg.innerHTML='<span class="mensaje-err">⚠️ Email inválido</span>'; return }
+      body   = { rut, nombre, email: email||null,
+                 telefono: leerCampo('f-telefono')||null,
+                 parentesco: leerCampo('f-parentesco')||null,
+                 direccion: leerCampo('f-direccion')||null,
+                 id_alumno: leerCampo('f-id_alumno')||null }
+      url    = modalId ? `${API1}/apoderados/${modalId}` : `${API1}/apoderados`
+      method = modalId ? 'PUT' : 'POST'
+    }
+
+    /* ──────────────── COMUNICADO ──────────────── */
+    if (modalTipo === 'comunicado') {
+      const titulo    = leerCampo('f-titulo')
+      const contenido = document.getElementById('f-contenido')?.value.trim()
+      if (!titulo)    { msg.innerHTML='<span class="mensaje-err">⚠️ El título es obligatorio</span>'; return }
+      if (!contenido) { msg.innerHTML='<span class="mensaje-err">⚠️ El contenido es obligatorio</span>'; return }
+      body   = { titulo, contenido }
+      url    = modalId ? `${API1}/comunicados/${modalId}` : `${API1}/comunicados`
+      method = modalId ? 'PUT' : 'POST'
+    }
+
     // Si ninguno de los tipos generó body, salir
     if (!url) return
 
@@ -2550,6 +2836,8 @@
         if (tipoGuardado === 'usuario')     cargarTablaUsuarios()
         if (tipoGuardado === 'asignatura')  cargarTablaAsignaturas()
         if (tipoGuardado === 'aula')        cargarTablaAulas()
+        if (tipoGuardado === 'apoderado')   cargarTablaApoderados()
+        if (tipoGuardado === 'comunicado')  cargarComunicados()
       }, 800)
     } else {
       msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
@@ -2747,6 +3035,521 @@
     const fi = document.getElementById('fechaClase')
     if (fi) fi.addEventListener('change', cargarHorarios)
   })
+
+  /* ══════════════════════════════════════════════════════════════════
+     MÓDULO: NOTAS / CALIFICACIONES
+  ══════════════════════════════════════════════════════════════════ */
+  let listaPeriodos = [], listaEvaluaciones = []
+
+  function mostrarNotasTab(tab) {
+    ;['periodos','evaluaciones','calificaciones'].forEach(t => {
+      document.getElementById(`nsec-${t}`).style.display = t === tab ? '' : 'none'
+      const btn = document.getElementById(`ntab-${t}`)
+      if (btn) { btn.className = t===tab?'btn-primary':'btn-secondary'; btn.style.fontSize='.88em' }
+    })
+    if (tab === 'periodos')      cargarTablaPeriodos()
+    if (tab === 'evaluaciones')  cargarEvaluaciones()
+    if (tab === 'calificaciones') prepararSelectorEvaluaciones()
+  }
+
+  async function cargarTablaNotas() {
+    mostrarNotasTab('periodos')
+  }
+
+  // ── PERÍODOS ────────────────────────────────────────────
+  async function cargarTablaPeriodos() {
+    const tbody = document.getElementById('tbodyPeriodos')
+    tbody.innerHTML = '<tr><td colspan="6">Cargando...</td></tr>'
+    try {
+      listaPeriodos = await apiGet(`${API1}/periodos`)
+      tbody.innerHTML = ''
+      if (!listaPeriodos.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:gray">No hay períodos académicos. Crea el primero →</td></tr>'; return
+      }
+      listaPeriodos.forEach(p => {
+        const tr = document.createElement('tr')
+        const badge = p.activo
+          ? '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:.78em;font-weight:600">✅ Activo</span>'
+          : '<span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:10px;font-size:.78em">Inactivo</span>'
+        tr.innerHTML = `
+          <td>${p.id}</td>
+          <td><strong>${p.nombre}</strong></td>
+          <td>${new Date(p.fecha_inicio).toLocaleDateString('es-CL')}</td>
+          <td>${new Date(p.fecha_fin).toLocaleDateString('es-CL')}</td>
+          <td>${badge}</td>
+          <td>
+            <button class="btn-sm btn-edit" onclick="editarPeriodo(${p.id})">✏️</button>
+            <button class="btn-sm btn-delete" onclick="eliminarPeriodo(${p.id},'${p.nombre}')">🗑️</button>
+          </td>`
+        tbody.appendChild(tr)
+      })
+      // Actualizar filtro de evaluaciones
+      const filtro = document.getElementById('filtro-periodo-eval')
+      if (filtro) {
+        const cur = filtro.value
+        filtro.innerHTML = '<option value="">Todos los períodos</option>' +
+          listaPeriodos.map(p=>`<option value="${p.id}" ${p.activo?'selected':''}>${p.nombre}</option>`).join('')
+        if (cur) filtro.value = cur
+      }
+    } catch(err) {
+      tbody.innerHTML = `<tr><td colspan="6" class="mensaje-err">Error: ${err.message}</td></tr>`
+    }
+  }
+
+  async function editarPeriodo(id) {
+    const p = listaPeriodos.find(x=>x.id===id)
+    if (p) await abrirModalNotas('periodo', p)
+  }
+
+  async function eliminarPeriodo(id, nombre) {
+    if (!confirm(`¿Eliminar el período "${nombre}"?`)) return
+    const { ok, data } = await apiDelete(`${API1}/periodos/${id}`)
+    document.getElementById('msg-periodos').innerHTML = ok
+      ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+      : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarTablaPeriodos()
+  }
+
+  // ── EVALUACIONES ────────────────────────────────────────
+  async function cargarEvaluaciones() {
+    const tbody = document.getElementById('tbodyEvaluaciones')
+    tbody.innerHTML = '<tr><td colspan="8">Cargando...</td></tr>'
+    const periodoId = document.getElementById('filtro-periodo-eval')?.value
+    try {
+      const url = periodoId ? `${API1}/evaluaciones?id_periodo=${periodoId}` : `${API1}/evaluaciones`
+      listaEvaluaciones = await apiGet(url)
+      tbody.innerHTML = ''
+      if (!listaEvaluaciones.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="color:gray">No hay evaluaciones para este período</td></tr>'; return
+      }
+      const tipoColor = { prueba:'#dbeafe', trabajo:'#fef3c7', control:'#f0fdf4', examen:'#fce7f3' }
+      listaEvaluaciones.forEach(e => {
+        const tr = document.createElement('tr')
+        const tipo = e.tipo_evaluacion || '—'
+        tr.innerHTML = `
+          <td>${e.id}</td>
+          <td><strong>${e.nombre}</strong></td>
+          <td><span style="background:${tipoColor[tipo]||'#f3f4f6'};padding:2px 8px;border-radius:10px;font-size:.8em">${tipo}</span></td>
+          <td>${e.asignatura}</td>
+          <td>${new Date(e.fecha).toLocaleDateString('es-CL')}</td>
+          <td>${e.porcentaje ? e.porcentaje+'%' : '—'}</td>
+          <td>${e.periodo}</td>
+          <td>
+            <button class="btn-sm" style="background:#0891b2;color:#fff" onclick="irIngresarNotas(${e.id})" title="Ingresar notas">📝</button>
+            <button class="btn-sm btn-edit" onclick="editarEvaluacion(${e.id})" title="Editar">✏️</button>
+            <button class="btn-sm btn-delete" onclick="eliminarEvaluacion(${e.id},'${e.nombre}')" title="Eliminar">🗑️</button>
+          </td>`
+        tbody.appendChild(tr)
+      })
+    } catch(err) {
+      tbody.innerHTML = `<tr><td colspan="8" class="mensaje-err">Error: ${err.message}</td></tr>`
+    }
+  }
+
+  async function editarEvaluacion(id) {
+    const e = listaEvaluaciones.find(x=>x.id===id)
+    if (e) await abrirModalNotas('evaluacion', e)
+  }
+
+  async function eliminarEvaluacion(id, nombre) {
+    if (!confirm(`¿Eliminar la evaluación "${nombre}"?\nSe eliminarán también las notas ingresadas.`)) return
+    const { ok, data } = await apiDelete(`${API1}/evaluaciones/${id}`)
+    document.getElementById('msg-evaluaciones').innerHTML = ok
+      ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+      : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarEvaluaciones()
+  }
+
+  function irIngresarNotas(idEval) {
+    mostrarNotasTab('calificaciones')
+    const sel = document.getElementById('cal-id-evaluacion')
+    if (sel) { sel.value = idEval; cargarCalificaciones() }
+  }
+
+  async function prepararSelectorEvaluaciones() {
+    if (!listaEvaluaciones.length) listaEvaluaciones = await apiGet(`${API1}/evaluaciones`)
+    const sel = document.getElementById('cal-id-evaluacion')
+    if (sel && sel.options.length <= 1) {
+      sel.innerHTML = '<option value="">— Selecciona evaluación —</option>' +
+        listaEvaluaciones.map(e =>
+          `<option value="${e.id}">${e.asignatura} — ${e.nombre} (${e.tipo_evaluacion||'—'}) — ${new Date(e.fecha).toLocaleDateString('es-CL')}</option>`
+        ).join('')
+    }
+  }
+
+  async function cargarCalificaciones() {
+    const idEval = document.getElementById('cal-id-evaluacion')?.value
+    const el     = document.getElementById('resultado-calificaciones')
+    if (!idEval) { el.innerHTML=''; return }
+    el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando alumnos...</p>'
+    try {
+      const data = await apiGet(`${API1}/evaluaciones/${idEval}/calificaciones`)
+      if (!data.calificaciones?.length) {
+        el.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">No hay alumnos en el curso de esta evaluación.</p>'; return
+      }
+      const ev = data.evaluacion
+      let html = `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;padding:10px 14px;margin-bottom:12px;font-size:.85em;color:#0369a1">
+        📋 <strong>${ev.asignatura}</strong> — ${ev.nombre} (${ev.tipo_evaluacion||'—'})
+        ${ev.porcentaje?` — Ponderación: ${ev.porcentaje}%`:''} — ${new Date(ev.fecha).toLocaleDateString('es-CL')}
+      </div>
+      <div style="max-height:420px;overflow-y:auto;border-radius:6px;border:1px solid #e5e7eb;margin-bottom:12px">
+      <table style="width:100%;border-collapse:collapse;font-size:.88em">
+      <thead><tr>
+        <th style="background:#1e40af;color:#fff;padding:7px 12px;text-align:left">Alumno</th>
+        <th style="background:#1e40af;color:#fff;padding:7px;text-align:center">Nota (1.0–7.0)</th>
+      </tr></thead><tbody>`
+      data.calificaciones.forEach((c,i) => {
+        const bg = i%2===0?'#f9f9f9':'#fff'
+        const notaVal = c.nota !== null ? c.nota : ''
+        const notaColor = !notaVal ? '#999' : parseFloat(notaVal) >= 4.0 ? '#166534' : '#dc2626'
+        html += `<tr style="background:${bg}">
+          <td style="padding:7px 12px">${c.nombre} ${c.apellido_paterno} ${c.apellido_materno||''}</td>
+          <td style="padding:7px;text-align:center">
+            <input type="number" min="1.0" max="7.0" step="0.1"
+                   id="nota-${c.id_alumno}" value="${notaVal}"
+                   data-id="${c.id_alumno}"
+                   oninput="colorearNota(this)"
+                   style="width:70px;text-align:center;padding:4px;border-radius:4px;
+                          border:1px solid #d1d5db;color:${notaColor};font-weight:600" />
+          </td>
+        </tr>`
+      })
+      html += `</tbody></table></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-primary" onclick="guardarCalificaciones('${idEval}')" style="font-size:.88em">💾 Guardar notas</button>
+        <button class="btn-secondary" onclick="limpiarNotas()" style="font-size:.8em">🗑️ Limpiar todas</button>
+      </div>
+      <div id="msg-calificaciones" style="margin-top:8px"></div>`
+      el.innerHTML = html
+    } catch(err) {
+      el.innerHTML = `<p class="mensaje-err">Error: ${err.message}</p>`
+    }
+  }
+
+  function colorearNota(input) {
+    const v = parseFloat(input.value)
+    input.style.color = isNaN(v) ? '#999' : v >= 4.0 ? '#166534' : '#dc2626'
+  }
+
+  function limpiarNotas() {
+    document.querySelectorAll('[id^="nota-"]').forEach(i => { i.value=''; i.style.color='#999' })
+  }
+
+  async function guardarCalificaciones(idEval) {
+    const inputs = document.querySelectorAll('[id^="nota-"]')
+    const calificaciones = Array.from(inputs).map(i => ({
+      id_alumno: parseInt(i.dataset.id),
+      nota: i.value === '' ? null : parseFloat(i.value)
+    }))
+    const { ok, data } = await apiPost(`${API1}/evaluaciones/${idEval}/calificaciones`, { calificaciones })
+    document.getElementById('msg-calificaciones').innerHTML = ok
+      ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+      : `<span class="mensaje-err">❌ ${data.error}</span>`
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     MODAL NOTAS (períodos y evaluaciones usan su propio modal ligero)
+  ══════════════════════════════════════════════════════════════════ */
+  let notasModalTipo = null, notasModalId = null
+
+  async function abrirModalNotas(tipo, d = null) {
+    notasModalTipo = tipo
+    notasModalId   = d?.id || null
+    const overlay  = document.getElementById('modal-overlay')
+    const box      = document.getElementById('modal-box')
+
+    if (!listaPeriodos.length) listaPeriodos = await apiGet(`${API1}/periodos`)
+    if (tipo === 'evaluacion' && !listaAsignaturas.length)
+      listaAsignaturas = (await apiGet(`${API1}/asignaturas`)).filter(a => a.activo)
+
+    const v = (k) => d?.[k] ?? ''
+    let titulo = '', formHtml = ''
+
+    if (tipo === 'periodo') {
+      titulo = d ? 'Editar Período' : 'Nuevo Período Académico'
+      formHtml = `
+        <div class="form-group"><label>Nombre * <small style="color:#888">Ej: 1er Semestre 2025</small></label>
+          <input type="text" id="fn-nombre" value="${v('nombre')}" placeholder="1er Semestre 2025" /></div>
+        <div style="display:flex;gap:12px">
+          <div class="form-group" style="flex:1"><label>Fecha inicio *</label>
+            <input type="date" id="fn-fecha_inicio" value="${v('fecha_inicio')?.slice(0,10)||''}" /></div>
+          <div class="form-group" style="flex:1"><label>Fecha fin *</label>
+            <input type="date" id="fn-fecha_fin" value="${v('fecha_fin')?.slice(0,10)||''}" /></div>
+        </div>
+        <div class="form-group"><label>
+          <input type="checkbox" id="fn-activo" ${v('activo')?'checked':''} style="margin-right:6px" />
+          Período activo (desactiva los demás)
+        </label></div>`
+    }
+
+    if (tipo === 'evaluacion') {
+      titulo = d ? 'Editar Evaluación' : 'Nueva Evaluación'
+      const opsAsigs = listaAsignaturas.map(a =>
+        `<option value="${a.id}" ${v('id_asignatura')==a.id?'selected':''}>${a.nombre}${a.codigo?' ('+a.codigo+')':''}</option>`
+      ).join('')
+      const opsPeriodos = listaPeriodos.map(p =>
+        `<option value="${p.id}" ${v('id_periodo')==p.id?'selected':''}>${p.nombre}</option>`
+      ).join('')
+      formHtml = `
+        <div class="form-group"><label>Nombre *</label>
+          <input type="text" id="fn-nombre" value="${v('nombre')}" placeholder="Prueba 1" /></div>
+        <div style="display:flex;gap:12px">
+          <div class="form-group" style="flex:1"><label>Tipo *</label>
+            <select id="fn-tipo">
+              <option value="">— Tipo —</option>
+              ${['prueba','trabajo','control','examen'].map(t=>`<option value="${t}" ${v('tipo_evaluacion')===t?'selected':''}>${t}</option>`).join('')}
+            </select></div>
+          <div class="form-group" style="flex:1"><label>Fecha *</label>
+            <input type="date" id="fn-fecha" value="${v('fecha')?.slice(0,10)||''}" /></div>
+        </div>
+        <div class="form-group"><label>Asignatura *</label>
+          <select id="fn-id_asignatura"><option value="">— Selecciona —</option>${opsAsigs}</select></div>
+        <div class="form-group"><label>Período *</label>
+          <select id="fn-id_periodo"><option value="">— Selecciona —</option>${opsPeriodos}</select></div>
+        <div class="form-group"><label>Ponderación % <small style="color:#888">Opcional (0–100)</small></label>
+          <input type="number" id="fn-porcentaje" value="${v('porcentaje')}" min="0" max="100" placeholder="20" /></div>`
+    }
+
+    box.innerHTML = `
+      <div class="modal-header"><h3>${titulo}</h3>
+        <button onclick="cerrarModal()" style="background:none;border:none;font-size:1.4em;cursor:pointer;color:#999">✕</button>
+      </div>
+      <div class="modal-body">${formHtml}</div>
+      <div class="modal-footer">
+        <div id="msg-modal-notas"></div>
+        <div class="form-actions">
+          <button class="btn-secondary" onclick="cerrarModal()">Cancelar</button>
+          <button class="btn-primary" onclick="guardarModalNotas()">💾 Guardar</button>
+        </div>
+      </div>`
+    overlay.classList.add('visible')
+  }
+
+  async function guardarModalNotas() {
+    const msg = document.getElementById('msg-modal-notas')
+    let body = {}, url = '', method = 'POST'
+
+    if (notasModalTipo === 'periodo') {
+      const nombre = document.getElementById('fn-nombre')?.value.trim()
+      const fi     = document.getElementById('fn-fecha_inicio')?.value
+      const ff     = document.getElementById('fn-fecha_fin')?.value
+      const activo = document.getElementById('fn-activo')?.checked
+      if (!nombre) { msg.innerHTML='<span class="mensaje-err">⚠️ El nombre es obligatorio</span>'; return }
+      if (!fi || !ff) { msg.innerHTML='<span class="mensaje-err">⚠️ Las fechas son obligatorias</span>'; return }
+      body = { nombre, fecha_inicio: fi, fecha_fin: ff, activo }
+      url  = notasModalId ? `${API1}/periodos/${notasModalId}` : `${API1}/periodos`
+      method = notasModalId ? 'PUT' : 'POST'
+    }
+
+    if (notasModalTipo === 'evaluacion') {
+      const nombre = document.getElementById('fn-nombre')?.value.trim()
+      const tipo   = document.getElementById('fn-tipo')?.value
+      const fecha  = document.getElementById('fn-fecha')?.value
+      const asig   = document.getElementById('fn-id_asignatura')?.value
+      const per    = document.getElementById('fn-id_periodo')?.value
+      const pct    = document.getElementById('fn-porcentaje')?.value
+      if (!nombre) { msg.innerHTML='<span class="mensaje-err">⚠️ El nombre es obligatorio</span>'; return }
+      if (!asig)   { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona la asignatura</span>'; return }
+      if (!per)    { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona el período</span>'; return }
+      if (!fecha)  { msg.innerHTML='<span class="mensaje-err">⚠️ La fecha es obligatoria</span>'; return }
+      body = { nombre, fecha, id_asignatura: parseInt(asig), id_periodo: parseInt(per),
+               tipo_evaluacion: tipo||null, porcentaje: pct ? parseFloat(pct) : null }
+      url  = notasModalId ? `${API1}/evaluaciones/${notasModalId}` : `${API1}/evaluaciones`
+      method = notasModalId ? 'PUT' : 'POST'
+    }
+
+    msg.innerHTML = '<span style="color:gray;font-size:.85em">⏳ Guardando...</span>'
+    const { ok, data } = method === 'PUT'
+      ? await apiPut(url, body)
+      : await apiPost(url, body)
+    if (ok) {
+      msg.innerHTML = '<span class="mensaje-ok">✅ Guardado</span>'
+      setTimeout(() => {
+        cerrarModal()
+        if (notasModalTipo === 'periodo')     cargarTablaPeriodos()
+        if (notasModalTipo === 'evaluacion')  cargarEvaluaciones()
+      }, 700)
+    } else {
+      msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     MÓDULO: APODERADOS
+  ══════════════════════════════════════════════════════════════════ */
+  async function cargarTablaApoderados() {
+    const tbody = document.getElementById('tbodyApoderados')
+    tbody.innerHTML = '<tr><td colspan="8">Cargando...</td></tr>'
+    try {
+      const apods = await apiGet(`${API1}/apoderados`)
+      tbody.innerHTML = ''
+      if (!apods.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="color:gray">No hay apoderados registrados</td></tr>'; return
+      }
+      apods.forEach(ap => {
+        const tr = document.createElement('tr')
+        const inactivo = !ap.activo
+        if (inactivo) tr.style.cssText = 'background:#f9f0f0;color:#aaa'
+        tr.innerHTML = `
+          <td>${ap.id}</td>
+          <td>${ap.rut}</td>
+          <td><strong>${ap.nombre}</strong>${inactivo?' <span style="font-size:.7em;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:10px">Inactivo</span>':''}</td>
+          <td>${ap.telefono||'—'}</td>
+          <td>${ap.email||'—'}</td>
+          <td>${ap.parentesco||'—'}</td>
+          <td style="font-size:.83em">${ap.alumnos_vinculados||'<span style="color:#aaa">Sin vincular</span>'}</td>
+          <td>
+            <button class="btn-sm btn-edit" onclick="editarApoderado(${ap.id})" title="Editar">✏️</button>
+            <button class="btn-sm btn-delete" onclick="eliminarApoderado(${ap.id},'${ap.nombre}')" title="Eliminar">🗑️</button>
+          </td>`
+        tbody.appendChild(tr)
+      })
+    } catch(err) {
+      tbody.innerHTML = `<tr><td colspan="8" class="mensaje-err">Error: ${err.message}</td></tr>`
+    }
+  }
+
+  async function editarApoderado(id) {
+    const apods = await apiGet(`${API1}/apoderados`)
+    const ap = apods.find(x => x.id === id)
+    if (ap) await abrirModal('apoderado', ap)
+  }
+
+  async function eliminarApoderado(id, nombre) {
+    if (!confirm(`¿Eliminar al apoderado "${nombre}"?`)) return
+    const { ok, data } = await apiDelete(`${API1}/apoderados/${id}`)
+    document.getElementById('msg-apoderados').innerHTML = ok
+      ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+      : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarTablaApoderados()
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     MÓDULO: COMUNICADOS
+  ══════════════════════════════════════════════════════════════════ */
+  async function cargarComunicados() {
+    const el = document.getElementById('lista-comunicados')
+    el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+    try {
+      const coms = await apiGet(`${API1}/comunicados`)
+      if (!coms.length) {
+        el.innerHTML = '<p style="color:#aaa;text-align:center;padding:30px">No hay comunicados publicados.</p>'; return
+      }
+      el.innerHTML = coms.map(c => `
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:10px;box-shadow:0 1px 3px #0001">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+            <div style="flex:1">
+              <h3 style="margin:0 0 6px;color:#1e40af">${c.titulo}</h3>
+              <p style="margin:0;color:#374151;line-height:1.5;white-space:pre-wrap">${c.contenido}</p>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:.78em;color:#9ca3af">${new Date(c.fecha_publicacion).toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'numeric'})}</div>
+              <div style="font-size:.78em;color:#9ca3af">${c.autor_usuario?'👤 '+c.autor_usuario:''}</div>
+              ${rolUsuario==='admin'?`<div style="margin-top:6px;display:flex;gap:4px;justify-content:flex-end">
+                <button class="btn-sm btn-edit" onclick="editarComunicado(${c.id})" title="Editar">✏️</button>
+                <button class="btn-sm btn-delete" onclick="eliminarComunicado(${c.id})" title="Eliminar">🗑️</button>
+              </div>`:''}
+            </div>
+          </div>
+        </div>`).join('')
+    } catch(err) {
+      el.innerHTML = `<p class="mensaje-err">Error: ${err.message}</p>`
+    }
+  }
+
+  async function editarComunicado(id) {
+    const coms = await apiGet(`${API1}/comunicados`)
+    const c = coms.find(x=>x.id===id)
+    if (c) await abrirModal('comunicado', c)
+  }
+
+  async function eliminarComunicado(id) {
+    if (!confirm('¿Eliminar este comunicado?')) return
+    const { ok, data } = await apiDelete(`${API1}/comunicados/${id}`)
+    document.getElementById('msg-comunicados').innerHTML = ok
+      ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
+      : `<span class="mensaje-err">❌ ${data.error}</span>`
+    cargarComunicados()
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     MÓDULO: FICHA MÉDICA
+  ══════════════════════════════════════════════════════════════════ */
+  let fichaAlumnoActual = null
+
+  async function verFichaMedica(idAlumno, nombreAlumno) {
+    fichaAlumnoActual = { id: idAlumno, nombre: nombreAlumno }
+    const overlay = document.getElementById('modal-overlay')
+    const titulo  = document.getElementById('modal-titulo')
+    const form    = document.getElementById('modal-form-container')
+    const actions = document.querySelector('#modal-box .form-actions')
+    const msg     = document.getElementById('modal-msg')
+
+    titulo.textContent = `🏥 Ficha Médica — ${nombreAlumno}`
+    msg.innerHTML = ''
+    form.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+    overlay.style.display = 'block'
+    actions.innerHTML = `
+      <button class="btn-secondary" onclick="cerrarModal()">Cerrar</button>
+      <button class="btn-primary"   onclick="guardarFichaMedica()">💾 Guardar</button>`
+
+    try {
+      const f = await apiGet(`${API1}/ficha-medica/${idAlumno}`)
+      const val = (campo) => f ? (f[campo] || '') : ''
+      form.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group"><label>Tipo de sangre</label>
+            <select id="fm-tipo_sangre">
+              ${['','A+','A-','B+','B-','AB+','AB-','O+','O-'].map(t =>
+                `<option value="${t}" ${val('tipo_sangre')===t?'selected':''}>${t||'— Desconocido —'}</option>`).join('')}
+            </select></div>
+          <div class="form-group"><label>Seguro médico</label>
+            <input type="text" id="fm-seguro_medico" value="${val('seguro_medico')}" placeholder="Ej: Fonasa B, Isapre Cruz Blanca" /></div>
+        </div>
+        <div class="form-group"><label>Alergias</label>
+          <textarea id="fm-alergias" rows="2" placeholder="Ej: Polen, Penicilina..." style="width:100%;padding:7px;border:1px solid #ccc;border-radius:6px;resize:vertical">${val('alergias')}</textarea></div>
+        <div class="form-group"><label>Condiciones crónicas</label>
+          <textarea id="fm-condiciones_cronicas" rows="2" placeholder="Ej: Diabetes tipo 1, Asma..." style="width:100%;padding:7px;border:1px solid #ccc;border-radius:6px;resize:vertical">${val('condiciones_cronicas')}</textarea></div>
+        <div class="form-group"><label>Medicamentos actuales</label>
+          <textarea id="fm-medicamentos" rows="2" placeholder="Ej: Metformina 500mg, Salbutamol..." style="width:100%;padding:7px;border:1px solid #ccc;border-radius:6px;resize:vertical">${val('medicamentos')}</textarea></div>
+        <div class="form-group"><label>Observaciones adicionales</label>
+          <textarea id="fm-observaciones" rows="3" placeholder="Notas generales de salud..." style="width:100%;padding:7px;border:1px solid #ccc;border-radius:6px;resize:vertical">${val('observaciones')}</textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group"><label>Nombre contacto emergencia</label>
+            <input type="text" id="fm-contacto_emergencia_nombre" value="${val('contacto_emergencia_nombre')}" placeholder="María González" /></div>
+          <div class="form-group"><label>Teléfono emergencia</label>
+            <input type="text" id="fm-contacto_emergencia_telefono" value="${val('contacto_emergencia_telefono')}" placeholder="912345678" maxlength="15" /></div>
+        </div>`
+    } catch(err) {
+      form.innerHTML = `<p class="mensaje-err">Error al cargar: ${err.message}</p>`
+    }
+  }
+
+  async function guardarFichaMedica() {
+    if (!fichaAlumnoActual) return
+    const msg  = document.getElementById('modal-msg')
+    const leer = id => document.getElementById(id)?.value?.trim() || null
+    const body = {
+      id_alumno:                    fichaAlumnoActual.id,
+      tipo_sangre:                  leer('fm-tipo_sangre') || null,
+      alergias:                     leer('fm-alergias'),
+      condiciones_cronicas:         leer('fm-condiciones_cronicas'),
+      medicamentos:                 leer('fm-medicamentos'),
+      observaciones:                leer('fm-observaciones'),
+      seguro_medico:                leer('fm-seguro_medico'),
+      contacto_emergencia_nombre:   leer('fm-contacto_emergencia_nombre'),
+      contacto_emergencia_telefono: leer('fm-contacto_emergencia_telefono')
+    }
+    const { ok, data } = await apiPut(`${API1}/ficha-medica/${fichaAlumnoActual.id}`, body)
+    if (ok) {
+      msg.innerHTML = '<span class="mensaje-ok">✅ Ficha médica guardada correctamente</span>'
+      setTimeout(() => cerrarModal(), 1200)
+    } else {
+      msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    }
+  }
+
+
 </script>
 
 </body>
