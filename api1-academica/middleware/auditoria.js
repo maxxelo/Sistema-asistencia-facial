@@ -23,6 +23,10 @@ const ACCIONES = { POST: 'CREAR', PUT: 'EDITAR', PATCH: 'EDITAR', DELETE: 'ELIMI
 // Se ejecuta cuando la respuesta ya terminó: no agrega latencia ni puede
 // romper la operación original (los errores solo se loguean en consola).
 function auditoria(req, res, next) {
+  // Capturar el path ANTES de next() porque Express lo modifica al entrar
+  // en sub-routers (e.g. /aulas → / dentro del router montado en /aulas).
+  const capturePath = req.path;
+
   res.on('finish', () => {
     try {
       const verbo = ACCIONES[req.method];
@@ -30,12 +34,12 @@ function auditoria(req, res, next) {
       if (res.statusCode >= 400) return;           // solo operaciones exitosas
       if (!req.usuario || !req.usuario.id) return; // sin usuario real no hay a quién atribuir
 
-      const segmentos = req.path.split('/').filter(Boolean); // p.ej. ['alumnos','5','reactivar']
+      const segmentos = capturePath.split('/').filter(Boolean); // p.ej. ['alumnos','5','reactivar']
       const recurso   = segmentos[0] || '';
       const tabla     = MAPA_TABLAS[recurso];
       if (!tabla) return;                          // rutas no mapeadas (login, health) no se auditan
 
-      const idMatch    = req.path.match(/\/(\d+)(?:\/|$)/);
+      const idMatch    = capturePath.match(/\/(\d+)(?:\/|$)/);
       const registroId = idMatch ? parseInt(idMatch[1]) : null;
       // Sub-acción si existe: reactivar, toggle, password, jefe, bulk...
       const extra = segmentos.find(s => isNaN(s) && s !== recurso);

@@ -6,6 +6,10 @@ const ACCIONES = { POST: 'CREAR', PUT: 'EDITAR', PATCH: 'EDITAR', DELETE: 'ELIMI
 // Las marcas del token de servicio de API 3 (id 0) no se auditan aquí:
 // ya quedan registradas en asistencia_facial_log.
 function auditoria(req, res, next) {
+  // Capturar el path ANTES de next() porque Express lo modifica al entrar
+  // en sub-routers (e.g. /asistencia/marcar → /marcar dentro del router).
+  const capturePath = req.path;
+
   res.on('finish', () => {
     try {
       const verbo = ACCIONES[req.method];
@@ -13,12 +17,12 @@ function auditoria(req, res, next) {
       if (res.statusCode >= 400) return;
       if (!req.usuario || !req.usuario.id) return;
 
-      const segmentos = req.path.split('/').filter(Boolean); // ['asistencia','marcar']
+      const segmentos = capturePath.split('/').filter(Boolean); // ['asistencia','marcar']
       if (segmentos[0] !== 'asistencia') return;
 
       const sub   = segmentos[1] || '';
       const tabla = sub.startsWith('justifica') ? 'justificaciones' : 'asistencia_detalle';
-      const idMatch    = req.path.match(/\/(\d+)(?:\/|$)/);
+      const idMatch    = capturePath.match(/\/(\d+)(?:\/|$)/);
       const registroId = idMatch ? parseInt(idMatch[1]) : null;
 
       pool.query(
