@@ -3,32 +3,38 @@ const router  = express.Router();
 const pool    = require('../db/connection');
 const { verificarToken, soloAdmin } = require('../middleware/auth');
 
-// GET /bitacora  — últimas operaciones del sistema
-// Query: ?limite=100  ?id_usuario=N  ?tabla=alumnos  ?desde=YYYY-MM-DD  ?hasta=YYYY-MM-DD
+// GET /bitacora — registro de operaciones, con filtros
+// Query params: ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&tabla=alumnos&id_usuario=N&limite=100
 router.get('/', verificarToken, soloAdmin, async (req, res) => {
-  const { id_usuario, tabla, desde, hasta } = req.query;
-  const limite = Math.min(parseInt(req.query.limite) || 100, 500);
-  const params = [];
-  let where = 'WHERE 1=1';
-  if (id_usuario) { params.push(id_usuario); where += ` AND b.id_usuario = $${params.length}`; }
-  if (tabla)      { params.push(tabla);       where += ` AND b.tabla_afectada ILIKE $${params.length}`; }
-  if (desde)      { params.push(desde);       where += ` AND b.fecha_hora >= $${params.length}::date`; }
-  if (hasta)      { params.push(hasta + ' 23:59:59'); where += ` AND b.fecha_hora <= $${params.length}::timestamp`; }
+  const { desde, hasta, tabla, id_usuario } = req.query;
+  let limite = parseInt(req.query.limite) || 100;
+  limite = Math.min(Math.max(limite, 1), 500);
+
   try {
-    const r = await pool.query(
-      `SELECT b.id, b.accion, b.tabla_afectada, b.registro_id, b.fecha_hora,
-              u.nombre_usuario, u.tipo_persona
-       FROM bitacora_operaciones b
-       LEFT JOIN usuarios u ON b.id_usuario = u.id
-       ${where}
-       ORDER BY b.fecha_hora DESC
-       LIMIT $${params.length + 1}`,
-      [...params, limite]
-    );
-    res.json(r.rows);
+    let query = `
+      SELECT b.id, b.fecha_hora, b.accion, b.tabla_afectada, b.registro_id,
+             u.nombre_usuario, u.tipo_persona
+      FROM bitacora_operaciones b
+      LEFT JOIN usuarios u ON b.id_usuario = u.id
+      WHERE 1=1`;
+    const params = [];
+
+    if (id_usuario) { params.push(id_usuario); query += ` AND b.id_usuario = $${params.length}`; }
+    if (tabla)      { params.push(tabla);       query += ` AND b.tabla_afectada = $${params.length}`; }
+    if (desde)      { params.push(desde);       query += ` AND b.fecha_hora >= $${params.length}`; }
+    if (hasta) {
+      params.push(hasta);
+      query += ` AND b.fecha_hora < ($${params.length}::date + INTERVAL '1 day')`;
+    }
+
+    params.push(limite);
+    query += ` ORDER BY b.fecha_hora DESC LIMIT $${params.length}`;
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
   } catch (err) {
     console.error('[GET /bitacora]', err.message);
-    res.status(500).json({ error: 'Error al obtener bitácora' });
+    res.status(500).json({ error: 'Error al obtener la bitácora' });
   }
 });
 
@@ -41,7 +47,6 @@ async function registrarOperacion(id_usuario, accion, tabla_afectada, registro_i
       [id_usuario || null, accion, tabla_afectada, registro_id || null]
     );
   } catch (err) {
-    // No interrumpir la operación principal si el log falla
     console.error('[bitacora]', err.message);
   }
 }

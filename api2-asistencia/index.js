@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const asistenciaRoutes = require('./routes/asistencia');
+const auditoria        = require('./middleware/auditoria');
 
 const app = express();
 
@@ -30,6 +31,9 @@ const limiter = rateLimit({
   message: { error: 'Demasiadas solicitudes, intenta en un minuto' }
 });
 app.use(limiter);
+
+// Auditoría: registra las escrituras exitosas en bitacora_operaciones
+app.use(auditoria);
 
 // ── Rutas ──────────────────────────────────────────────
 app.use('/asistencia', asistenciaRoutes);

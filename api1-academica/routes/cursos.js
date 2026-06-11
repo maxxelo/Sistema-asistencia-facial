@@ -87,12 +87,23 @@ router.post('/', verificarToken, soloAdmin, async (req, res) => {
   }
 
   try {
+    const anioFinal = anio ?? new Date().getFullYear();
+
+    // Evitar cursos duplicados (mismo nombre y año)
+    const dup = await pool.query(
+      'SELECT id FROM cursos WHERE LOWER(nombre) = LOWER($1) AND anio = $2',
+      [nombre, anioFinal]
+    );
+    if (dup.rows.length > 0) {
+      return res.status(409).json({ error: `Ya existe el curso "${nombre}" para el año ${anioFinal}` });
+    }
+
     const result = await pool.query(
       `INSERT INTO cursos (nombre, nivel, letra, anio, id_profesor_jefe)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
       [nombre, nivel ?? null, letra ?? null,
-       anio ?? new Date().getFullYear(), id_profesor_jefe ?? null]
+       anioFinal, id_profesor_jefe ?? null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -113,6 +124,21 @@ router.put('/:id', verificarToken, soloAdmin, async (req, res) => {
   const { nombre, nivel, letra, anio, id_profesor_jefe } = req.body;
 
   try {
+    // Evitar que la edición genere un curso duplicado (mismo nombre y año)
+    const actual = await pool.query('SELECT nombre, anio FROM cursos WHERE id = $1', [id]);
+    if (actual.rows.length === 0) {
+      return res.status(404).json({ error: 'Curso no encontrado' });
+    }
+    const nombreFinal = nombre ?? actual.rows[0].nombre;
+    const anioFinal   = anio   ?? actual.rows[0].anio;
+    const dup = await pool.query(
+      'SELECT id FROM cursos WHERE LOWER(nombre) = LOWER($1) AND anio = $2 AND id <> $3',
+      [nombreFinal, anioFinal, id]
+    );
+    if (dup.rows.length > 0) {
+      return res.status(409).json({ error: `Ya existe el curso "${nombreFinal}" para el año ${anioFinal}` });
+    }
+
     const result = await pool.query(
       `UPDATE cursos SET
         nombre           = COALESCE($1, nombre),

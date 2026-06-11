@@ -52,6 +52,13 @@ router.post('/', async (req, res) => {
       [usuario.id]
     );
 
+    // Registrar el inicio de sesión en la bitácora (no bloquea el login si falla)
+    pool.query(
+      `INSERT INTO bitacora_operaciones (id_usuario, accion, tabla_afectada)
+       VALUES ($1, 'LOGIN', 'usuarios')`,
+      [usuario.id]
+    ).catch(err => console.error('[bitacora login]', err.message));
+
     // Generar JWT
     const token = jwt.sign(
       {

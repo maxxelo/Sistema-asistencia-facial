@@ -1,92 +1,152 @@
 // Importa la conexión a PostgreSQL
 const pool = require('../db/connection')
 
-// Función que compara dos descriptores faciales
-// Calcula la distancia euclidiana entre dos vectores
-// Si la distancia es menor a 0.6 → es la misma persona
+// Face-api.js genera descriptores de 128 dimensiones
+const TAMANO_DESCRIPTOR = 128
+// Máximo de capturas guardadas por alumno (mejora la robustez ante luz/ángulo)
+const MAX_DESCRIPTORES = 5
+
+// ── Umbral configurable ─────────────────────────────────
+// Se lee de la tabla configuracion_biometrica (editable desde
+// la pestaña Configuración del frontend) con caché de 30 segundos
+// para no consultar la BD en cada frame.
+let umbralCache = { valor: 0.6, leido: 0 }
+
+async function obtenerUmbral() {
+  if (Date.now() - umbralCache.leido < 30000) return umbralCache.valor
+  try {
+    const r = await pool.query(
+      'SELECT umbral_confianza FROM configuracion_biometrica WHERE id = 1'
+    )
+    const valor = r.rows.length ? parseFloat(r.rows[0].umbral_confianza) : NaN
+    umbralCache = { valor: isFinite(valor) && valor > 0 ? valor : 0.6, leido: Date.now() }
+  } catch (err) {
+    console.error('[umbral biométrico]', err.message)
+    umbralCache.leido = Date.now() // no reintentar en cada frame si la BD falla
+  }
+  return umbralCache.valor
+}
+
+// Distancia euclidiana entre dos descriptores faciales
 function calcularDistancia(descriptor1, descriptor2) {
-  // Suma las diferencias al cuadrado entre cada par de valores
   let suma = 0
   for (let i = 0; i < descriptor1.length; i++) {
     suma += Math.pow(descriptor1[i] - descriptor2[i], 2)
   }
-  // Retorna la raíz cuadrada de la suma
   return Math.sqrt(suma)
 }
 
-// Función principal que busca el alumno en la BD
+function esDescriptorValido(d) {
+  return Array.isArray(d) &&
+         d.length === TAMANO_DESCRIPTOR &&
+         d.every(n => typeof n === 'number' && isFinite(n))
+}
+
+// El campo rostros.descriptor_facial guarda de 1 a 5 descriptores
+// concatenados (multiplos de 128 floats). Esta función los separa.
+function partirDescriptores(plano) {
+  const lista = []
+  for (let i = 0; i + TAMANO_DESCRIPTOR <= plano.length; i += TAMANO_DESCRIPTOR) {
+    lista.push(plano.slice(i, i + TAMANO_DESCRIPTOR))
+  }
+  return lista
+}
+
+// ── Buscar al alumno comparando contra todos los rostros ──
+// Devuelve { alumno, distancia }:
+//   alumno    → datos del alumno si la menor distancia está bajo el umbral, si no null
+//   distancia → la menor distancia encontrada (para registrar la confianza del intento)
 async function buscarAlumno(descriptorRecibido) {
-  // Obtiene todos los rostros registrados en la BD
   const resultado = await pool.query(`
     SELECT r.id_alumno, r.descriptor_facial,
            a.nombre, a.apellido_paterno, a.rut
     FROM rostros r
     JOIN alumnos a ON r.id_alumno = a.id
-    WHERE r.activo = TRUE
+    WHERE r.activo = TRUE AND a.activo = TRUE
   `)
 
-  // Si no hay rostros registrados
   if (resultado.rows.length === 0) {
-    return null
+    return { alumno: null, distancia: null }
   }
 
   let mejorCoincidencia = null
   let menorDistancia = Infinity
 
-  // Compara el descriptor recibido con cada rostro en la BD
   for (const fila of resultado.rows) {
-    // pg devuelve FLOAT[] como array de JS directamente, pero por seguridad
-    // nos aseguramos que sea un array de números
-    const descriptorBD = Array.isArray(fila.descriptor_facial)
+    const plano = Array.isArray(fila.descriptor_facial)
       ? fila.descriptor_facial.map(Number)
-      : fila.descriptor_facial
+      : []
 
-    const distancia = calcularDistancia(
-      descriptorRecibido,
-      descriptorBD
-    )
-
-    // Guarda la coincidencia con menor distancia
-    if (distancia < menorDistancia) {
-      menorDistancia = distancia
-      mejorCoincidencia = {
-        id_alumno: fila.id_alumno,
-        nombre: fila.nombre,
-        apellido_paterno: fila.apellido_paterno,
-        rut: fila.rut,
-        distancia: distancia
+    // Comparar contra cada captura guardada del alumno y quedarse con la mejor
+    for (const candidato of partirDescriptores(plano)) {
+      const distancia = calcularDistancia(descriptorRecibido, candidato)
+      if (distancia < menorDistancia) {
+        menorDistancia = distancia
+        mejorCoincidencia = {
+          id_alumno: fila.id_alumno,
+          nombre: fila.nombre,
+          apellido_paterno: fila.apellido_paterno,
+          rut: fila.rut,
+          distancia: distancia
+        }
       }
     }
   }
 
-  // Umbral de 0.6 — si la distancia es mayor, no se reconoce
-  const UMBRAL = 0.6
-  if (menorDistancia > UMBRAL) {
-    return null
-  }
+  const umbral = await obtenerUmbral()
+  const distanciaFinal = isFinite(menorDistancia) ? menorDistancia : null
 
-  return mejorCoincidencia
+  if (!mejorCoincidencia || menorDistancia > umbral) {
+    return { alumno: null, distancia: distanciaFinal }
+  }
+  return { alumno: mejorCoincidencia, distancia: distanciaFinal }
 }
 
-// Guarda el descriptor facial de un alumno en la BD
-// Recibe: id_alumno (número) + descriptor (array de 128 floats)
-async function registrarRostro(idAlumno, descriptor) {
-  // Verifica que el alumno existe
+// ── Guardar el/los descriptores faciales de un alumno ──
+// Acepta de 1 a 5 capturas; se guardan concatenadas en un solo FLOAT[].
+// Devuelve cuántas capturas quedaron registradas.
+async function registrarRostro(idAlumno, descriptores) {
   const alumno = await pool.query(
-    'SELECT id FROM alumnos WHERE id = $1',
+    'SELECT id, activo FROM alumnos WHERE id = $1',
     [idAlumno]
   )
-  if (alumno.rows.length === 0) {
-    throw new Error('Alumno no encontrado')
+  if (alumno.rows.length === 0) throw new Error('Alumno no encontrado')
+  if (!alumno.rows[0].activo)   throw new Error('El alumno está inactivo')
+
+  if (!Array.isArray(descriptores) || descriptores.length === 0) {
+    throw new Error('Se requiere al menos un descriptor facial')
+  }
+  const lista = descriptores.slice(0, MAX_DESCRIPTORES)
+  for (const d of lista) {
+    if (!esDescriptorValido(d)) {
+      throw new Error(`Cada descriptor debe ser un arreglo de ${TAMANO_DESCRIPTOR} números`)
+    }
   }
 
-  // Inserta o actualiza el rostro (un alumno solo tiene un rostro)
+  const plano = lista.flat()
   await pool.query(`
     INSERT INTO rostros (id_alumno, descriptor_facial, activo)
     VALUES ($1, $2, TRUE)
     ON CONFLICT (id_alumno)
     DO UPDATE SET descriptor_facial = $2, activo = TRUE, fecha_captura = NOW()
-  `, [idAlumno, descriptor])
+  `, [idAlumno, plano])
+
+  return lista.length
 }
 
-module.exports = { buscarAlumno, registrarRostro }
+// ── Log técnico de intentos (tabla intentos_reconocimiento) ──
+// Registra éxitos y fallos del motor para depuración y estadísticas.
+// Nunca lanza error: un fallo del log no debe cortar el reconocimiento.
+async function registrarIntento(idAlumno, exito, confianza) {
+  try {
+    await pool.query(
+      `INSERT INTO intentos_reconocimiento (id_alumno, exito, confianza)
+       VALUES ($1, $2, $3)`,
+      [idAlumno, exito, confianza]
+    )
+  } catch (err) {
+    console.error('[intentos_reconocimiento]', err.message)
+  }
+}
+
+module.exports = { buscarAlumno, registrarRostro, registrarIntento }

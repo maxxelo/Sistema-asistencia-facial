@@ -1,7 +1,108 @@
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../db/connection');
+const PDFDocument = require('pdfkit');
 const { verificarToken, soloAdmin, adminOProfesor } = require('../middleware/auth');
+
+// ── Historial de reportes (tablas reportes_plantillas / reportes_generados) ──
+// Deja constancia de cada reporte emitido y quién lo generó.
+// Nunca lanza error: si falla solo se registra en consola.
+async function registrarReporte(nombrePlantilla, descripcion, idUsuario) {
+  try {
+    let idPlantilla;
+    const existente = await pool.query(
+      'SELECT id FROM reportes_plantillas WHERE nombre = $1',
+      [nombrePlantilla]
+    );
+    if (existente.rows.length) {
+      idPlantilla = existente.rows[0].id;
+    } else {
+      const nueva = await pool.query(
+        'INSERT INTO reportes_plantillas (nombre, descripcion) VALUES ($1, $2) RETURNING id',
+        [nombrePlantilla, descripcion]
+      );
+      idPlantilla = nueva.rows[0].id;
+    }
+    await pool.query(
+      'INSERT INTO reportes_generados (id_plantilla, id_usuario_genero) VALUES ($1, $2)',
+      [idPlantilla, idUsuario || null]
+    );
+  } catch (err) {
+    console.error('[registrarReporte]', err.message);
+  }
+}
+
+// Nombre del colegio para el encabezado de los PDF
+async function nombreColegio() {
+  try {
+    const r = await pool.query(
+      "SELECT valor FROM parametros_sistema WHERE clave = 'nombre_colegio'"
+    );
+    return r.rows.length && r.rows[0].valor ? r.rows[0].valor : 'Colegio';
+  } catch {
+    return 'Colegio';
+  }
+}
+
+// ── Helpers de dibujo PDF ──────────────────────────────
+const PDF_MARGEN = 50;
+const PDF_ANCHO  = 595.28; // A4 vertical en puntos
+
+function pdfEncabezado(doc, colegio, titulo, subtitulo) {
+  doc.fontSize(10).fillColor('#666666').text(colegio, PDF_MARGEN, 40);
+  doc.fontSize(18).fillColor('#1e3a8a').text(titulo, PDF_MARGEN, 58);
+  if (subtitulo) doc.fontSize(11).fillColor('#374151').text(subtitulo, PDF_MARGEN, 82);
+  doc.fontSize(8).fillColor('#9ca3af')
+     .text(`Generado: ${new Date().toLocaleString('es-CL')}`, PDF_MARGEN, 40, {
+       width: PDF_ANCHO - PDF_MARGEN * 2, align: 'right'
+     });
+  doc.moveTo(PDF_MARGEN, 100).lineTo(PDF_ANCHO - PDF_MARGEN, 100)
+     .strokeColor('#d1d5db').lineWidth(1).stroke();
+  return 112; // posición Y donde sigue el contenido
+}
+
+// Dibuja una tabla con encabezado repetido en cada página.
+// columnas: [{ titulo, ancho, align? }]  filas: arreglo de arreglos de strings
+function pdfTabla(doc, columnas, filas, yInicial) {
+  const altoFila = 18;
+  const limiteY  = 780;
+  let y = yInicial;
+
+  const dibujarHeader = () => {
+    doc.rect(PDF_MARGEN, y, PDF_ANCHO - PDF_MARGEN * 2, altoFila).fill('#1e3a8a');
+    let x = PDF_MARGEN;
+    doc.fontSize(8).fillColor('#ffffff');
+    columnas.forEach(c => {
+      doc.text(c.titulo, x + 4, y + 5, { width: c.ancho - 8, align: c.align || 'left' });
+      x += c.ancho;
+    });
+    y += altoFila;
+  };
+
+  dibujarHeader();
+  filas.forEach((fila, i) => {
+    if (y + altoFila > limiteY) {
+      doc.addPage();
+      y = 50;
+      dibujarHeader();
+    }
+    if (i % 2 === 0) {
+      doc.rect(PDF_MARGEN, y, PDF_ANCHO - PDF_MARGEN * 2, altoFila).fill('#f3f4f6');
+    }
+    let x = PDF_MARGEN;
+    doc.fontSize(8).fillColor('#111827');
+    fila.forEach((celda, j) => {
+      doc.text(String(celda ?? ''), x + 4, y + 5, {
+        width: columnas[j].ancho - 8,
+        align: columnas[j].align || 'left',
+        lineBreak: false
+      });
+      x += columnas[j].ancho;
+    });
+    y += altoFila;
+  });
+  return y;
+}
 
 // =====================================================
 // GET /reportes/asistencia/alumno/:id
@@ -325,6 +426,7 @@ router.get('/csv/curso/:id', verificarToken, adminOProfesor, async (req, res) =>
       csv += `"${r.rut}","${r.alumno}","${r.asignatura||''}",${r.total_clases||0},${r.presentes||0},${ausentes},${r.porcentaje||0}\n`;
     });
     res.send(csv);
+    registrarReporte('asistencia_curso_csv', 'CSV de asistencia de un curso', req.usuario?.id);
   } catch (err) {
     console.error('[GET /reportes/csv/curso/:id]', err.message);
     res.status(500).json({ error: 'Error al exportar CSV' });
@@ -383,9 +485,225 @@ router.get('/csv/alumno/:id', verificarToken, adminOProfesor, async (req, res) =
              `"${r.justificacion}"\n`;
     });
     res.send(csv);
+    registrarReporte('asistencia_alumno_csv', 'CSV del historial de asistencia de un alumno', req.usuario?.id);
   } catch (err) {
     console.error('[GET /reportes/csv/alumno/:id]', err.message);
     res.status(500).json({ error: 'Error al exportar CSV' });
+  }
+});
+
+// =====================================================
+// GET /reportes/pdf/alumno/:id
+// Informe de asistencia de un alumno en PDF
+// Auth: Admin o Profesor
+// =====================================================
+router.get('/pdf/alumno/:id', verificarToken, adminOProfesor, async (req, res) => {
+  const { id } = req.params;
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+  try {
+    const alumnoRes = await pool.query(
+      `SELECT a.id, a.rut, a.nombre, a.apellido_paterno, a.apellido_materno,
+              c.nombre AS curso
+       FROM alumnos a
+       LEFT JOIN cursos c ON a.id_curso = c.id
+       WHERE a.id = $1`, [id]
+    );
+    if (!alumnoRes.rows.length) return res.status(404).json({ error: 'Alumno no encontrado' });
+    const al = alumnoRes.rows[0];
+
+    const resumenRes = await pool.query(
+      `SELECT asig.nombre AS asignatura,
+              COUNT(ad.id) AS total,
+              SUM(CASE WHEN ad.presente THEN 1 ELSE 0 END) AS presentes,
+              ROUND(100.0 * SUM(CASE WHEN ad.presente THEN 1 ELSE 0 END)
+                    / NULLIF(COUNT(ad.id), 0), 1) AS porcentaje
+       FROM asistencia_detalle ad
+       JOIN asistencia_cabecera ac ON ad.id_asistencia_cabecera = ac.id
+       JOIN horarios h             ON ac.id_horario = h.id
+       JOIN asignaturas asig       ON h.id_asignatura = asig.id
+       WHERE ad.id_alumno = $1
+       GROUP BY asig.id, asig.nombre
+       ORDER BY asig.nombre`, [id]
+    );
+
+    const historialRes = await pool.query(
+      `SELECT ac.fecha, asig.nombre AS asignatura, h.hora_inicio,
+              ad.presente, ad.hora_marcada, ad.tipo_asistencia,
+              COALESCE(j.estado, '') AS estado_justificacion
+       FROM asistencia_detalle ad
+       JOIN asistencia_cabecera ac ON ad.id_asistencia_cabecera = ac.id
+       JOIN horarios h             ON ac.id_horario = h.id
+       JOIN asignaturas asig       ON h.id_asignatura = asig.id
+       LEFT JOIN justificaciones j ON j.id_asistencia_detalle = ad.id
+       WHERE ad.id_alumno = $1
+       ORDER BY ac.fecha DESC, h.hora_inicio DESC
+       LIMIT 40`, [id]
+    );
+
+    const colegio       = await nombreColegio();
+    const nombreAlumno  = `${al.nombre} ${al.apellido_paterno} ${al.apellido_materno || ''}`.trim();
+    const totalClases   = resumenRes.rows.reduce((s, r) => s + parseInt(r.total), 0);
+    const totalPres     = resumenRes.rows.reduce((s, r) => s + parseInt(r.presentes), 0);
+    const pctGlobal     = totalClases ? (100 * totalPres / totalClases).toFixed(1) : null;
+
+    const fechaHoy  = new Date().toISOString().slice(0, 10);
+    const filename  = `reporte_asistencia_${al.rut}_${fechaHoy}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    const doc = new PDFDocument({ size: 'A4', margin: PDF_MARGEN });
+    doc.pipe(res);
+
+    let y = pdfEncabezado(doc, colegio, 'Reporte de Asistencia — Alumno',
+      `${nombreAlumno}  ·  RUT ${al.rut}  ·  Curso ${al.curso || 'sin curso'}`);
+
+    // Resumen global
+    doc.fontSize(11).fillColor('#111827')
+       .text(`Asistencia global: ${pctGlobal !== null ? pctGlobal + '%' : 'sin registros'}`
+             + (totalClases ? `   (${totalPres} presentes de ${totalClases} clases)` : ''),
+             PDF_MARGEN, y);
+    if (pctGlobal !== null && parseFloat(pctGlobal) < 85) {
+      y += 16;
+      doc.fontSize(9).fillColor('#b91c1c')
+         .text('ATENCIÓN: bajo el 85% mínimo legal — riesgo de reprobación por inasistencia.', PDF_MARGEN, y);
+    }
+    y += 26;
+
+    // Tabla por asignatura
+    if (resumenRes.rows.length) {
+      doc.fontSize(11).fillColor('#1e3a8a').text('Resumen por asignatura', PDF_MARGEN, y);
+      y += 16;
+      y = pdfTabla(doc,
+        [
+          { titulo: 'Asignatura', ancho: 215 },
+          { titulo: 'Clases', ancho: 90, align: 'center' },
+          { titulo: 'Presentes', ancho: 90, align: 'center' },
+          { titulo: '% Asistencia', ancho: 100, align: 'center' }
+        ],
+        resumenRes.rows.map(r => [r.asignatura, r.total, r.presentes,
+          r.porcentaje !== null ? `${r.porcentaje}%` : '—']),
+        y
+      );
+      y += 20;
+    }
+
+    // Historial reciente
+    if (historialRes.rows.length) {
+      if (y > 640) { doc.addPage(); y = 50; }
+      doc.fontSize(11).fillColor('#1e3a8a').text('Últimas clases', PDF_MARGEN, y);
+      y += 16;
+      pdfTabla(doc,
+        [
+          { titulo: 'Fecha', ancho: 80 },
+          { titulo: 'Asignatura', ancho: 150 },
+          { titulo: 'Hora', ancho: 55, align: 'center' },
+          { titulo: 'Estado', ancho: 80, align: 'center' },
+          { titulo: 'Tipo', ancho: 65, align: 'center' },
+          { titulo: 'Justificación', ancho: 65, align: 'center' }
+        ],
+        historialRes.rows.map(h => [
+          new Date(h.fecha).toLocaleDateString('es-CL'),
+          h.asignatura,
+          h.hora_inicio ? h.hora_inicio.slice(0, 5) : '',
+          h.presente ? 'Presente' : 'Ausente',
+          h.tipo_asistencia === 'facial' ? 'Facial' : (h.tipo_asistencia || '—'),
+          h.estado_justificacion || '—'
+        ]),
+        y
+      );
+    }
+
+    doc.end();
+    registrarReporte('asistencia_alumno_pdf', 'PDF de asistencia individual de un alumno',
+                     req.usuario?.id);
+  } catch (err) {
+    console.error('[GET /reportes/pdf/alumno/:id]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Error al generar PDF del alumno' });
+  }
+});
+
+// =====================================================
+// GET /reportes/pdf/curso/:id
+// Informe de asistencia de un curso completo en PDF
+// Auth: Admin o Profesor
+// =====================================================
+router.get('/pdf/curso/:id', verificarToken, adminOProfesor, async (req, res) => {
+  const { id } = req.params;
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+  try {
+    const cursoRes = await pool.query(
+      `SELECT c.nombre, c.anio,
+              p.nombre || ' ' || p.apellido_paterno AS profesor_jefe
+       FROM cursos c
+       LEFT JOIN profesores p ON c.id_profesor_jefe = p.id
+       WHERE c.id = $1`, [id]
+    );
+    if (!cursoRes.rows.length) return res.status(404).json({ error: 'Curso no encontrado' });
+    const curso = cursoRes.rows[0];
+
+    // Una fila por alumno con su % global de asistencia
+    const filasRes = await pool.query(
+      `SELECT a.rut,
+              a.apellido_paterno || ' ' || COALESCE(a.apellido_materno,'') || ', ' || a.nombre AS alumno,
+              COUNT(ad.id) AS total,
+              SUM(CASE WHEN ad.presente THEN 1 ELSE 0 END) AS presentes,
+              ROUND(100.0 * SUM(CASE WHEN ad.presente THEN 1 ELSE 0 END)
+                    / NULLIF(COUNT(ad.id),0), 1) AS porcentaje
+       FROM alumnos a
+       LEFT JOIN asistencia_detalle ad ON ad.id_alumno = a.id
+       WHERE a.id_curso = $1 AND a.activo = TRUE
+       GROUP BY a.id, a.rut, a.nombre, a.apellido_paterno, a.apellido_materno
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombre`, [id]
+    );
+
+    const colegio  = await nombreColegio();
+    const fechaHoy = new Date().toISOString().slice(0, 10);
+    const filename = `reporte_asistencia_${curso.nombre.replace(/\s+/g, '_')}_${fechaHoy}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    const doc = new PDFDocument({ size: 'A4', margin: PDF_MARGEN });
+    doc.pipe(res);
+
+    let y = pdfEncabezado(doc, colegio, `Reporte de Asistencia — Curso ${curso.nombre}`,
+      `Año ${curso.anio}` +
+      (curso.profesor_jefe ? `  ·  Profesor jefe: ${curso.profesor_jefe}` : '') +
+      `  ·  ${filasRes.rows.length} alumno(s)`);
+
+    const conRegistros = filasRes.rows.filter(r => parseInt(r.total) > 0);
+    const enRiesgo     = conRegistros.filter(r => r.porcentaje !== null && parseFloat(r.porcentaje) < 85);
+    doc.fontSize(10).fillColor('#111827')
+       .text(`Alumnos con asistencia bajo el 85%: ${enRiesgo.length}`, PDF_MARGEN, y);
+    y += 22;
+
+    pdfTabla(doc,
+      [
+        { titulo: 'RUT', ancho: 80 },
+        { titulo: 'Alumno', ancho: 215 },
+        { titulo: 'Clases', ancho: 60, align: 'center' },
+        { titulo: 'Presentes', ancho: 60, align: 'center' },
+        { titulo: 'Ausentes', ancho: 60, align: 'center' },
+        { titulo: '%', ancho: 20, align: 'center' }
+      ],
+      filasRes.rows.map(r => [
+        r.rut,
+        r.alumno,
+        r.total,
+        r.presentes || 0,
+        (parseInt(r.total) || 0) - (parseInt(r.presentes) || 0),
+        r.porcentaje !== null ? `${r.porcentaje}` : '—'
+      ]),
+      y
+    );
+
+    doc.end();
+    registrarReporte('asistencia_curso_pdf', 'PDF de asistencia de un curso completo',
+                     req.usuario?.id);
+  } catch (err) {
+    console.error('[GET /reportes/pdf/curso/:id]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Error al generar PDF del curso' });
   }
 });
 

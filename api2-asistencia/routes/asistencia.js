@@ -3,6 +3,19 @@ const router = express.Router();
 const pool = require('../db/connection');
 const { verificarToken, soloAdmin, adminOProfesor } = require('../middleware/auth');
 
+const NOMBRE_DIA = { 1: 'lunes', 2: 'martes', 3: 'miércoles', 4: 'jueves', 5: 'viernes', 6: 'sábado', 7: 'domingo' };
+
+// Día de la semana de una fecha YYYY-MM-DD con la misma convención
+// que horarios.dia_semana (1=lunes ... 7=domingo)
+function diaSemanaDeFecha(fechaStr) {
+  const dow = new Date(fechaStr + 'T12:00:00Z').getUTCDay(); // 0=domingo
+  return dow === 0 ? 7 : dow;
+}
+
+function fechaValida(fechaStr) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(fechaStr) && !isNaN(Date.parse(fechaStr + 'T12:00:00Z'));
+}
+
 // =====================================================
 // POST /asistencia/marcar
 // Marca asistencia manual para un curso completo
@@ -15,6 +28,31 @@ router.post('/marcar', verificarToken, adminOProfesor, async (req, res) => {
 
   if (!id_curso || !id_horario || !fecha || !Array.isArray(alumnos) || alumnos.length === 0) {
     return res.status(400).json({ error: 'Faltan campos requeridos: id_curso, id_horario, fecha, alumnos[]' });
+  }
+  if (!fechaValida(fecha)) {
+    return res.status(400).json({ error: 'Fecha inválida, formato esperado: YYYY-MM-DD' });
+  }
+
+  // El horario debe existir, pertenecer al curso indicado y
+  // su día de la semana debe coincidir con la fecha
+  try {
+    const hRes = await pool.query('SELECT id_curso, dia_semana FROM horarios WHERE id = $1', [id_horario]);
+    if (hRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Horario no encontrado' });
+    }
+    const horario = hRes.rows[0];
+    if (horario.id_curso !== parseInt(id_curso)) {
+      return res.status(400).json({ error: 'El horario seleccionado no pertenece a ese curso' });
+    }
+    const diaFecha = diaSemanaDeFecha(fecha);
+    if (horario.dia_semana && diaFecha !== horario.dia_semana) {
+      return res.status(400).json({
+        error: `La fecha ${fecha} cae en ${NOMBRE_DIA[diaFecha]}, pero esta clase es del día ${NOMBRE_DIA[horario.dia_semana]}`
+      });
+    }
+  } catch (err) {
+    console.error('[POST /marcar - validación]', err.message);
+    return res.status(500).json({ error: 'Error al validar el horario' });
   }
 
   const client = await pool.connect();
@@ -75,21 +113,56 @@ router.post('/marcar-facial', verificarToken, async (req, res) => {
   if (!id_alumno || !id_horario || !fecha) {
     return res.status(400).json({ error: 'Faltan campos requeridos: id_alumno, id_horario, fecha' });
   }
+  if (!fechaValida(fecha)) {
+    return res.status(400).json({ error: 'Fecha inválida, formato esperado: YYYY-MM-DD' });
+  }
+
+  // ── Validaciones de contexto (antes de escribir nada) ──
+  let id_curso;
+  try {
+    // 1. El horario debe existir y su día coincidir con la fecha
+    const hRes = await pool.query(
+      'SELECT id_curso, dia_semana FROM horarios WHERE id = $1',
+      [id_horario]
+    );
+    if (hRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Horario no encontrado' });
+    }
+    const horario = hRes.rows[0];
+    id_curso = horario.id_curso;
+
+    const diaFecha = diaSemanaDeFecha(fecha);
+    if (horario.dia_semana && diaFecha !== horario.dia_semana) {
+      return res.status(400).json({
+        error: `La fecha ${fecha} cae en ${NOMBRE_DIA[diaFecha]}, pero esta clase es del día ${NOMBRE_DIA[horario.dia_semana]}`
+      });
+    }
+
+    // 2. El alumno debe existir, estar activo y pertenecer al curso del horario
+    const aRes = await pool.query(
+      'SELECT nombre, apellido_paterno, id_curso, activo FROM alumnos WHERE id = $1',
+      [id_alumno]
+    );
+    if (aRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const alumno = aRes.rows[0];
+    if (!alumno.activo) {
+      return res.status(409).json({ error: `${alumno.nombre} ${alumno.apellido_paterno} está inactivo en el sistema` });
+    }
+    if (alumno.id_curso !== id_curso) {
+      return res.status(409).json({
+        error: `${alumno.nombre} ${alumno.apellido_paterno} no pertenece al curso de esta clase`
+      });
+    }
+  } catch (err) {
+    console.error('[POST /marcar-facial - validación]', err.message);
+    return res.status(500).json({ error: 'Error al validar la marca facial' });
+  }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    // Obtener id_curso desde el horario
-    const horario = await client.query(
-      'SELECT id_curso FROM horarios WHERE id = $1',
-      [id_horario]
-    );
-    if (horario.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Horario no encontrado' });
-    }
-    const id_curso = horario.rows[0].id_curso;
 
     // Crear cabecera si no existe
     const resultCabecera = await client.query(

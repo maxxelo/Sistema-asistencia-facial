@@ -19,6 +19,7 @@ const fichaMedicaRoutes  = require('./routes/ficha_medica');
 const comunicadosRoutes  = require('./routes/comunicados');
 const parametrosRoutes   = require('./routes/parametros');
 const bitacoraRoutes     = require('./routes/bitacora');
+const auditoria          = require('./middleware/auditoria');
 
 const app = express();
 
@@ -42,6 +43,9 @@ const limiter = rateLimit({
   message: { error: 'Demasiadas solicitudes, intenta en un minuto' }
 });
 app.use(limiter);
+
+// Auditoría: registra toda escritura exitosa en bitacora_operaciones
+app.use(auditoria);
 
 // ── Rutas ──────────────────────────────────────────────
 app.use('/login',       authRoutes);

@@ -10,6 +10,7 @@ services:
       - ./database/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql
     networks:
       - red_interna
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d colegio_db"]
       interval: 5s
@@ -96,16 +97,16 @@ services:
       - ./api4-reportes:/app
       - /app/node_modules
 
-  # ─── Frontend (http-server sirviendo index.html) ───────
+  # ─── Frontend (nginx sirviendo los archivos estáticos) ─
+  # nginx arranca al instante y no necesita internet
+  # (antes se instalaba http-server en cada arranque)
   frontend:
-    image: node:20-alpine
+    image: nginx:alpine
     container_name: frontend_web
-    working_dir: /app
-    command: sh -c "npm install -g http-server && http-server /app -p 3000 --cors -c-1"
     ports:
-      - "3000:3000"
+      - "3000:80"
     volumes:
-      - ./frontend:/app
+      - ./frontend:/usr/share/nginx/html:ro
     networks:
       - red_interna
     restart: unless-stopped
