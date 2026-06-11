@@ -4,138 +4,274 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema de Asistencia Facial</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body { font-family: Arial, sans-serif; padding: 20px; max-width: 950px; margin: 0 auto; }
     h1 { margin: 0 0 12px; }
 
-    /* ── LOGIN — Full-page dark purple ─────────────────────────────── */
+    /* ── LOGIN — Split panel ──────────────────────────────────────────
+       IMPORTANT: display must always be flex (not block) so the right
+       panel stays centered when returning from the app after logout.   */
     .seccion-login {
       position: fixed; inset: 0; z-index: 999;
+      display: flex; overflow: hidden;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    /* ── Animations ─────────────────────────────────────────────── */
+    @keyframes floatOrb {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50%       { transform: translateY(-20px) scale(1.03); }
+    }
+    @keyframes loginSlideIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes scanBeam {
+      0%      { transform: translateY(18px);  opacity: 0; }
+      8%, 92% { opacity: 1; }
+      50%     { transform: translateY(268px); opacity: 1; }
+      100%    { transform: translateY(18px);  opacity: 0; }
+    }
+    @keyframes eyeGlow {
+      0%, 100% { transform: scale(1);   opacity: 0.20; }
+      50%      { transform: scale(1.9); opacity: 0.42; }
+    }
+    @keyframes ptFloat {
+      0%, 100% { transform: translate(0px,  0px) rotate(0deg); }
+      35%      { transform: translate(4px, -7px) rotate(4deg); }
+      70%      { transform: translate(-3px, 5px) rotate(-3deg); }
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+    @keyframes gridPulse {
+      0%, 100% { opacity: 0.13; }
+      50%       { opacity: 0.22; }
+    }
+    @keyframes dotPulse {
+      0%, 100% { box-shadow: 0 0 6px rgba(167,139,250,.55);  background: #a78bfa; }
+      50%       { box-shadow: 0 0 14px rgba(167,139,250,.95); background: #c4b5fd; }
+    }
+
+    .eye-glow-l {
+      transform-box: fill-box; transform-origin: center;
+      animation: eyeGlow 2.4s ease-in-out infinite;
+    }
+    .eye-glow-r {
+      transform-box: fill-box; transform-origin: center;
+      animation: eyeGlow 2.4s ease-in-out infinite .55s;
+    }
+    .particle { animation: ptFloat 7s ease-in-out infinite; }
+    .p1 { animation-delay: 0s; }
+    .p2 { animation-delay: 0.9s;  animation-direction: reverse; }
+    .p3 { animation-delay: 1.7s; }
+    .p4 { animation-delay: 2.6s;  animation-direction: reverse; }
+    .p5 { animation-delay: 3.3s; }
+    .p6 { animation-delay: 4.2s;  animation-direction: reverse; }
+    .p7 { animation-delay: 5.1s; }
+    .p8 { animation-delay: 5.9s;  animation-direction: reverse; }
+
+    /* ─ Left decorative panel ───────────────────────────────── */
+    .lp-left {
+      flex: 1;
+      background: linear-gradient(155deg, #07051a 0%, #120f38 40%, #1e1155 70%, #2a1868 100%);
       display: flex; align-items: center; justify-content: center;
-      background: linear-gradient(140deg, #0f0c29 0%, #302b63 55%, #24243e 100%);
-      overflow: hidden;
+      position: relative; overflow: hidden; padding: 60px 48px;
     }
-    @keyframes floatBubble {
-      0%,100% { transform: translateY(0) scale(1); }
-      50%      { transform: translateY(-22px) scale(1.04); }
+    .lp-left::before {
+      content: '';
+      position: absolute; inset: 0; pointer-events: none;
+      background-image: radial-gradient(circle, rgba(139,92,246,.22) 1px, transparent 1px);
+      background-size: 32px 32px;
+      animation: gridPulse 7s ease-in-out infinite;
     }
-    @keyframes loginFadeIn {
-      from { opacity: 0; transform: translateY(28px); }
-      to   { opacity: 1; transform: translateY(0); }
+    .lp-orb { position: absolute; border-radius: 50%; pointer-events: none; }
+    .lp-orb-1 {
+      width: 500px; height: 500px; top: -150px; right: -130px;
+      background: radial-gradient(circle, rgba(109,40,217,.25) 0%, transparent 65%);
+      animation: floatOrb 12s ease-in-out infinite;
     }
-    .login-bubble {
-      position: absolute; border-radius: 50%; pointer-events: none;
+    .lp-orb-2 {
+      width: 360px; height: 360px; bottom: -110px; left: -90px;
+      background: radial-gradient(circle, rgba(76,29,149,.30) 0%, transparent 65%);
+      animation: floatOrb 15s ease-in-out infinite 2s reverse;
     }
-    .login-bubble.b1 {
-      width: 500px; height: 500px; top: -150px; right: -110px;
-      background: radial-gradient(circle, rgba(124,58,237,.28) 0%, transparent 70%);
-      animation: floatBubble 9s ease-in-out infinite;
+    .lp-orb-3 {
+      width: 200px; height: 200px; top: 40%; left: 6%;
+      background: radial-gradient(circle, rgba(139,92,246,.15) 0%, transparent 65%);
+      animation: floatOrb 9s ease-in-out infinite 1s;
     }
-    .login-bubble.b2 {
-      width: 380px; height: 380px; bottom: -110px; left: -90px;
-      background: radial-gradient(circle, rgba(76,29,149,.32) 0%, transparent 70%);
-      animation: floatBubble 12s ease-in-out infinite 1.5s reverse;
-    }
-    .login-bubble.b3 {
-      width: 220px; height: 220px; top: 40%; left: 5%;
-      background: radial-gradient(circle, rgba(139,92,246,.18) 0%, transparent 70%);
-      animation: floatBubble 7s ease-in-out infinite .8s;
-    }
-    .login-card {
-      background: rgba(255,255,255,.97);
-      border-radius: 22px;
-      padding: 42px 46px 38px;
-      width: 100%; max-width: 430px;
-      margin: 16px;
-      box-shadow: 0 28px 70px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.07);
-      animation: loginFadeIn .48s ease-out both;
+    .lp-content {
       position: relative; z-index: 1;
-    }
-    .login-logo {
       display: flex; flex-direction: column;
-      align-items: center; margin-bottom: 30px;
+      align-items: center; gap: 24px;
+      text-align: center; max-width: 480px;
     }
-    .login-logo-icon {
-      width: 76px; height: 76px;
-      background: linear-gradient(135deg, #3b0764, #7c3aed);
-      border-radius: 20px;
+    .lp-badge {
+      display: inline-flex; align-items: center; gap: 9px;
+      background: rgba(124,58,237,.18); border: 1px solid rgba(139,92,246,.32);
+      padding: 6px 18px; border-radius: 20px;
+      color: #c4b5fd; font-size: .7em; font-weight: 600;
+      letter-spacing: .12em; text-transform: uppercase;
+    }
+    .lp-badge-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #a78bfa; flex-shrink: 0;
+      animation: dotPulse 2s ease-in-out infinite;
+    }
+    .lp-face-svg { width: 245px; height: 272px; }
+    .scan-beam-group { animation: scanBeam 3.5s ease-in-out infinite; }
+    .lp-title {
+      color: #fff; font-size: 2.1em; font-weight: 700;
+      margin: 0; line-height: 1.2; letter-spacing: -.025em;
+    }
+    .lp-cursor {
+      display: inline-block; width: 3px; height: .88em;
+      background: #a78bfa; border-radius: 2px;
+      vertical-align: middle; margin-left: 3px;
+      animation: blink 1s step-end infinite;
+    }
+    .lp-sub {
+      color: rgba(196,181,253,.78); font-size: .875em;
+      margin: 0; line-height: 1.7; max-width: 360px;
+    }
+    .lp-tags {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      justify-content: center;
+    }
+    .lp-tag {
+      background: rgba(124,58,237,.12);
+      border: 1px solid rgba(139,92,246,.22);
+      color: rgba(196,181,253,.82);
+      font-size: .68em; font-weight: 500;
+      padding: 4px 13px; border-radius: 20px;
+      letter-spacing: .06em;
+    }
+
+    /* ─ Right form panel ───────────────────────────────────── */
+    .lp-right {
+      flex: 0 0 clamp(440px, 44vw, 620px);
+      background: #fff;
       display: flex; align-items: center; justify-content: center;
-      font-size: 38px; margin-bottom: 16px;
-      box-shadow: 0 10px 30px rgba(124,58,237,.5);
+      padding: 56px 52px;
+      animation: loginSlideIn .42s ease-out both;
     }
-    .login-logo h1 {
-      font-size: 1.22em; font-weight: 700;
-      color: #1e1b4b; margin: 0 0 7px;
-      text-align: center; line-height: 1.35;
+    .lp-form { width: 100%; max-width: 380px; }
+    .lp-form-head { margin-bottom: 32px; }
+    .lp-form-icon { display: none; }
+
+    .lp-form-eyebrow {
+      display: flex; align-items: center; gap: 9px;
+      font-size: .7em; font-weight: 600;
+      color: #7c3aed; letter-spacing: .12em;
+      text-transform: uppercase; margin-bottom: 12px;
     }
-    .login-logo p {
-      font-size: .79em; color: #7c3aed;
-      margin: 0; font-weight: 600;
-      letter-spacing: .07em; text-transform: uppercase;
+    .lp-form-eyebrow::before {
+      content: ''; display: inline-block;
+      width: 20px; height: 2px;
+      background: linear-gradient(90deg, #4c1d95, #7c3aed);
+      border-radius: 2px; flex-shrink: 0;
     }
-    .login-sep {
-      border: none; height: 1px;
-      background: linear-gradient(to right, transparent, #ddd6fe, transparent);
-      margin: 0 0 26px;
+    .lp-form-title {
+      font-size: 2.45em; font-weight: 700;
+      color: #0f0c29; margin: 0 0 10px;
+      line-height: 1.1; letter-spacing: -.035em;
     }
-    .login-field { margin-bottom: 18px; }
+    .lp-form-sub {
+      font-size: .875em; color: #6b7280;
+      margin: 0; line-height: 1.55;
+    }
+
+    .login-field { margin-bottom: 22px; }
     .login-field label {
-      display: block; font-size: .78em; font-weight: 700;
-      color: #374151; margin-bottom: 7px;
-      letter-spacing: .06em; text-transform: uppercase;
+      display: block; font-size: .74em; font-weight: 600;
+      color: #374151; margin-bottom: 8px;
+      letter-spacing: .08em; text-transform: uppercase;
     }
     .login-input-wrap { position: relative; }
     .login-input-icon {
-      position: absolute; left: 13px; top: 50%;
+      position: absolute; left: 14px; top: 50%;
       transform: translateY(-50%);
-      font-size: 15px; color: #7c3aed; pointer-events: none;
+      color: #9ca3af; pointer-events: none;
+      display: flex; align-items: center;
     }
     .login-field input[type="text"],
     .login-field input[type="password"] {
       width: 100%;
-      padding: 12px 14px 12px 41px;
-      border: 2px solid #ede9fe;
-      border-radius: 10px; font-size: .97em;
-      color: #111827; background: #faf8ff;
+      padding: 13px 14px 13px 44px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px; font-size: .95em;
+      font-family: 'Inter', system-ui, sans-serif;
+      color: #111827; background: #fafafa;
       outline: none; box-sizing: border-box;
-      transition: border-color .2s, box-shadow .2s, background .2s;
+      transition: border-color .18s, box-shadow .18s, background .18s;
     }
     .login-field input[type="text"]:focus,
     .login-field input[type="password"]:focus {
       border-color: #7c3aed; background: #fff;
-      box-shadow: 0 0 0 3px rgba(124,58,237,.15);
+      box-shadow: 0 0 0 3px rgba(124,58,237,.12);
     }
-    .login-field input::placeholder { color: #c4b5fd; }
+    .login-field input::placeholder { color: #d1d5db; }
+
     .btn-login {
-      width: 100%; padding: 13px;
-      background: linear-gradient(135deg, #4c1d95, #7c3aed);
-      color: #fff; border: none;
-      border-radius: 10px; font-size: 1em;
-      font-weight: 600; cursor: pointer;
-      margin-top: 8px; letter-spacing: .04em;
-      box-shadow: 0 6px 22px rgba(124,58,237,.42);
-      transition: transform .15s, box-shadow .2s, opacity .2s;
+      width: 100%; padding: 14px;
+      background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 50%, #7c3aed 100%);
+      color: #fff; border: none; border-radius: 10px;
+      font-size: .95em; font-weight: 600;
+      font-family: 'Inter', system-ui, sans-serif;
+      cursor: pointer; margin-top: 4px; letter-spacing: .04em;
+      box-shadow: 0 4px 22px rgba(124,58,237,.38);
+      transition: transform .15s, box-shadow .2s, filter .15s;
     }
     .btn-login:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 10px 30px rgba(124,58,237,.58);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(124,58,237,.55);
+      filter: brightness(1.06);
     }
-    .btn-login:active { transform: translateY(0); opacity: .92; }
+    .btn-login:active { transform: translateY(0); }
+
     #mensajeLogin {
       margin-top: 14px; min-height: 20px;
       text-align: center; font-size: .88em; font-weight: 500;
     }
-    .login-footer {
-      text-align: center; margin-top: 22px;
-      padding-top: 16px; border-top: 1px solid #f3f4f6;
-      font-size: .76em; color: #a78bfa; letter-spacing: .02em;
+    .lp-footer {
+      display: flex; align-items: center; gap: 7px;
+      justify-content: center;
+      margin-top: 28px; padding-top: 20px;
+      border-top: 1px solid #f0f0f0;
+      font-size: .74em; color: #9ca3af; letter-spacing: .03em;
     }
-    @media (max-width: 480px) {
-      .login-card { padding: 32px 22px 28px; }
-      .login-logo-icon { width: 62px; height: 62px; font-size: 30px; }
-      .login-logo h1 { font-size: 1.1em; }
+
+    /* ─ Mobile: hide left panel ─ */
+    @media (max-width: 800px) {
+      .lp-left { display: none; }
+      .lp-right {
+        flex: none; width: 100%;
+        background: linear-gradient(160deg, #07051a, #1e1b4b);
+        padding: 44px 32px;
+      }
+      .lp-form-title { color: #f5f3ff; font-size: 2.2em; }
+      .lp-form-sub   { color: rgba(196,181,253,.75); }
+      .lp-form-eyebrow { color: #a78bfa; }
+      .lp-form-eyebrow::before { background: linear-gradient(90deg, #6d28d9, #a78bfa); }
+      .login-field label { color: #c4b5fd; }
+      .login-field input[type="text"],
+      .login-field input[type="password"] {
+        background: rgba(255,255,255,.07);
+        border-color: rgba(139,92,246,.38); color: #f5f3ff;
+      }
+      .login-field input[type="text"]:focus,
+      .login-field input[type="password"]:focus {
+        background: rgba(255,255,255,.11); border-color: #7c3aed;
+      }
+      .login-field input::placeholder { color: rgba(196,181,253,.42); }
+      .lp-footer { color: rgba(196,181,253,.55); border-top-color: rgba(255,255,255,.1); }
     }
 
     /* Header app */
@@ -195,52 +331,399 @@
 
 <!-- ═══ LOGIN ═══════════════════════════════════════════════════════ -->
 <div class="seccion-login" id="seccionLogin">
-  <!-- Floating background orbs -->
-  <div class="login-bubble b1"></div>
-  <div class="login-bubble b2"></div>
-  <div class="login-bubble b3"></div>
 
-  <!-- Login card -->
-  <div class="login-card">
+  <!-- ── Left panel: branding + face-scan illustration ─────────── -->
+  <div class="lp-left">
+    <div class="lp-orb lp-orb-1"></div>
+    <div class="lp-orb lp-orb-2"></div>
+    <div class="lp-orb lp-orb-3"></div>
+    <div class="lp-content">
 
-    <!-- Logo / branding -->
-    <div class="login-logo">
-      <div class="login-logo-icon">📷</div>
-      <h1>Sistema de Asistencia<br>Facial</h1>
-      <p>Acceso al sistema</p>
-    </div>
-    <hr class="login-sep">
+      <span class="lp-badge"><span class="lp-badge-dot"></span>Sistema Biométrico</span>
 
-    <!-- Usuario -->
-    <div class="login-field">
-      <label>Usuario</label>
-      <div class="login-input-wrap">
-        <span class="login-input-icon">👤</span>
-        <input type="text" id="loginUsuario"
-               placeholder="Ingresa tu usuario"
-               autocomplete="username" />
+      <!-- Human low-poly face -->
+      <svg class="lp-face-svg" viewBox="0 0 260 295" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="beamGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stop-color="#7c3aed" stop-opacity="0"/>
+            <stop offset="30%"  stop-color="#7c3aed" stop-opacity="0.9"/>
+            <stop offset="70%"  stop-color="#7c3aed" stop-opacity="0.9"/>
+            <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
+          </linearGradient>
+          <linearGradient id="beamGlow2" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stop-color="#c4b5fd" stop-opacity="0"/>
+            <stop offset="50%"  stop-color="#c4b5fd" stop-opacity="0.30"/>
+            <stop offset="100%" stop-color="#c4b5fd" stop-opacity="0"/>
+          </linearGradient>
+          <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="3.5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <!-- ── Scalp / hair ── -->
+        <polygon points="130,18 78,42 98,68"    fill="rgba(12,4,30,0.32)"/>
+        <polygon points="130,18 98,68 130,52"   fill="rgba(12,4,30,0.28)"/>
+        <polygon points="130,18 130,52 162,68"  fill="rgba(12,4,30,0.28)"/>
+        <polygon points="130,18 162,68 182,42"  fill="rgba(12,4,30,0.32)"/>
+        <polygon points="130,52 98,68 162,68"   fill="rgba(25,8,52,0.24)"/>
+        <!-- ── Temples ── -->
+        <polygon points="78,42 48,98 98,68"     fill="rgba(22,7,45,0.30)"/>
+        <polygon points="48,98 80,110 98,68"    fill="rgba(32,10,62,0.24)"/>
+        <polygon points="182,42 162,68 212,98"  fill="rgba(22,7,45,0.30)"/>
+        <polygon points="212,98 162,68 180,110" fill="rgba(32,10,62,0.24)"/>
+        <!-- ── Outer side face ── -->
+        <polygon points="48,98 44,155 80,110"    fill="rgba(32,10,62,0.22)"/>
+        <polygon points="44,155 80,178 80,110"   fill="rgba(38,11,72,0.20)"/>
+        <polygon points="212,98 180,110 216,155" fill="rgba(32,10,62,0.22)"/>
+        <polygon points="216,155 180,110 180,178" fill="rgba(38,11,72,0.20)"/>
+        <!-- ── Forehead ── -->
+        <polygon points="98,68 80,110 112,102"   fill="rgba(52,14,92,0.20)"/>
+        <polygon points="98,68 112,102 130,100"  fill="rgba(62,17,110,0.17)"/>
+        <polygon points="98,68 162,68 130,100"   fill="rgba(72,20,128,0.15)"/>
+        <polygon points="162,68 148,102 130,100" fill="rgba(62,17,110,0.17)"/>
+        <polygon points="162,68 180,110 148,102" fill="rgba(52,14,92,0.20)"/>
+        <!-- ── Brow ridges ── -->
+        <polygon points="80,110 112,102 97,116"   fill="rgba(42,12,78,0.24)"/>
+        <polygon points="80,110 80,128 97,116"    fill="rgba(32,10,62,0.28)"/>
+        <polygon points="112,102 130,100 115,120" fill="rgba(48,13,88,0.22)"/>
+        <polygon points="112,102 97,116 115,120"  fill="rgba(42,12,78,0.24)"/>
+        <polygon points="180,110 148,102 163,116" fill="rgba(42,12,78,0.24)"/>
+        <polygon points="180,110 163,116 180,128" fill="rgba(32,10,62,0.28)"/>
+        <polygon points="148,102 130,100 145,120" fill="rgba(48,13,88,0.22)"/>
+        <polygon points="148,102 163,116 145,120" fill="rgba(42,12,78,0.24)"/>
+        <!-- ── Left eye socket (darkest) ── -->
+        <polygon points="80,128 97,116 98,128"   fill="rgba(5,1,15,0.44)"/>
+        <polygon points="97,116 115,120 98,128"  fill="rgba(5,1,15,0.44)"/>
+        <polygon points="115,120 116,132 98,128" fill="rgba(5,1,15,0.44)"/>
+        <polygon points="116,132 113,140 98,128" fill="rgba(5,1,15,0.44)"/>
+        <polygon points="113,140 96,140 98,128"  fill="rgba(5,1,15,0.44)"/>
+        <polygon points="96,140 80,128 98,128"   fill="rgba(5,1,15,0.44)"/>
+        <!-- ── Right eye socket (darkest) ── -->
+        <polygon points="180,128 163,116 162,128"  fill="rgba(5,1,15,0.44)"/>
+        <polygon points="163,116 145,120 162,128"  fill="rgba(5,1,15,0.44)"/>
+        <polygon points="145,120 144,132 162,128"  fill="rgba(5,1,15,0.44)"/>
+        <polygon points="144,132 147,140 162,128"  fill="rgba(5,1,15,0.44)"/>
+        <polygon points="147,140 164,140 162,128"  fill="rgba(5,1,15,0.44)"/>
+        <polygon points="164,140 180,128 162,128"  fill="rgba(5,1,15,0.44)"/>
+        <!-- ── Nose bridge ── -->
+        <polygon points="130,100 115,120 116,132"  fill="rgba(78,22,138,0.16)"/>
+        <polygon points="130,100 116,132 144,132"  fill="rgba(88,25,155,0.14)"/>
+        <polygon points="130,100 144,132 145,120"  fill="rgba(78,22,138,0.16)"/>
+        <!-- ── Side cheek ── -->
+        <polygon points="80,128 96,140 80,178"    fill="rgba(48,13,88,0.18)"/>
+        <polygon points="180,128 164,140 180,178" fill="rgba(48,13,88,0.18)"/>
+        <!-- ── Under-eye / cheekbone ── -->
+        <polygon points="96,140 115,155 113,140"  fill="rgba(58,16,103,0.17)"/>
+        <polygon points="96,140 80,178 115,155"   fill="rgba(62,17,110,0.16)"/>
+        <polygon points="116,132 115,155 113,140" fill="rgba(62,17,110,0.16)"/>
+        <polygon points="164,140 145,155 147,140" fill="rgba(58,16,103,0.17)"/>
+        <polygon points="164,140 180,178 145,155" fill="rgba(62,17,110,0.16)"/>
+        <polygon points="144,132 145,155 147,140" fill="rgba(62,17,110,0.16)"/>
+        <!-- ── Nose region ── -->
+        <polygon points="116,132 144,132 115,155"  fill="rgba(78,22,138,0.15)"/>
+        <polygon points="144,132 145,155 115,155"  fill="rgba(78,22,138,0.15)"/>
+        <polygon points="115,155 145,155 130,178"  fill="rgba(88,25,155,0.13)"/>
+        <polygon points="115,155 120,174 130,178"  fill="rgba(72,20,128,0.17)"/>
+        <polygon points="145,155 130,178 140,174"  fill="rgba(72,20,128,0.17)"/>
+        <polygon points="120,174 113,183 130,178"  fill="rgba(52,14,92,0.22)"/>
+        <polygon points="140,174 130,178 147,183"  fill="rgba(52,14,92,0.22)"/>
+        <!-- ── Philtrum + upper lip ── -->
+        <polygon points="80,178 113,183 110,200"  fill="rgba(52,14,92,0.20)"/>
+        <polygon points="113,183 110,200 122,192" fill="rgba(52,14,92,0.20)"/>
+        <polygon points="113,183 122,192 130,189" fill="rgba(62,17,110,0.17)"/>
+        <polygon points="113,183 130,178 130,189" fill="rgba(72,20,128,0.15)"/>
+        <polygon points="180,178 147,183 150,200" fill="rgba(52,14,92,0.20)"/>
+        <polygon points="147,183 138,192 150,200" fill="rgba(52,14,92,0.20)"/>
+        <polygon points="147,183 130,189 138,192" fill="rgba(62,17,110,0.17)"/>
+        <polygon points="147,183 130,178 130,189" fill="rgba(72,20,128,0.15)"/>
+        <!-- ── Lips ── -->
+        <polygon points="110,200 122,192 119,210" fill="rgba(42,12,78,0.24)"/>
+        <polygon points="122,192 130,189 119,210" fill="rgba(42,12,78,0.24)"/>
+        <polygon points="130,189 130,212 119,210" fill="rgba(48,13,88,0.22)"/>
+        <polygon points="130,189 138,192 130,212" fill="rgba(48,13,88,0.22)"/>
+        <polygon points="138,192 141,210 130,212" fill="rgba(42,12,78,0.24)"/>
+        <polygon points="138,192 150,200 141,210" fill="rgba(42,12,78,0.24)"/>
+        <!-- ── Lower face / jaw ── -->
+        <polygon points="80,178 110,200 80,225"   fill="rgba(48,13,88,0.22)"/>
+        <polygon points="110,200 119,210 80,225"  fill="rgba(42,12,78,0.24)"/>
+        <polygon points="119,210 130,212 80,225"  fill="rgba(38,11,72,0.24)"/>
+        <polygon points="80,225 130,212 108,258"  fill="rgba(28,8,58,0.28)"/>
+        <polygon points="180,178 150,200 180,225" fill="rgba(48,13,88,0.22)"/>
+        <polygon points="150,200 141,210 180,225" fill="rgba(42,12,78,0.24)"/>
+        <polygon points="141,210 130,212 180,225" fill="rgba(38,11,72,0.24)"/>
+        <polygon points="180,225 130,212 152,258" fill="rgba(28,8,58,0.28)"/>
+        <!-- ── Outer jaw ── -->
+        <polygon points="44,155 60,215 80,178"    fill="rgba(32,10,62,0.24)"/>
+        <polygon points="60,215 80,225 80,178"    fill="rgba(32,10,62,0.24)"/>
+        <polygon points="216,155 180,178 200,215" fill="rgba(32,10,62,0.24)"/>
+        <polygon points="200,215 180,178 180,225" fill="rgba(32,10,62,0.24)"/>
+        <!-- ── Chin ── -->
+        <polygon points="80,225 60,215 95,265"   fill="rgba(22,7,45,0.28)"/>
+        <polygon points="80,225 95,265 108,258"  fill="rgba(22,7,45,0.28)"/>
+        <polygon points="108,258 95,265 130,272" fill="rgba(18,5,38,0.30)"/>
+        <polygon points="108,258 152,258 130,272" fill="rgba(18,5,38,0.30)"/>
+        <polygon points="152,258 165,265 130,272" fill="rgba(18,5,38,0.30)"/>
+        <polygon points="180,225 152,258 165,265" fill="rgba(22,7,45,0.28)"/>
+        <polygon points="200,215 180,225 165,265" fill="rgba(22,7,45,0.28)"/>
+        <!-- ── Head outline edges ── -->
+        <line x1="130" y1="18"  x2="78"  y2="42"  stroke="rgba(139,92,246,0.45)" stroke-width="0.9"/>
+        <line x1="78"  y1="42"  x2="48"  y2="98"  stroke="rgba(139,92,246,0.42)" stroke-width="0.9"/>
+        <line x1="48"  y1="98"  x2="44"  y2="155" stroke="rgba(139,92,246,0.38)" stroke-width="0.9"/>
+        <line x1="44"  y1="155" x2="60"  y2="215" stroke="rgba(139,92,246,0.38)" stroke-width="0.9"/>
+        <line x1="60"  y1="215" x2="95"  y2="265" stroke="rgba(139,92,246,0.35)" stroke-width="0.9"/>
+        <line x1="95"  y1="265" x2="130" y2="272" stroke="rgba(139,92,246,0.35)" stroke-width="0.9"/>
+        <line x1="130" y1="272" x2="165" y2="265" stroke="rgba(139,92,246,0.35)" stroke-width="0.9"/>
+        <line x1="165" y1="265" x2="200" y2="215" stroke="rgba(139,92,246,0.35)" stroke-width="0.9"/>
+        <line x1="200" y1="215" x2="216" y2="155" stroke="rgba(139,92,246,0.38)" stroke-width="0.9"/>
+        <line x1="216" y1="155" x2="212" y2="98"  stroke="rgba(139,92,246,0.38)" stroke-width="0.9"/>
+        <line x1="212" y1="98"  x2="182" y2="42"  stroke="rgba(139,92,246,0.42)" stroke-width="0.9"/>
+        <line x1="182" y1="42"  x2="130" y2="18"  stroke="rgba(139,92,246,0.45)" stroke-width="0.9"/>
+        <!-- Forehead structure -->
+        <line x1="130" y1="18"  x2="130" y2="52"  stroke="rgba(139,92,246,0.36)" stroke-width="0.8"/>
+        <line x1="78"  y1="42"  x2="98"  y2="68"  stroke="rgba(139,92,246,0.35)" stroke-width="0.8"/>
+        <line x1="182" y1="42"  x2="162" y2="68"  stroke="rgba(139,92,246,0.35)" stroke-width="0.8"/>
+        <line x1="98"  y1="68"  x2="80"  y2="110" stroke="rgba(139,92,246,0.33)" stroke-width="0.8"/>
+        <line x1="162" y1="68"  x2="180" y2="110" stroke="rgba(139,92,246,0.33)" stroke-width="0.8"/>
+        <!-- Brow ridge -->
+        <line x1="80"  y1="110" x2="112" y2="102" stroke="rgba(167,139,250,0.50)" stroke-width="1.0"/>
+        <line x1="112" y1="102" x2="130" y2="100" stroke="rgba(167,139,250,0.55)" stroke-width="1.0"/>
+        <line x1="130" y1="100" x2="148" y2="102" stroke="rgba(167,139,250,0.55)" stroke-width="1.0"/>
+        <line x1="148" y1="102" x2="180" y2="110" stroke="rgba(167,139,250,0.50)" stroke-width="1.0"/>
+        <!-- Left eye outline -->
+        <line x1="80"  y1="128" x2="97"  y2="116" stroke="rgba(167,139,250,0.58)" stroke-width="1.0"/>
+        <line x1="97"  y1="116" x2="115" y2="120" stroke="rgba(167,139,250,0.58)" stroke-width="1.0"/>
+        <line x1="115" y1="120" x2="116" y2="132" stroke="rgba(167,139,250,0.52)" stroke-width="1.0"/>
+        <line x1="116" y1="132" x2="113" y2="140" stroke="rgba(167,139,250,0.52)" stroke-width="1.0"/>
+        <line x1="113" y1="140" x2="96"  y2="140" stroke="rgba(167,139,250,0.58)" stroke-width="1.0"/>
+        <line x1="96"  y1="140" x2="80"  y2="128" stroke="rgba(167,139,250,0.58)" stroke-width="1.0"/>
+        <!-- Right eye outline -->
+        <line x1="180" y1="128" x2="163" y2="116" stroke="rgba(167,139,250,0.58)" stroke-width="1.0"/>
+        <line x1="163" y1="116" x2="145" y2="120" stroke="rgba(167,139,250,0.58)" stroke-width="1.0"/>
+        <line x1="145" y1="120" x2="144" y2="132" stroke="rgba(167,139,250,0.52)" stroke-width="1.0"/>
+        <line x1="144" y1="132" x2="147" y2="140" stroke="rgba(167,139,250,0.52)" stroke-width="1.0"/>
+        <line x1="147" y1="140" x2="164" y2="140" stroke="rgba(167,139,250,0.58)" stroke-width="1.0"/>
+        <line x1="164" y1="140" x2="180" y2="128" stroke="rgba(167,139,250,0.58)" stroke-width="1.0"/>
+        <!-- Nose bridge + nose outline -->
+        <line x1="112" y1="102" x2="97"  y2="116" stroke="rgba(139,92,246,0.40)" stroke-width="0.9"/>
+        <line x1="148" y1="102" x2="163" y2="116" stroke="rgba(139,92,246,0.40)" stroke-width="0.9"/>
+        <line x1="116" y1="132" x2="115" y2="155" stroke="rgba(139,92,246,0.38)" stroke-width="0.9"/>
+        <line x1="144" y1="132" x2="145" y2="155" stroke="rgba(139,92,246,0.38)" stroke-width="0.9"/>
+        <line x1="115" y1="155" x2="120" y2="174" stroke="rgba(139,92,246,0.42)" stroke-width="0.9"/>
+        <line x1="145" y1="155" x2="140" y2="174" stroke="rgba(139,92,246,0.42)" stroke-width="0.9"/>
+        <line x1="120" y1="174" x2="113" y2="183" stroke="rgba(139,92,246,0.40)" stroke-width="0.9"/>
+        <line x1="140" y1="174" x2="147" y2="183" stroke="rgba(139,92,246,0.40)" stroke-width="0.9"/>
+        <line x1="113" y1="183" x2="130" y2="178" stroke="rgba(139,92,246,0.38)" stroke-width="0.9"/>
+        <line x1="147" y1="183" x2="130" y2="178" stroke="rgba(139,92,246,0.38)" stroke-width="0.9"/>
+        <!-- Mouth outline -->
+        <line x1="110" y1="200" x2="122" y2="192" stroke="rgba(139,92,246,0.42)" stroke-width="0.9"/>
+        <line x1="122" y1="192" x2="130" y2="189" stroke="rgba(139,92,246,0.46)" stroke-width="0.9"/>
+        <line x1="130" y1="189" x2="138" y2="192" stroke="rgba(139,92,246,0.46)" stroke-width="0.9"/>
+        <line x1="138" y1="192" x2="150" y2="200" stroke="rgba(139,92,246,0.42)" stroke-width="0.9"/>
+        <line x1="110" y1="200" x2="119" y2="210" stroke="rgba(139,92,246,0.38)" stroke-width="0.9"/>
+        <line x1="119" y1="210" x2="130" y2="212" stroke="rgba(139,92,246,0.42)" stroke-width="0.9"/>
+        <line x1="130" y1="212" x2="141" y2="210" stroke="rgba(139,92,246,0.42)" stroke-width="0.9"/>
+        <line x1="141" y1="210" x2="150" y2="200" stroke="rgba(139,92,246,0.38)" stroke-width="0.9"/>
+        <!-- Jaw lines -->
+        <line x1="80"  y1="110" x2="44"  y2="155" stroke="rgba(139,92,246,0.35)" stroke-width="0.8"/>
+        <line x1="180" y1="110" x2="216" y2="155" stroke="rgba(139,92,246,0.35)" stroke-width="0.8"/>
+        <line x1="80"  y1="178" x2="80"  y2="225" stroke="rgba(139,92,246,0.32)" stroke-width="0.8"/>
+        <line x1="180" y1="178" x2="180" y2="225" stroke="rgba(139,92,246,0.32)" stroke-width="0.8"/>
+        <line x1="80"  y1="225" x2="108" y2="258" stroke="rgba(139,92,246,0.35)" stroke-width="0.9"/>
+        <line x1="180" y1="225" x2="152" y2="258" stroke="rgba(139,92,246,0.35)" stroke-width="0.9"/>
+        <!-- ── Vertex dots ── -->
+        <circle cx="130" cy="18"  r="2.0" fill="rgba(196,181,253,0.72)"/>
+        <circle cx="78"  cy="42"  r="1.8" fill="rgba(196,181,253,0.55)"/>
+        <circle cx="182" cy="42"  r="1.8" fill="rgba(196,181,253,0.55)"/>
+        <circle cx="48"  cy="98"  r="1.8" fill="rgba(196,181,253,0.50)"/>
+        <circle cx="212" cy="98"  r="1.8" fill="rgba(196,181,253,0.50)"/>
+        <circle cx="44"  cy="155" r="1.8" fill="rgba(196,181,253,0.48)"/>
+        <circle cx="216" cy="155" r="1.8" fill="rgba(196,181,253,0.48)"/>
+        <circle cx="60"  cy="215" r="1.8" fill="rgba(196,181,253,0.45)"/>
+        <circle cx="200" cy="215" r="1.8" fill="rgba(196,181,253,0.45)"/>
+        <circle cx="95"  cy="265" r="1.8" fill="rgba(196,181,253,0.42)"/>
+        <circle cx="165" cy="265" r="1.8" fill="rgba(196,181,253,0.42)"/>
+        <circle cx="130" cy="272" r="2.0" fill="rgba(196,181,253,0.55)"/>
+        <circle cx="130" cy="52"  r="1.8" fill="rgba(196,181,253,0.60)"/>
+        <circle cx="98"  cy="68"  r="1.8" fill="rgba(196,181,253,0.58)"/>
+        <circle cx="162" cy="68"  r="1.8" fill="rgba(196,181,253,0.58)"/>
+        <circle cx="80"  cy="110" r="2.0" fill="rgba(196,181,253,0.68)"/>
+        <circle cx="180" cy="110" r="2.0" fill="rgba(196,181,253,0.68)"/>
+        <circle cx="112" cy="102" r="2.0" fill="rgba(196,181,253,0.72)"/>
+        <circle cx="148" cy="102" r="2.0" fill="rgba(196,181,253,0.72)"/>
+        <circle cx="130" cy="100" r="2.2" fill="rgba(196,181,253,0.75)"/>
+        <circle cx="80"  cy="128" r="1.8" fill="rgba(196,181,253,0.65)"/>
+        <circle cx="97"  cy="116" r="1.8" fill="rgba(196,181,253,0.70)"/>
+        <circle cx="115" cy="120" r="1.8" fill="rgba(196,181,253,0.65)"/>
+        <circle cx="116" cy="132" r="1.8" fill="rgba(196,181,253,0.62)"/>
+        <circle cx="113" cy="140" r="1.8" fill="rgba(196,181,253,0.62)"/>
+        <circle cx="96"  cy="140" r="1.8" fill="rgba(196,181,253,0.65)"/>
+        <circle cx="180" cy="128" r="1.8" fill="rgba(196,181,253,0.65)"/>
+        <circle cx="163" cy="116" r="1.8" fill="rgba(196,181,253,0.70)"/>
+        <circle cx="145" cy="120" r="1.8" fill="rgba(196,181,253,0.65)"/>
+        <circle cx="144" cy="132" r="1.8" fill="rgba(196,181,253,0.62)"/>
+        <circle cx="147" cy="140" r="1.8" fill="rgba(196,181,253,0.62)"/>
+        <circle cx="164" cy="140" r="1.8" fill="rgba(196,181,253,0.65)"/>
+        <circle cx="115" cy="155" r="1.8" fill="rgba(196,181,253,0.60)"/>
+        <circle cx="145" cy="155" r="1.8" fill="rgba(196,181,253,0.60)"/>
+        <circle cx="130" cy="178" r="2.0" fill="rgba(196,181,253,0.62)"/>
+        <circle cx="130" cy="189" r="2.0" fill="rgba(196,181,253,0.60)"/>
+        <circle cx="110" cy="200" r="1.8" fill="rgba(196,181,253,0.55)"/>
+        <circle cx="150" cy="200" r="1.8" fill="rgba(196,181,253,0.55)"/>
+        <circle cx="130" cy="212" r="1.8" fill="rgba(196,181,253,0.55)"/>
+        <circle cx="80"  cy="178" r="1.8" fill="rgba(196,181,253,0.52)"/>
+        <circle cx="180" cy="178" r="1.8" fill="rgba(196,181,253,0.52)"/>
+        <circle cx="80"  cy="225" r="1.8" fill="rgba(196,181,253,0.48)"/>
+        <circle cx="180" cy="225" r="1.8" fill="rgba(196,181,253,0.48)"/>
+        <circle cx="108" cy="258" r="1.8" fill="rgba(196,181,253,0.50)"/>
+        <circle cx="152" cy="258" r="1.8" fill="rgba(196,181,253,0.50)"/>
+        <!-- ── Eye glow ── -->
+        <circle cx="98"  cy="128" r="10"  fill="rgba(100,40,200,0.22)" class="eye-glow-l"/>
+        <circle cx="98"  cy="128" r="4"   fill="rgba(196,181,253,0.92)" filter="url(#glow)"/>
+        <circle cx="98"  cy="128" r="2"   fill="#ffffff"/>
+        <circle cx="162" cy="128" r="10"  fill="rgba(100,40,200,0.22)" class="eye-glow-r"/>
+        <circle cx="162" cy="128" r="4"   fill="rgba(196,181,253,0.92)" filter="url(#glow)"/>
+        <circle cx="162" cy="128" r="2"   fill="#ffffff"/>
+        <!-- ── Floating particles ── -->
+        <g class="particle p1">
+          <polygon points="16,82 30,72 32,90" stroke="rgba(139,92,246,0.55)" stroke-width="0.9" fill="rgba(109,40,217,0.08)"/>
+          <circle cx="16" cy="82" r="1.3" fill="rgba(167,139,250,0.65)"/>
+          <circle cx="30" cy="72" r="1.3" fill="rgba(167,139,250,0.65)"/>
+        </g>
+        <g class="particle p2">
+          <polygon points="234,86 248,76 244,96" stroke="rgba(139,92,246,0.50)" stroke-width="0.9" fill="rgba(109,40,217,0.07)"/>
+          <circle cx="248" cy="76" r="1.3" fill="rgba(167,139,250,0.60)"/>
+          <circle cx="234" cy="86" r="1.3" fill="rgba(167,139,250,0.55)"/>
+        </g>
+        <g class="particle p3">
+          <line x1="10" y1="150" x2="26" y2="138" stroke="rgba(139,92,246,0.48)" stroke-width="0.9"/>
+          <line x1="26" y1="138" x2="24" y2="157" stroke="rgba(139,92,246,0.36)" stroke-width="0.9"/>
+          <line x1="24" y1="157" x2="10" y2="150" stroke="rgba(139,92,246,0.33)" stroke-width="0.9"/>
+          <circle cx="10" cy="150" r="1.4" fill="rgba(167,139,250,0.62)"/>
+          <circle cx="26" cy="138" r="1.4" fill="rgba(167,139,250,0.62)"/>
+        </g>
+        <g class="particle p4">
+          <polygon points="240,154 254,144 252,164" stroke="rgba(139,92,246,0.45)" stroke-width="0.9" fill="rgba(76,29,149,0.08)"/>
+          <circle cx="254" cy="144" r="1.3" fill="rgba(167,139,250,0.58)"/>
+        </g>
+        <g class="particle p5">
+          <polygon points="20,202 34,192 32,210" stroke="rgba(139,92,246,0.42)" stroke-width="0.9" fill="rgba(76,29,149,0.07)"/>
+          <circle cx="34" cy="192" r="1.3" fill="rgba(167,139,250,0.55)"/>
+        </g>
+        <g class="particle p6">
+          <line x1="238" y1="197" x2="254" y2="206" stroke="rgba(139,92,246,0.42)" stroke-width="0.9"/>
+          <line x1="254" y1="206" x2="248" y2="218" stroke="rgba(139,92,246,0.35)" stroke-width="0.9"/>
+          <circle cx="254" cy="206" r="1.3" fill="rgba(167,139,250,0.55)"/>
+        </g>
+        <g class="particle p7">
+          <polygon points="52,247 68,258 60,266" stroke="rgba(139,92,246,0.38)" stroke-width="0.9" fill="rgba(76,29,149,0.07)"/>
+          <circle cx="68" cy="258" r="1.3" fill="rgba(167,139,250,0.52)"/>
+        </g>
+        <g class="particle p8">
+          <polygon points="192,254 206,246 208,262" stroke="rgba(139,92,246,0.38)" stroke-width="0.9" fill="rgba(76,29,149,0.07)"/>
+          <circle cx="206" cy="246" r="1.3" fill="rgba(167,139,250,0.52)"/>
+        </g>
+        <!-- ── Corner scan brackets ── -->
+        <path d="M44 46 L44 18 L70 18"   stroke="#7c3aed" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M216 46 L216 18 L190 18" stroke="#7c3aed" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M44 248 L44 272 L70 272"   stroke="#7c3aed" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M216 248 L216 272 L190 272" stroke="#7c3aed" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- ── Scan beam ── -->
+        <g class="scan-beam-group">
+          <rect x="44" y="-7" width="172" height="14" fill="url(#beamGlow2)"/>
+          <line x1="44" y1="0" x2="216" y2="0" stroke="url(#beamGrad2)" stroke-width="1.5"/>
+          <polygon points="44,-5 44,5 36,0"    fill="#7c3aed" opacity="0.72"/>
+          <polygon points="216,-5 216,5 224,0" fill="#7c3aed" opacity="0.72"/>
+        </g>
+        <!-- ── Status bar ── -->
+        <text x="130" y="284" text-anchor="middle" fill="rgba(167,139,250,0.72)"
+              font-size="8" font-family="'Courier New',monospace" letter-spacing="2.5">RECONOCIENDO...</text>
+        <rect x="82" y="289" width="96" height="2.5" rx="1.25" fill="rgba(124,58,237,0.18)"/>
+        <rect x="82" y="289" width="65" height="2.5" rx="1.25" fill="rgba(124,58,237,0.80)"/>
+      </svg>
+
+      <h2 class="lp-title"><span id="lp-typer"></span><span class="lp-cursor" id="lp-cursor"></span></h2>
+      <p class="lp-sub">Plataforma de control de asistencia mediante reconocimiento biométrico facial</p>
+      <div class="lp-tags">
+        <span class="lp-tag">Reconocimiento Facial</span>
+        <span class="lp-tag">Tiempo Real</span>
+        <span class="lp-tag">Alta Precisión</span>
       </div>
+
     </div>
-
-    <!-- Contraseña -->
-    <div class="login-field">
-      <label>Contraseña</label>
-      <div class="login-input-wrap">
-        <span class="login-input-icon">🔒</span>
-        <input type="password" id="loginPassword"
-               placeholder="••••••••"
-               autocomplete="current-password"
-               onkeydown="if(event.key==='Enter')iniciarSesion()" />
-      </div>
-    </div>
-
-    <button class="btn-login" onclick="iniciarSesion()">Iniciar sesión →</button>
-
-    <div id="mensajeLogin"></div>
-
-    <div class="login-footer">🔐 Acceso restringido &mdash; Solo personal autorizado</div>
   </div>
+
+  <!-- ── Right panel: login form ────────────────────────────────── -->
+  <div class="lp-right">
+    <div class="lp-form">
+
+      <div class="lp-form-head">
+        <p class="lp-form-eyebrow">Sistema Biométrico</p>
+        <h2 class="lp-form-title">Iniciar Sesión</h2>
+        <p class="lp-form-sub">Ingresa tus credenciales de acceso al sistema</p>
+      </div>
+
+      <!-- Usuario -->
+      <div class="login-field">
+        <label>Usuario</label>
+        <div class="login-input-wrap">
+          <span class="login-input-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </span>
+          <input type="text" id="loginUsuario"
+                 placeholder="Nombre de usuario"
+                 autocomplete="username" />
+        </div>
+      </div>
+
+      <!-- Contraseña -->
+      <div class="login-field">
+        <label>Contrase&ntilde;a</label>
+        <div class="login-input-wrap">
+          <span class="login-input-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+          </span>
+          <input type="password" id="loginPassword"
+                 placeholder="Contrase&ntilde;a"
+                 autocomplete="current-password"
+                 onkeydown="if(event.key==='Enter')iniciarSesion()" />
+        </div>
+      </div>
+
+      <button class="btn-login" onclick="iniciarSesion()">Iniciar sesi&oacute;n</button>
+
+      <div id="mensajeLogin"></div>
+
+      <!-- Footer -->
+      <div class="lp-footer">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+        </svg>
+        Acceso restringido &mdash; Solo personal autorizado
+      </div>
+
+    </div>
+  </div>
+
 </div>
+<script>
+(function() {
+  var text = 'Sistema de\nAsistencia Facial';
+  var typer = document.getElementById('lp-typer');
+  var i = 0;
+  setTimeout(function type() {
+    typer.innerHTML = text.slice(0, i).replace(/\n/g, '<br>');
+    if (i < text.length) { i++; setTimeout(type, 54); }
+  }, 480);
+})();
+</script>
 
 <!-- ═══ APP ══════════════════════════════════════════════════════════ -->
 <div id="seccionApp" style="display:none">
@@ -865,9 +1348,11 @@
         `${payload.nombre_usuario} (${payload.rol})`
     }
 
-    // Ocultar tabs y secciones de solo-admin si es profesor
+    // Mostrar/ocultar tabs y secciones de solo-admin según rol
     if (rolUsuario !== 'admin') {
       document.querySelectorAll('.solo-admin').forEach(el => el.style.display = 'none')
+    } else {
+      document.querySelectorAll('.solo-admin').forEach(el => el.style.display = '')
     }
 
     // Mostrar nombre en el panel de bienvenida
@@ -888,9 +1373,10 @@
   function cerrarSesion() {
     token = null; rolUsuario = null
     localStorage.removeItem('token'); localStorage.removeItem('rolUsuario')
+    listaCursos = []; listaProfesores = []; listaAsignaturas = []; listaAulas = []; listaAlumnos = []; listaAlumnosCompleta = []
     detener()
     detenerAutoRefresh()
-    document.getElementById('seccionLogin').style.display = 'block'
+    document.getElementById('seccionLogin').style.display = 'flex'
     document.getElementById('seccionApp').style.display   = 'none'
   }
 
@@ -1343,9 +1829,16 @@
   async function rellenarSelectsManual() {
     if (!listaCursos.length) listaCursos = (await apiGet(`${API1}/cursos`)).filter(c=>c.activo)
     const sel = document.getElementById('m-id-curso')
-    if (sel && (sel.options.length <= 1)) {
+    if (sel) {
+      let cursosFiltrados = listaCursos
+      const payload = decodificarToken(token)
+      if (rolUsuario !== 'admin' && payload?.id_profesor) {
+        const todosHorarios = await apiGet(`${API1}/horarios`)
+        const misCursos = new Set(todosHorarios.filter(h => h.id_profesor == payload.id_profesor).map(h => h.id_curso))
+        cursosFiltrados = listaCursos.filter(c => misCursos.has(c.id))
+      }
       sel.innerHTML = '<option value="">— Selecciona —</option>' +
-        listaCursos.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')
+        cursosFiltrados.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')
     }
     if (!document.getElementById('m-fecha').value) {
       document.getElementById('m-fecha').value = new Date().toISOString().slice(0,10)
@@ -1668,7 +2161,7 @@
   }
 
   async function eliminarProfesor(id, nombre) {
-    if (!confirm(`⚠️ ¿Eliminar permanentemente al profesor ${nombre}?\n\nSe eliminarán también sus horarios asignados.\n(No se puede deshacer)`)) return
+    if (!confirm(`⚠️ ¿Eliminar permanentemente al profesor ${nombre}?\n\nSe eliminarán también sus horarios asignados y TODOS los registros de asistencia de esas clases.\n(No se puede deshacer)`)) return
     const { ok, data } = await apiDelete(`${API1}/profesores/${id}`)
     document.getElementById('msg-profesores').innerHTML =
       ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
@@ -1993,7 +2486,7 @@
   }
 
   async function eliminarAsignatura(id, nombre) {
-    if (!confirm(`⚠️ ¿Eliminar la asignatura "${nombre}"?\n\nSe eliminarán también sus horarios.`)) return
+    if (!confirm(`⚠️ ¿Eliminar la asignatura "${nombre}"?\n\nSe eliminarán también sus horarios y TODOS los registros de asistencia asociados. (No se puede deshacer)`)) return
     const { ok, data } = await apiDelete(`${API1}/asignaturas/${id}`)
     document.getElementById('msg-asignaturas').innerHTML =
       ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
@@ -2275,7 +2768,7 @@
         </div>
         <div class="form-group">
           <label>Año <small style="color:#888"></small></label>
-          <input type="number" id="f-anio" value="${new Date().getFullYear()}"
+          <input type="number" id="f-anio" value="${v('anio') || new Date().getFullYear()}"
                  readonly style="width:110px; background:#f0f0f0; color:#666; cursor:not-allowed;" />
         </div>`
     }
@@ -2384,7 +2877,7 @@
           </div>
         </div>
         <div class="form-group">
-          <label>Sala * <small style="color:#888">Obligatoria</small></label>
+          <label>Sala <small style="color:#888">Opcional</small></label>
           <select id="f-sala">
             <option value="">— Selecciona una sala —</option>
             ${opsAulas}
@@ -2954,7 +3447,6 @@
       if (!hora_inicio)   { msg.innerHTML='<span class="mensaje-err">⚠️ Ingresa la hora de inicio</span>'; return }
       if (!hora_fin)      { msg.innerHTML='<span class="mensaje-err">⚠️ Ingresa la hora de fin</span>'; return }
       if (hora_inicio >= hora_fin) { msg.innerHTML='<span class="mensaje-err">⚠️ La hora de fin debe ser mayor a la de inicio</span>'; return }
-      if (!sala)        { msg.innerHTML='<span class="mensaje-err">⚠️ Debes seleccionar una sala</span>'; return }
 
       body   = { id_curso: parseInt(id_curso), id_asignatura: parseInt(id_asignatura),
                  id_profesor: parseInt(id_profesor), dia_semana: parseInt(dia_semana),
@@ -3043,7 +3535,7 @@
       const nombre    = leerCampo('f-nombre')
       const capacidad = parseInt(leerCampo('f-capacidad'))
       if (!codigo) { msg.innerHTML='<span class="mensaje-err">⚠️ El código del aula es obligatorio</span>'; return }
-      if (/[^a-zA-Z]/.test(codigo)) { msg.innerHTML='<span class="mensaje-err">⚠️ El código solo puede contener letras (Ej: GIM, LAB)</span>'; return }
+      if (/[^a-zA-Z0-9]/.test(codigo)) { msg.innerHTML='<span class="mensaje-err">⚠️ El código solo puede contener letras y números (Ej: A1, LAB2, GIM)</span>'; return }
       if (isNaN(capacidad) || capacidad < 1) { msg.innerHTML='<span class="mensaje-err">⚠️ La capacidad debe ser al menos 1</span>'; return }
       body   = { codigo: codigo.toUpperCase(), nombre: nombre || null, capacidad }
       url    = modalId ? `${API1}/aulas/${modalId}` : `${API1}/aulas`
@@ -3131,7 +3623,11 @@
     const diaSemana  = new Date(fecha + 'T12:00:00').getDay()
     const diaAjustado = diaSemana === 0 ? 7 : diaSemana
     try {
-      const horarios = await apiGet(`${API1}/horarios?dia_semana=${diaAjustado}`)
+      const todos = await apiGet(`${API1}/horarios?dia_semana=${diaAjustado}`)
+      const payload = decodificarToken(token)
+      const horarios = (rolUsuario !== 'admin' && payload?.id_profesor)
+        ? todos.filter(h => h.id_profesor == payload.id_profesor)
+        : todos
       selector.innerHTML = '<option value="">-- Selecciona --</option>'
       if (!horarios.length) { infoClase.textContent = 'No hay clases para ese día'; return }
       horarios.forEach(h => {
@@ -3380,7 +3876,7 @@
   }
 
   async function eliminarPeriodo(id, nombre) {
-    if (!confirm(`¿Eliminar el período "${nombre}"?`)) return
+    if (!confirm(`⚠️ ¿Eliminar el período "${nombre}"?\n\nSe eliminarán también todas sus evaluaciones y las notas ingresadas. (No se puede deshacer)`)) return
     const { ok, data } = await apiDelete(`${API1}/periodos/${id}`)
     document.getElementById('msg-periodos').innerHTML = ok
       ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
@@ -3600,7 +4096,7 @@
           <button class="btn-primary" onclick="guardarModalNotas()">💾 Guardar</button>
         </div>
       </div>`
-    overlay.classList.add('visible')
+    overlay.style.display = 'block'
   }
 
   async function guardarModalNotas() {

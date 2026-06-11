@@ -32,6 +32,14 @@ INSERT INTO asignaturas (nombre, codigo, horas_semanales) VALUES
 ('Ciencias',    'CIE', 4)
 ON CONFLICT (codigo) DO NOTHING;
 
+-- Aulas de prueba (deben existir antes que los horarios que las referencian)
+INSERT INTO aulas (codigo, nombre, capacidad) VALUES
+('A1', 'Sala A1', 35),
+('A2', 'Sala A2', 35),
+('B1', 'Sala B1', 35),
+('B2', 'Sala B2', 35)
+ON CONFLICT (codigo) DO NOTHING;
+
 -- Horarios de prueba (3°A - semana tipo)
 INSERT INTO horarios (id_curso, id_asignatura, id_profesor, dia_semana, hora_inicio, hora_fin, sala) VALUES
 (1, 1, 1, 1, '08:00', '09:30', 'A1'),  -- Lunes: Matemáticas

@@ -442,5 +442,13 @@ INSERT INTO periodos_academicos (nombre, fecha_inicio, fecha_fin, activo) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO parametros_sistema (clave, valor, descripcion) VALUES
-('nombre_colegio', 'Colegio Ejemplo', 'Nombre de la institución')
+('nombre_colegio',       'Colegio Ejemplo',        'Nombre de la institución'),
+('anio_lectivo',         '2026',                   'Año lectivo actual'),
+('umbral_asistencia',    '85',                     'Porcentaje mínimo de asistencia requerido (%)'),
+('direccion_colegio',    '',                        'Dirección física del colegio'),
+('telefono_colegio',     '',                        'Teléfono de contacto del colegio'),
+('correo_colegio',       '',                        'Correo electrónico de contacto'),
+('director_nombre',      '',                        'Nombre del director/a del establecimiento'),
+('comuna',               '',                        'Comuna donde se ubica el colegio'),
+('region',               'Región Metropolitana',   'Región del colegio')
 ON CONFLICT (clave) DO NOTHING;

@@ -151,6 +151,7 @@ router.get('/alumno/:id', verificarToken, adminOProfesor, async (req, res) => {
   try {
     let query = `
       SELECT
+        ad.id           AS id_detalle,
         ac.fecha,
         asig.nombre     AS asignatura,
         c.nombre        AS curso,
@@ -160,6 +161,7 @@ router.get('/alumno/:id', verificarToken, adminOProfesor, async (req, res) => {
         ad.hora_marcada,
         ad.tipo_asistencia,
         ad.observacion,
+        j.id            AS id_justificacion,
         j.motivo        AS justificacion,
         j.estado        AS estado_justificacion
       FROM asistencia_detalle ad
@@ -334,6 +336,50 @@ router.get('/resumen/alumno/:id', verificarToken, adminOProfesor, async (req, re
   } catch (err) {
     console.error('[GET /resumen/alumno/:id]', err.message);
     res.status(500).json({ error: 'Error al obtener resumen de asistencia' });
+  }
+});
+
+// =====================================================
+// GET /asistencia/justificaciones
+// Lista todas las justificaciones con detalle del alumno
+// Query: ?estado=pendiente|aprobada|rechazada  ?id_alumno=N
+// Auth: Admin o Profesor
+// =====================================================
+router.get('/justificaciones', verificarToken, adminOProfesor, async (req, res) => {
+  const { estado, id_alumno } = req.query;
+  const params = [];
+  let where = 'WHERE 1=1';
+  if (estado)    { params.push(estado);     where += ` AND j.estado = $${params.length}`; }
+  if (id_alumno) { params.push(id_alumno);  where += ` AND ad.id_alumno = $${params.length}`; }
+  try {
+    const r = await pool.query(
+      `SELECT
+         j.id, j.motivo, j.estado, j.fecha_justificacion,
+         ad.id     AS id_asistencia_detalle,
+         ad.presente,
+         ac.fecha,
+         a.id      AS id_alumno,
+         a.nombre  || ' ' || a.apellido_paterno AS alumno,
+         a.rut,
+         c.nombre  AS curso,
+         asig.nombre AS asignatura,
+         h.hora_inicio, h.hora_fin
+       FROM justificaciones j
+       JOIN asistencia_detalle  ad   ON j.id_asistencia_detalle = ad.id
+       JOIN asistencia_cabecera ac   ON ad.id_asistencia_cabecera = ac.id
+       JOIN alumnos              a   ON ad.id_alumno = a.id
+       LEFT JOIN cursos          c   ON a.id_curso = c.id
+       JOIN horarios             h   ON ac.id_horario = h.id
+       JOIN asignaturas          asig ON h.id_asignatura = asig.id
+       ${where}
+       ORDER BY j.fecha_justificacion DESC
+       LIMIT 200`,
+      params
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error('[GET /justificaciones]', err.message);
+    res.status(500).json({ error: 'Error al obtener justificaciones' });
   }
 });
 

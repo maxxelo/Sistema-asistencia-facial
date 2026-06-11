@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db/connection');
 const { verificarToken, soloAdmin, adminOProfesor } = require('../middleware/auth');
+const { registrarOperacion } = require('./bitacora');
 
 // =====================================================
 // GET /alumnos
@@ -104,6 +105,7 @@ router.post('/', verificarToken, soloAdmin, async (req, res) => {
        email ?? null, telefono ?? null, direccion ?? null,
        fecha_nacimiento ?? null, id_curso ?? null]
     );
+    registrarOperacion(req.usuario.id, 'CREAR alumno', 'alumnos', result.rows[0].id);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') {
@@ -149,6 +151,7 @@ router.put('/:id', verificarToken, soloAdmin, async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
+    registrarOperacion(req.usuario.id, 'EDITAR alumno', 'alumnos', id);
     res.json(result.rows[0]);
   } catch (err) {
     console.error('[PUT /alumnos/:id]', err.message);
@@ -202,6 +205,7 @@ router.delete('/:id', verificarToken, soloAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
     const a = result.rows[0];
+    registrarOperacion(req.usuario.id, 'ELIMINAR alumno', 'alumnos', id);
     res.json({ mensaje: `Alumno ${a.nombre} ${a.apellido_paterno} eliminado correctamente` });
   } catch (err) {
     console.error('[DELETE /alumnos/:id]', err.message);

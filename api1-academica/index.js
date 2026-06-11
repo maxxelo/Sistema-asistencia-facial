@@ -17,6 +17,8 @@ const evaluacionesRoutes = require('./routes/evaluaciones');
 const apoderadosRoutes   = require('./routes/apoderados');
 const fichaMedicaRoutes  = require('./routes/ficha_medica');
 const comunicadosRoutes  = require('./routes/comunicados');
+const parametrosRoutes   = require('./routes/parametros');
+const bitacoraRoutes     = require('./routes/bitacora');
 
 const app = express();
 
@@ -55,6 +57,8 @@ app.use('/evaluaciones', evaluacionesRoutes);
 app.use('/apoderados',   apoderadosRoutes);
 app.use('/ficha-medica', fichaMedicaRoutes);
 app.use('/comunicados',  comunicadosRoutes);
+app.use('/parametros',   parametrosRoutes);
+app.use('/bitacora',     bitacoraRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

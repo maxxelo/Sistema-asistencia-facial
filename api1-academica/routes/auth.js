@@ -3,6 +3,7 @@ const router   = express.Router();
 const bcrypt   = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
 const pool     = require('../db/connection');
+const { registrarOperacion } = require('./bitacora');
 require('dotenv').config();
 
 // =====================================================
@@ -65,6 +66,9 @@ router.post('/', async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
     );
 
+    registrarOperacion(usuario.id, 'LOGIN', 'usuarios', usuario.id);
+    // Actualizar último acceso
+    pool.query('UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = $1', [usuario.id]).catch(() => {});
     res.json({
       token,
       usuario: {

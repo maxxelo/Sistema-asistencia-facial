@@ -3,6 +3,7 @@ const router   = express.Router();
 const bcrypt   = require('bcryptjs');
 const pool     = require('../db/connection');
 const { verificarToken, soloAdmin } = require('../middleware/auth');
+const { registrarOperacion } = require('./bitacora');
 
 // =====================================================
 // GET /usuarios
@@ -68,6 +69,7 @@ router.post('/', verificarToken, soloAdmin, async (req, res) => {
       [nombre_usuario.trim(), password_hash, id_rol, tipo_persona,
        id_profesor ? parseInt(id_profesor) : null]
     );
+    registrarOperacion(req.usuario.id, 'CREAR usuario', 'usuarios', result.rows[0].id);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') {
@@ -202,6 +204,7 @@ router.delete('/:id', verificarToken, soloAdmin, async (req, res) => {
       [id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Usuario no encontrado' });
+    registrarOperacion(req.usuario.id, 'ELIMINAR usuario', 'usuarios', id);
     res.json({ mensaje: `Usuario "${result.rows[0].nombre_usuario}" eliminado correctamente` });
   } catch (err) {
     console.error('[DELETE /usuarios/:id]', err.message);
