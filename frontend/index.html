@@ -19,8 +19,13 @@
        panel stays centered when returning from the app after logout.   */
     .seccion-login {
       position: fixed; inset: 0; z-index: 999;
-      display: flex; overflow: hidden;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      overflow-y: auto; overflow-x: hidden;
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(155deg, #07051a 0%, #120f38 40%, #1e1155 70%, #2a1868 100%);
+      padding: 32px 16px;
+      gap: 0;
     }
 
     /* ── Animations ─────────────────────────────────────────────── */
@@ -33,10 +38,10 @@
       to   { opacity: 1; }
     }
     @keyframes scanBeam {
-      0%      { transform: translateY(18px);  opacity: 0; }
+      0%      { top: 0%;   opacity: 0; }
       8%, 92% { opacity: 1; }
-      50%     { transform: translateY(268px); opacity: 1; }
-      100%    { transform: translateY(18px);  opacity: 0; }
+      50%     { top: 96%;  opacity: 1; }
+      100%    { top: 0%;   opacity: 0; }
     }
     @keyframes eyeGlow {
       0%, 100% { transform: scale(1);   opacity: 0.20; }
@@ -78,20 +83,14 @@
     .p7 { animation-delay: 5.1s; }
     .p8 { animation-delay: 5.9s;  animation-direction: reverse; }
 
-    /* ─ Left decorative panel ───────────────────────────────── */
+    /* ─ Left panel → face container ────────────────────────── */
     .lp-left {
-      flex: 1;
-      background: linear-gradient(155deg, #07051a 0%, #120f38 40%, #1e1155 70%, #2a1868 100%);
+      flex: none; width: 100%;
+      background: transparent;
       display: flex; align-items: center; justify-content: center;
-      position: relative; overflow: hidden; padding: 60px 48px;
+      position: relative; overflow: visible; padding: 0;
     }
-    .lp-left::before {
-      content: '';
-      position: absolute; inset: 0; pointer-events: none;
-      background-image: radial-gradient(circle, rgba(139,92,246,.22) 1px, transparent 1px);
-      background-size: 32px 32px;
-      animation: gridPulse 7s ease-in-out infinite;
-    }
+    .lp-bin-bg { display: none; }
     .lp-orb { position: absolute; border-radius: 50%; pointer-events: none; }
     .lp-orb-1 {
       width: 500px; height: 500px; top: -150px; right: -130px;
@@ -111,8 +110,29 @@
     .lp-content {
       position: relative; z-index: 1;
       display: flex; flex-direction: column;
-      align-items: center; gap: 24px;
-      text-align: center; max-width: 480px;
+      align-items: center; gap: 0;
+      text-align: center;
+    }
+    .lp-sub   { display: none; }
+    .lp-title { display: none; }
+
+    /* (kept for reference, unused) */
+    .lp-title-unused {
+      order: -1;
+      font-size: 1.9em; font-weight: 800;
+      background: linear-gradient(135deg, #f5f3ff 0%, #ddd6fe 25%, #a78bfa 58%, #22d3ee 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin: 0 0 6px; line-height: 1.2; letter-spacing: -.025em;
+      text-align: center; position: relative;
+    }
+    .lp-title::after {
+      content: '';
+      display: block; width: 56px; height: 2.5px;
+      margin: 10px auto 0;
+      background: linear-gradient(90deg, #6d28d9, #a78bfa 50%, #22d3ee);
+      border-radius: 2px;
+      box-shadow: 0 0 10px rgba(167,139,250,.6);
     }
     .lp-badge {
       display: inline-flex; align-items: center; gap: 9px;
@@ -126,11 +146,61 @@
       background: #a78bfa; flex-shrink: 0;
       animation: dotPulse 2s ease-in-out infinite;
     }
-    .lp-face-svg { width: 245px; height: 272px; }
-    .scan-beam-group { animation: scanBeam 3.5s ease-in-out infinite; }
+    .lp-face-wrap {
+      position: relative;
+      width: 320px; height: 320px;
+      flex-shrink: 0;
+      z-index: 2;
+    }
+    .lp-face-wrap::before {
+      content: '';
+      position: absolute; inset: -20px;
+      background: radial-gradient(ellipse at 50% 52%,
+        rgba(109,40,217,.55) 0%, rgba(76,29,149,.25) 42%, transparent 68%);
+      border-radius: 50%; z-index: 0;
+      filter: blur(28px); pointer-events: none;
+      animation: floatOrb 7s ease-in-out infinite;
+    }
+    .lp-face-gif {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+      mix-blend-mode: screen;
+      position: relative; z-index: 1;
+      -webkit-mask-image: radial-gradient(ellipse 68% 72% at 50% 46%,
+        black 18%, rgba(0,0,0,.55) 44%, transparent 65%);
+      mask-image: radial-gradient(ellipse 68% 72% at 50% 46%,
+        black 18%, rgba(0,0,0,.55) 44%, transparent 65%);
+    }
+    .lp-scan-overlay {
+      position: absolute; left: 8%; right: 8%; height: 3px;
+      background: linear-gradient(90deg,
+        rgba(0,212,255,0) 0%, #22d3ee 14%, #22d3ee 30%,
+        #ec4899 55%, #f97316 78%, rgba(249,115,22,0) 100%);
+      box-shadow:
+        0 0 14px 5px rgba(34,211,238,.9),
+        0 0 22px 8px rgba(236,72,153,.48),
+        0 0 14px 5px rgba(249,115,22,.34);
+      animation: scanBeam 3.2s ease-in-out infinite;
+      z-index: 3; pointer-events: none;
+    }
     .lp-title {
-      color: #fff; font-size: 2.1em; font-weight: 700;
-      margin: 0; line-height: 1.2; letter-spacing: -.025em;
+      font-size: 1.75em; font-weight: 800;
+      background: linear-gradient(135deg, #f5f3ff 0%, #ddd6fe 25%, #a78bfa 58%, #22d3ee 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin: 10px 0 0; line-height: 1.22; letter-spacing: -.022em;
+      text-align: center; position: relative;
+    }
+    .lp-title::after {
+      content: '';
+      display: block; width: 64px; height: 3px;
+      margin: 10px auto 0;
+      background: linear-gradient(90deg, #6d28d9, #a78bfa 50%, #22d3ee);
+      border-radius: 2px;
+      box-shadow: 0 0 10px rgba(167,139,250,.6);
+    }
+    .lp-cursor {
+      -webkit-text-fill-color: #a78bfa !important;
     }
     .lp-cursor {
       display: inline-block; width: 3px; height: .88em;
@@ -155,70 +225,89 @@
       letter-spacing: .06em;
     }
 
-    /* ─ Right form panel ───────────────────────────────────── */
+    /* ─ Right panel → form container ───────────────────────── */
     .lp-right {
-      flex: 0 0 clamp(440px, 44vw, 620px);
-      background: #fff;
+      flex: none; width: 100%;
+      background: transparent;
       display: flex; align-items: center; justify-content: center;
-      padding: 56px 52px;
+      padding: 0 16px 48px; position: relative;
       animation: loginSlideIn .42s ease-out both;
     }
-    .lp-form { width: 100%; max-width: 380px; }
+    /* Glassmorphism form card */
+    .lp-form {
+      width: 100%; max-width: 460px;
+      background: rgba(10, 6, 32, 0.78);
+      border: 1px solid rgba(139,92,246,.28);
+      border-radius: 24px;
+      padding: 52px 44px 44px;
+      backdrop-filter: blur(36px);
+      -webkit-backdrop-filter: blur(36px);
+      box-shadow:
+        0 32px 72px rgba(0,0,0,.7),
+        0 0 0 1px rgba(255,255,255,.04) inset;
+      position: relative; z-index: 1; overflow: hidden;
+    }
+    .lp-form::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg,
+        transparent 0%, #6d28d9 20%, #a78bfa 50%, #22d3ee 80%, transparent 100%);
+    }
     .lp-form-head { margin-bottom: 32px; }
     .lp-form-icon { display: none; }
 
     .lp-form-eyebrow {
       display: flex; align-items: center; gap: 9px;
       font-size: .7em; font-weight: 600;
-      color: #7c3aed; letter-spacing: .12em;
+      color: #a78bfa; letter-spacing: .14em;
       text-transform: uppercase; margin-bottom: 12px;
     }
     .lp-form-eyebrow::before {
       content: ''; display: inline-block;
       width: 20px; height: 2px;
-      background: linear-gradient(90deg, #4c1d95, #7c3aed);
+      background: linear-gradient(90deg, #6d28d9, #a78bfa);
       border-radius: 2px; flex-shrink: 0;
     }
     .lp-form-title {
       font-size: 2.45em; font-weight: 700;
-      color: #0f0c29; margin: 0 0 10px;
+      color: #f5f3ff; margin: 0 0 10px;
       line-height: 1.1; letter-spacing: -.035em;
     }
     .lp-form-sub {
-      font-size: .875em; color: #6b7280;
+      font-size: .875em; color: rgba(196,181,253,.68);
       margin: 0; line-height: 1.55;
     }
 
     .login-field { margin-bottom: 22px; }
     .login-field label {
-      display: block; font-size: .74em; font-weight: 600;
-      color: #374151; margin-bottom: 8px;
-      letter-spacing: .08em; text-transform: uppercase;
+      display: block; font-size: .72em; font-weight: 600;
+      color: rgba(196,181,253,.75); margin-bottom: 8px;
+      letter-spacing: .1em; text-transform: uppercase;
     }
     .login-input-wrap { position: relative; }
     .login-input-icon {
       position: absolute; left: 14px; top: 50%;
       transform: translateY(-50%);
-      color: #9ca3af; pointer-events: none;
+      color: rgba(139,92,246,.7); pointer-events: none;
       display: flex; align-items: center;
     }
     .login-field input[type="text"],
     .login-field input[type="password"] {
       width: 100%;
       padding: 13px 14px 13px 44px;
-      border: 1.5px solid #e5e7eb;
+      border: 1.5px solid rgba(139,92,246,.25);
       border-radius: 10px; font-size: .95em;
       font-family: 'Inter', system-ui, sans-serif;
-      color: #111827; background: #fafafa;
+      color: #f5f3ff; background: rgba(255,255,255,.06);
       outline: none; box-sizing: border-box;
       transition: border-color .18s, box-shadow .18s, background .18s;
     }
     .login-field input[type="text"]:focus,
     .login-field input[type="password"]:focus {
-      border-color: #7c3aed; background: #fff;
-      box-shadow: 0 0 0 3px rgba(124,58,237,.12);
+      border-color: #7c3aed; background: rgba(255,255,255,.09);
+      box-shadow: 0 0 0 3px rgba(124,58,237,.2);
     }
-    .login-field input::placeholder { color: #d1d5db; }
+    .login-field input::placeholder { color: rgba(196,181,253,.3); }
 
     .btn-login {
       width: 100%; padding: 14px;
@@ -227,13 +316,13 @@
       font-size: .95em; font-weight: 600;
       font-family: 'Inter', system-ui, sans-serif;
       cursor: pointer; margin-top: 4px; letter-spacing: .04em;
-      box-shadow: 0 4px 22px rgba(124,58,237,.38);
+      box-shadow: 0 4px 22px rgba(124,58,237,.45);
       transition: transform .15s, box-shadow .2s, filter .15s;
     }
     .btn-login:hover {
       transform: translateY(-2px);
-      box-shadow: 0 8px 30px rgba(124,58,237,.55);
-      filter: brightness(1.06);
+      box-shadow: 0 8px 32px rgba(124,58,237,.65);
+      filter: brightness(1.08);
     }
     .btn-login:active { transform: translateY(0); }
 
@@ -245,105 +334,289 @@
       display: flex; align-items: center; gap: 7px;
       justify-content: center;
       margin-top: 28px; padding-top: 20px;
-      border-top: 1px solid #f0f0f0;
-      font-size: .74em; color: #9ca3af; letter-spacing: .03em;
+      border-top: 1px solid rgba(139,92,246,.18);
+      font-size: .74em; color: rgba(196,181,253,.4); letter-spacing: .03em;
     }
 
-    /* ─ Mobile: hide left panel ─ */
-    @media (max-width: 800px) {
-      .lp-left { display: none; }
-      .lp-right {
-        flex: none; width: 100%;
-        background: linear-gradient(160deg, #07051a, #1e1b4b);
-        padding: 44px 32px;
-      }
-      .lp-form-title { color: #f5f3ff; font-size: 2.2em; }
-      .lp-form-sub   { color: rgba(196,181,253,.75); }
-      .lp-form-eyebrow { color: #a78bfa; }
-      .lp-form-eyebrow::before { background: linear-gradient(90deg, #6d28d9, #a78bfa); }
-      .login-field label { color: #c4b5fd; }
-      .login-field input[type="text"],
-      .login-field input[type="password"] {
-        background: rgba(255,255,255,.07);
-        border-color: rgba(139,92,246,.38); color: #f5f3ff;
-      }
-      .login-field input[type="text"]:focus,
-      .login-field input[type="password"]:focus {
-        background: rgba(255,255,255,.11); border-color: #7c3aed;
-      }
-      .login-field input::placeholder { color: rgba(196,181,253,.42); }
-      .lp-footer { color: rgba(196,181,253,.55); border-top-color: rgba(255,255,255,.1); }
+    /* ─ Mobile ─ */
+    @media (max-width: 600px) {
+      .lp-face-wrap { width: 260px; height: 260px; }
+      .lp-form { padding: 44px 28px 36px; }
+      .lp-form-title { font-size: 2em; }
     }
 
-    /* Header app */
-    .app-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-    .usuario-info { font-size:0.9em; color:#555; }
+    /* ═══════════════════════════════════════════════════════════
+       DASHBOARD LAYOUT
+    ═══════════════════════════════════════════════════════════ */
+    #seccionApp {
+      min-height: 100vh;
+      background: #f1f5f9;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
 
-    /* Tabs */
-    .nav-tabs { display:flex; gap:6px; margin-bottom:16px; border-bottom:2px solid #ddd; padding-bottom:6px; }
-    .tab-btn { padding:8px 18px; border:1px solid #ccc; border-radius:6px 6px 0 0;
-               background:#f0f0f0; cursor:pointer; font-size:0.95em; }
-    .tab-btn.activo { background:#2563eb; color:#fff; border-color:#2563eb; }
-    .tab-btn:hover:not(.activo) { background:#e0e0e0; }
+    /* ── Sidebar ───────────────────────────────────────────── */
+    .nav-tabs {
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      width: 248px;
+      background: linear-gradient(180deg, #0c0a24 0%, #150f3e 50%, #1c1255 100%);
+      display: flex; flex-direction: column;
+      padding: 0; gap: 1px;
+      border-bottom: none;
+      overflow-y: auto; overflow-x: hidden;
+      z-index: 300;
+      box-shadow: 4px 0 28px rgba(0,0,0,.38);
+    }
+    .nav-tabs::-webkit-scrollbar { width: 4px; }
+    .nav-tabs::-webkit-scrollbar-track { background: transparent; }
+    .nav-tabs::-webkit-scrollbar-thumb { background: rgba(139,92,246,.3); border-radius: 4px; }
 
-    /* Sections */
-    .tab-section { display:none; }
-    .tab-section.visible { display:block; }
-    .seccion { background:#f9f9f9; padding:16px; border-radius:8px; margin-bottom:14px; border:1px solid #e5e5e5; }
-    .seccion h2 { margin-top:0; font-size:1.1em; color:#333; }
+    /* Brand / Logo block */
+    .sidebar-brand {
+      display: flex; align-items: center; gap: 11px;
+      padding: 20px 18px 17px;
+      border-bottom: 1px solid rgba(139,92,246,.15);
+      flex-shrink: 0; background: rgba(0,0,0,.15);
+    }
+    .sb-icon {
+      width: 38px; height: 38px; border-radius: 11px;
+      background: linear-gradient(135deg, #5b21b6, #7c3aed);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 19px; flex-shrink: 0;
+      box-shadow: 0 4px 14px rgba(109,40,217,.5);
+    }
+    .sb-text { font-size: .8em; font-weight: 700; color: #fff; line-height: 1.35; }
+    .sb-text span { color: rgba(196,181,253,.55); font-weight: 400; }
 
-    /* Cámara */
-    #contenedor-camara { position:relative; display:inline-block; }
-    #video { display:block; border-radius:6px; }
-    #canvas { position:absolute; top:0; left:0; pointer-events:none; }
+    /* Section labels */
+    .sidebar-label {
+      padding: 14px 18px 5px;
+      font-size: .67em; font-weight: 700;
+      color: rgba(148,163,184,.4);
+      text-transform: uppercase; letter-spacing: .1em;
+      flex-shrink: 0; pointer-events: none;
+    }
 
-    /* Tabla */
-    table { width:100%; border-collapse:collapse; font-size:0.9em; }
-    th { background:#2563eb; color:#fff; padding:8px 10px; text-align:left; }
-    td { padding:7px 10px; border-bottom:1px solid #eee; }
-    tr:hover td { background:#f0f5ff; }
-    .btn-sm { padding:4px 10px; font-size:0.82em; margin:2px; border-radius:4px; cursor:pointer; border:none; }
-    .btn-edit   { background:#f59e0b; color:#fff; }
-    .btn-delete { background:#ef4444; color:#fff; }
-    .btn-face   { background:#10b981; color:#fff; }
-    .btn-primary { background:#2563eb; color:#fff; padding:8px 16px; border:none; border-radius:5px; cursor:pointer; }
-    .btn-secondary { background:#6b7280; color:#fff; padding:8px 16px; border:none; border-radius:5px; cursor:pointer; }
+    /* Nav items */
+    .tab-btn {
+      padding: 10px 18px;
+      border: none; border-radius: 0;
+      background: transparent;
+      color: rgba(196,181,253,.65);
+      font-size: .855em; font-weight: 500;
+      cursor: pointer; text-align: left; width: 100%;
+      transition: background .14s, color .14s, padding-left .14s;
+      border-left: 3px solid transparent;
+      letter-spacing: .01em; flex-shrink: 0;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    .tab-btn:hover:not(.activo) {
+      background: rgba(139,92,246,.1);
+      color: #c4b5fd; padding-left: 22px;
+    }
+    .tab-btn.activo {
+      background: rgba(139,92,246,.18);
+      color: #fff; font-weight: 600;
+      border-left-color: #8b5cf6;
+    }
 
-    /* Modal */
-    #modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:100; }
-    #modal-box { background:#fff; width:480px; max-width:95vw; margin:6% auto; border-radius:10px;
-                 padding:24px; box-shadow:0 8px 30px rgba(0,0,0,.2); }
-    #modal-box h3 { margin-top:0; }
-    .form-group { margin-bottom:12px; }
-    .form-group label { display:block; font-size:.88em; color:#555; margin-bottom:3px; }
+    /* ── Top bar ───────────────────────────────────────────── */
+    .app-header {
+      position: fixed;
+      top: 0; left: 248px; right: 0; height: 60px;
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 0 28px; z-index: 200;
+      box-shadow: 0 1px 6px rgba(0,0,0,.05);
+      margin-bottom: 0;
+    }
+    .app-header h1 {
+      font-size: .95em; font-weight: 600;
+      color: #1e293b; margin: 0;
+      letter-spacing: -.01em;
+    }
+    .usuario-info {
+      display: flex; align-items: center; gap: 12px;
+      font-size: .855em; color: #64748b;
+    }
+    .usuario-info strong { color: #1e293b; font-weight: 600; }
+
+    /* Salir button override (inside topbar) */
+    .app-header .btn-sm.btn-delete {
+      background: #fef2f2; color: #dc2626;
+      border: 1px solid #fecaca;
+      padding: 6px 14px; border-radius: 8px;
+      font-weight: 500; font-size: .825em;
+      transition: background .14s;
+    }
+    .app-header .btn-sm.btn-delete:hover { background: #fee2e2; }
+
+    /* ── Content area ──────────────────────────────────────── */
+    .tab-section {
+      display: none;
+      margin-left: 248px; margin-top: 60px;
+      min-height: calc(100vh - 60px);
+      padding: 28px 32px;
+      background: #f1f5f9;
+    }
+    .tab-section.visible { display: block; }
+
+    /* ── Cards ─────────────────────────────────────────────── */
+    .seccion {
+      background: #fff;
+      padding: 22px 24px;
+      border-radius: 14px; margin-bottom: 20px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 6px rgba(0,0,0,.04);
+    }
+    .seccion h2 {
+      margin: 0 0 16px;
+      font-size: 1em; font-weight: 600;
+      color: #1e293b; display: flex; align-items: center; gap: 8px;
+    }
+
+    /* ── Camera ────────────────────────────────────────────── */
+    #contenedor-camara { position: relative; display: inline-block; }
+    #video { display: block; border-radius: 10px; }
+    #canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+
+    /* ── Tables ────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: .875em; }
+    th {
+      background: #f8fafc; color: #475569;
+      padding: 10px 14px; text-align: left;
+      font-size: .74em; font-weight: 700;
+      letter-spacing: .07em; text-transform: uppercase;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    td { padding: 11px 14px; border-bottom: 1px solid #f1f5f9; color: #374151; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+
+    /* ── Buttons ───────────────────────────────────────────── */
+    .btn-primary {
+      background: #7c3aed; color: #fff;
+      padding: 9px 20px; border: none; border-radius: 9px;
+      cursor: pointer; font-size: .875em; font-weight: 600;
+      font-family: 'Inter', system-ui, sans-serif;
+      transition: background .14s, box-shadow .14s;
+      box-shadow: 0 2px 10px rgba(124,58,237,.28);
+    }
+    .btn-primary:hover { background: #6d28d9; box-shadow: 0 4px 18px rgba(124,58,237,.42); }
+
+    .btn-secondary {
+      background: #f8fafc; color: #475569;
+      border: 1.5px solid #e2e8f0; padding: 9px 20px;
+      border-radius: 9px; cursor: pointer;
+      font-size: .875em; font-weight: 500;
+      font-family: 'Inter', system-ui, sans-serif;
+      transition: background .14s, border-color .14s;
+    }
+    .btn-secondary:hover { background: #f1f5f9; border-color: #cbd5e1; }
+
+    .btn-sm {
+      padding: 5px 12px; font-size: .8em; margin: 2px;
+      border-radius: 7px; cursor: pointer; border: none;
+      font-weight: 500; font-family: 'Inter', system-ui, sans-serif;
+    }
+    .btn-edit   { background: #fef3c7; color: #92400e; }
+    .btn-delete { background: #fee2e2; color: #991b1b; }
+    .btn-face   { background: #d1fae5; color: #065f46; }
+    .btn-edit:hover   { background: #fde68a; }
+    .btn-delete:hover { background: #fecaca; }
+    .btn-face:hover   { background: #a7f3d0; }
+
+    /* ── Modal ─────────────────────────────────────────────── */
+    #modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.5); z-index: 500;
+      backdrop-filter: blur(4px);
+    }
+    #modal-box {
+      background: #fff; width: 520px;
+      max-width: 95vw; margin: 5% auto;
+      border-radius: 16px; padding: 30px 28px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.22);
+      border: 1px solid #e2e8f0;
+    }
+    #modal-box h3 { margin: 0 0 20px; font-size: 1.1em; font-weight: 700; color: #1e293b; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label {
+      display: block; font-size: .78em; font-weight: 600;
+      color: #475569; margin-bottom: 5px; letter-spacing: .04em;
+      text-transform: uppercase;
+    }
     .form-group input, .form-group select {
-      width:100%; padding:7px 10px; border:1px solid #ccc; border-radius:5px; font-size:.95em; }
-    .form-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+      width: 100%; padding: 9px 12px;
+      border: 1.5px solid #e2e8f0; border-radius: 8px;
+      font-size: .9em; box-sizing: border-box;
+      font-family: 'Inter', system-ui, sans-serif; color: #1e293b;
+      transition: border-color .14s, box-shadow .14s;
+    }
+    .form-group input:focus, .form-group select:focus {
+      border-color: #7c3aed; outline: none;
+      box-shadow: 0 0 0 3px rgba(124,58,237,.1);
+    }
+    .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
 
-    /* Inputs generales */
-    input[type="text"], input[type="password"], input[type="number"],
-    input[type="date"], select { padding:6px 10px; border:1px solid #ccc; border-radius:4px; }
-    button { cursor:pointer; }
-    .mensaje-ok  { color:#16a34a; }
-    .mensaje-err { color:#dc2626; }
+    /* ── Inputs inside content area ────────────────────────── */
+    #seccionApp input[type="text"],
+    #seccionApp input[type="number"],
+    #seccionApp input[type="date"],
+    #seccionApp select {
+      padding: 8px 11px; border: 1.5px solid #e2e8f0;
+      border-radius: 8px; font-size: .875em;
+      font-family: 'Inter', system-ui, sans-serif;
+      color: #1e293b; background: #fff;
+      transition: border-color .14s;
+    }
+    #seccionApp input[type="text"]:focus,
+    #seccionApp input[type="number"]:focus,
+    #seccionApp input[type="date"]:focus,
+    #seccionApp select:focus {
+      border-color: #7c3aed; outline: none;
+      box-shadow: 0 0 0 3px rgba(124,58,237,.09);
+    }
+    button { cursor: pointer; }
+    .mensaje-ok  { color: #059669; font-weight: 500; }
+    .mensaje-err { color: #dc2626; font-weight: 500; }
+
+    /* ── Responsive ────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .nav-tabs { width: 64px; }
+      .tab-btn  { padding: 13px 0; font-size: 1.2em; text-align: center; }
+      .sidebar-brand { padding: 14px 0; justify-content: center; }
+      .sb-text, .sidebar-label { display: none; }
+      .sb-icon { margin: 0; }
+      .app-header { left: 64px; }
+      .tab-section { margin-left: 64px; padding: 20px 16px; }
+    }
   </style>
 </head>
 <body>
 
 <!-- ═══ LOGIN ═══════════════════════════════════════════════════════ -->
 <div class="seccion-login" id="seccionLogin">
+  <canvas id="lp-rain" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:1;"></canvas>
 
   <!-- ── Left panel: branding + face-scan illustration ─────────── -->
   <div class="lp-left">
+    <div class="lp-bin-bg">
+      <img src="https://i.pinimg.com/originals/f2/b7/6f/f2b76f4307933686bec32ad39d5857c0.gif" alt="">
+    </div>
     <div class="lp-orb lp-orb-1"></div>
     <div class="lp-orb lp-orb-2"></div>
     <div class="lp-orb lp-orb-3"></div>
     <div class="lp-content">
 
-      <span class="lp-badge"><span class="lp-badge-dot"></span>Sistema Biométrico</span>
-
-      <!-- Human low-poly face -->
-      <svg class="lp-face-svg" viewBox="0 0 260 295" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Biometric face GIF -->
+      <div class="lp-face-wrap">
+        <img class="lp-face-gif" src="https://miro.medium.com/1*YF4KdQE-RadFtNa6n66wdg.gif" alt="">
+        <div class="lp-scan-overlay"></div>
+      </div>
+      <svg class="lp-face-svg--hidden" viewBox="0 0 260 295" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:none">
         <defs>
           <linearGradient id="beamGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%"   stop-color="#7c3aed" stop-opacity="0"/>
@@ -643,12 +916,7 @@
       </svg>
 
       <h2 class="lp-title"><span id="lp-typer"></span><span class="lp-cursor" id="lp-cursor"></span></h2>
-      <p class="lp-sub">Plataforma de control de asistencia mediante reconocimiento biométrico facial</p>
-      <div class="lp-tags">
-        <span class="lp-tag">Reconocimiento Facial</span>
-        <span class="lp-tag">Tiempo Real</span>
-        <span class="lp-tag">Alta Precisión</span>
-      </div>
+      <p class="lp-sub"></p>
 
     </div>
   </div>
@@ -658,9 +926,9 @@
     <div class="lp-form">
 
       <div class="lp-form-head">
-        <p class="lp-form-eyebrow">Sistema Biométrico</p>
+        <p class="lp-form-eyebrow">Sistema Biométrico para asistencia</p>
         <h2 class="lp-form-title">Iniciar Sesión</h2>
-        <p class="lp-form-sub">Ingresa tus credenciales de acceso al sistema</p>
+        <p class="lp-form-sub">Ingresa tus credenciales de acceso</p>
       </div>
 
       <!-- Usuario -->
@@ -707,7 +975,6 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
         </svg>
-        Acceso restringido &mdash; Solo personal autorizado
       </div>
 
     </div>
@@ -716,13 +983,55 @@
 </div>
 <script>
 (function() {
-  var text = 'Sistema de\nAsistencia Facial';
+  /* ── Typewriter ── */
+  var text = 'Sistema de Asistencia con\nReconocimiento Facial';
   var typer = document.getElementById('lp-typer');
   var i = 0;
   setTimeout(function type() {
     typer.innerHTML = text.slice(0, i).replace(/\n/g, '<br>');
     if (i < text.length) { i++; setTimeout(type, 54); }
   }, 480);
+
+  /* ── Binary rain canvas ── */
+  var cv = document.getElementById('lp-rain');
+  var login = document.getElementById('seccionLogin');
+  function resize() {
+    cv.width  = login.offsetWidth  || window.innerWidth;
+    cv.height = login.offsetHeight || window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  var ctx = cv.getContext('2d');
+  var fs = 14;
+  var cols = Math.floor(cv.width / fs);
+  var drops = [];
+  for (var c = 0; c < cols; c++) drops[c] = -Math.floor(Math.random() * 60);
+
+  setInterval(function () {
+    /* fade previous frame — gives the trail effect */
+    ctx.fillStyle = 'rgba(7, 5, 22, 0.07)';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.font = fs + 'px monospace';
+
+    for (var i = 0; i < cols; i++) {
+      var y = drops[i] * fs;
+      var ch = Math.random() < 0.5 ? '1' : '0';
+
+      /* bright head */
+      ctx.fillStyle = 'rgba(220, 210, 255, 0.88)';
+      ctx.fillText(ch, i * fs, y);
+
+      /* one step behind — brand purple */
+      if (drops[i] > 1) {
+        ctx.fillStyle = 'rgba(139, 92, 246, 0.42)';
+        ctx.fillText(Math.random() < 0.5 ? '1' : '0', i * fs, y - fs);
+      }
+
+      if (y > cv.height && Math.random() > 0.975) drops[i] = -Math.floor(Math.random() * 30);
+      drops[i]++;
+    }
+  }, 55);
 })();
 </script>
 
@@ -739,20 +1048,37 @@
 
   <!-- Tabs de navegación -->
   <div class="nav-tabs" id="navTabs">
+    <!-- Brand -->
+    <div class="sidebar-brand">
+      <div class="sb-icon">🎓</div>
+      <div class="sb-text">Sistema<br><span>Asistencia Facial</span></div>
+    </div>
+
+    <!-- General -->
+    <div class="sidebar-label">General</div>
     <button class="tab-btn solo-admin activo" onclick="mostrarTab('panel')" id="tab-panel">📊 Panel</button>
     <button class="tab-btn" onclick="mostrarTab('asistencia')" id="tab-asistencia">📷 Asistencia</button>
     <button class="tab-btn" onclick="mostrarTab('reportes')" id="tab-reportes">📋 Reportes</button>
+    <button class="tab-btn" onclick="mostrarTab('comunicados')" id="tab-comunicados">📢 Comunicados</button>
+
+    <!-- Gestión académica -->
+    <div class="sidebar-label solo-admin">Académico</div>
     <button class="tab-btn solo-admin" onclick="mostrarTab('alumnos')" id="tab-alumnos">👤 Alumnos</button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('cursos')" id="tab-cursos">📚 Cursos</button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('profesores')" id="tab-profesores">👨‍🏫 Profesores</button>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('horarios')" id="tab-horarios">📅 Horarios</button>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('usuarios')" id="tab-usuarios">🔑 Usuarios</button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('asignaturas')" id="tab-asignaturas">📖 Asignaturas</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('horarios')" id="tab-horarios">📅 Horarios</button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('aulas')" id="tab-aulas">🏫 Aulas</button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('notas')" id="tab-notas">📝 Notas</button>
+
+    <!-- Personas -->
+    <div class="sidebar-label solo-admin">Personas</div>
     <button class="tab-btn solo-admin" onclick="mostrarTab('apoderados')" id="tab-apoderados">👨‍👩‍👦 Apoderados</button>
-    <button class="tab-btn" onclick="mostrarTab('comunicados')" id="tab-comunicados">📢 Comunicados</button>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('justificaciones')" id="tab-justificaciones">📝 Justificaciones</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('justificaciones')" id="tab-justificaciones">📋 Justificaciones</button>
+
+    <!-- Sistema -->
+    <div class="sidebar-label solo-admin">Sistema</div>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('usuarios')" id="tab-usuarios">🔑 Usuarios</button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('configuracion')" id="tab-configuracion">⚙️ Configuración</button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('bitacora')" id="tab-bitacora">🗂️ Bitácora</button>
   </div>

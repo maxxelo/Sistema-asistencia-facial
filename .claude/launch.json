@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["http-server", "frontend", "--cors", "-c-1"],
+      "port": 8081,
+      "autoPort": true
+    }
+  ]
+}
