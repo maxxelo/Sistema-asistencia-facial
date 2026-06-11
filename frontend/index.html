@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -8,11 +8,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body { font-family: Arial, sans-serif; padding: 20px; max-width: 950px; margin: 0 auto; }
     h1 { margin: 0 0 12px; }
+    body.app-active { padding: 0 !important; max-width: none !important; margin: 0 !important; overflow: hidden; }
 
     /* ── LOGIN — Split panel ──────────────────────────────────────────
        IMPORTANT: display must always be flex (not block) so the right
@@ -346,135 +348,145 @@
     }
 
     /* ═══════════════════════════════════════════════════════════
-       DASHBOARD LAYOUT
+       DASHBOARD — Mixed Layout
     ═══════════════════════════════════════════════════════════ */
     #seccionApp {
       min-height: 100vh;
-      background: #f1f5f9;
+      background: #f5f7fa;
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
 
     /* ── Sidebar ───────────────────────────────────────────── */
     .nav-tabs {
       position: fixed;
-      left: 0; top: 0; bottom: 0;
-      width: 248px;
-      background: linear-gradient(180deg, #0c0a24 0%, #150f3e 50%, #1c1255 100%);
+      left: 0; top: 0; bottom: 0; width: 256px;
+      background: #0f0c2e;
+      border-right: 1px solid rgba(139,92,246,.1);
       display: flex; flex-direction: column;
-      padding: 0; gap: 1px;
+      padding: 0; gap: 0;
       border-bottom: none;
       overflow-y: auto; overflow-x: hidden;
       z-index: 300;
-      box-shadow: 4px 0 28px rgba(0,0,0,.38);
     }
-    .nav-tabs::-webkit-scrollbar { width: 4px; }
+    .nav-tabs::-webkit-scrollbar { width: 3px; }
     .nav-tabs::-webkit-scrollbar-track { background: transparent; }
-    .nav-tabs::-webkit-scrollbar-thumb { background: rgba(139,92,246,.3); border-radius: 4px; }
+    .nav-tabs::-webkit-scrollbar-thumb { background: rgba(139,92,246,.22); border-radius: 3px; }
 
-    /* Brand / Logo block */
     .sidebar-brand {
       display: flex; align-items: center; gap: 11px;
       padding: 20px 18px 17px;
-      border-bottom: 1px solid rgba(139,92,246,.15);
-      flex-shrink: 0; background: rgba(0,0,0,.15);
+      border-bottom: 1px solid rgba(255,255,255,.05);
+      flex-shrink: 0;
     }
     .sb-icon {
-      width: 38px; height: 38px; border-radius: 11px;
-      background: linear-gradient(135deg, #5b21b6, #7c3aed);
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, #5b21b6, #8b5cf6);
       display: flex; align-items: center; justify-content: center;
-      font-size: 19px; flex-shrink: 0;
-      box-shadow: 0 4px 14px rgba(109,40,217,.5);
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(109,40,217,.4);
     }
-    .sb-text { font-size: .8em; font-weight: 700; color: #fff; line-height: 1.35; }
-    .sb-text span { color: rgba(196,181,253,.55); font-weight: 400; }
+    .sb-icon svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; }
+    .sb-text { font-size: .8em; font-weight: 700; color: #fff; line-height: 1.3; }
+    .sb-text span { color: rgba(196,181,253,.48); font-weight: 400; }
 
-    /* Section labels */
     .sidebar-label {
-      padding: 14px 18px 5px;
-      font-size: .67em; font-weight: 700;
-      color: rgba(148,163,184,.4);
-      text-transform: uppercase; letter-spacing: .1em;
+      padding: 18px 18px 5px;
+      font-size: .65em; font-weight: 700;
+      color: rgba(148,163,184,.3);
+      text-transform: uppercase; letter-spacing: .12em;
       flex-shrink: 0; pointer-events: none;
     }
 
-    /* Nav items */
     .tab-btn {
-      padding: 10px 18px;
+      display: flex; align-items: center; gap: 11px;
+      padding: 9px 16px 9px 18px;
       border: none; border-radius: 0;
       background: transparent;
-      color: rgba(196,181,253,.65);
+      color: rgba(196,181,253,.58);
       font-size: .855em; font-weight: 500;
       cursor: pointer; text-align: left; width: 100%;
-      transition: background .14s, color .14s, padding-left .14s;
-      border-left: 3px solid transparent;
-      letter-spacing: .01em; flex-shrink: 0;
+      transition: background .14s, color .14s, border-left-color .14s;
+      border-left: 2px solid transparent;
+      flex-shrink: 0;
       font-family: 'Inter', system-ui, sans-serif;
     }
+    .tab-btn i { font-size: .92em; width: 16px; text-align: center; flex-shrink: 0; opacity: .7; transition: opacity .14s; }
+    .tab-btn span { flex: 1; }
     .tab-btn:hover:not(.activo) {
-      background: rgba(139,92,246,.1);
-      color: #c4b5fd; padding-left: 22px;
+      background: rgba(139,92,246,.08);
+      color: rgba(196,181,253,.88);
     }
+    .tab-btn:hover:not(.activo) i { opacity: 1; }
     .tab-btn.activo {
-      background: rgba(139,92,246,.18);
-      color: #fff; font-weight: 600;
+      background: linear-gradient(90deg, rgba(139,92,246,.2) 0%, rgba(139,92,246,.05) 100%);
+      color: #c4b5fd; font-weight: 600;
       border-left-color: #8b5cf6;
     }
+    .tab-btn.activo i { opacity: 1; color: #a78bfa; }
 
     /* ── Top bar ───────────────────────────────────────────── */
     .app-header {
       position: fixed;
-      top: 0; left: 248px; right: 0; height: 60px;
+      top: 0; left: 256px; right: 0; height: 56px;
       background: #fff;
-      border-bottom: 1px solid #e2e8f0;
+      border-bottom: 1px solid #eaecf0;
       display: flex; align-items: center;
       justify-content: space-between;
-      padding: 0 28px; z-index: 200;
-      box-shadow: 0 1px 6px rgba(0,0,0,.05);
+      padding: 0 24px; z-index: 200;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
       margin-bottom: 0;
     }
-    .app-header h1 {
-      font-size: .95em; font-weight: 600;
-      color: #1e293b; margin: 0;
-      letter-spacing: -.01em;
-    }
+    .topbar-left { display: flex; align-items: center; gap: 8px; }
+    .topbar-brand { font-size: .78em; color: #9ca3af; font-weight: 500; }
+    .topbar-sep { color: #d1d5db; font-size: .9em; line-height: 1; }
+    .topbar-page { font-size: .9em; font-weight: 600; color: #111827; letter-spacing: -.01em; }
     .usuario-info {
-      display: flex; align-items: center; gap: 12px;
+      display: flex; align-items: center; gap: 10px;
       font-size: .855em; color: #64748b;
     }
-    .usuario-info strong { color: #1e293b; font-weight: 600; }
-
-    /* Salir button override (inside topbar) */
-    .app-header .btn-sm.btn-delete {
-      background: #fef2f2; color: #dc2626;
-      border: 1px solid #fecaca;
-      padding: 6px 14px; border-radius: 8px;
-      font-weight: 500; font-size: .825em;
-      transition: background .14s;
+    .user-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: linear-gradient(135deg, #7c3aed, #a78bfa);
+      color: #fff; font-weight: 700; font-size: .75em;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; letter-spacing: -.02em;
+      box-shadow: 0 2px 8px rgba(124,58,237,.35);
     }
-    .app-header .btn-sm.btn-delete:hover { background: #fee2e2; }
+    #nombreUsuario { font-weight: 600; color: #374151; font-size: .855em; }
+    .btn-salir {
+      display: flex; align-items: center; gap: 6px;
+      background: transparent; color: #64748b;
+      border: 1.5px solid #e5e7eb; padding: 5px 11px;
+      border-radius: 7px; font-size: .8em; font-weight: 500;
+      transition: all .14s; cursor: pointer;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    .btn-salir i { font-size: .9em; }
+    .btn-salir:hover { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
 
     /* ── Content area ──────────────────────────────────────── */
     .tab-section {
       display: none;
-      margin-left: 248px; margin-top: 60px;
-      min-height: calc(100vh - 60px);
-      padding: 28px 32px;
-      background: #f1f5f9;
+      margin-left: 256px; margin-top: 56px;
+      min-height: calc(100vh - 56px);
+      padding: 24px 28px;
+      background: #f5f7fa;
     }
     .tab-section.visible { display: block; }
 
     /* ── Cards ─────────────────────────────────────────────── */
     .seccion {
       background: #fff;
-      padding: 22px 24px;
-      border-radius: 14px; margin-bottom: 20px;
-      border: 1px solid #e2e8f0;
-      box-shadow: 0 1px 6px rgba(0,0,0,.04);
+      padding: 20px 22px;
+      border-radius: 12px; margin-bottom: 16px;
+      border: 1px solid #eaecf0;
+      box-shadow: 0 1px 3px rgba(0,0,0,.03);
     }
     .seccion h2 {
       margin: 0 0 16px;
-      font-size: 1em; font-weight: 600;
-      color: #1e293b; display: flex; align-items: center; gap: 8px;
+      font-size: .93em; font-weight: 600;
+      color: #111827; display: flex; align-items: center; gap: 8px;
+      padding-bottom: 12px; border-bottom: 1px solid #f3f4f6;
     }
 
     /* ── Camera ────────────────────────────────────────────── */
@@ -484,92 +496,97 @@
 
     /* ── Tables ────────────────────────────────────────────── */
     table { width: 100%; border-collapse: collapse; font-size: .875em; }
+    thead tr { background: #f9fafb; }
     th {
-      background: #f8fafc; color: #475569;
-      padding: 10px 14px; text-align: left;
-      font-size: .74em; font-weight: 700;
+      color: #4b5563; padding: 10px 14px;
+      text-align: left; font-size: .72em; font-weight: 700;
       letter-spacing: .07em; text-transform: uppercase;
-      border-bottom: 2px solid #e2e8f0;
+      border-bottom: 1.5px solid #eaecf0;
+      white-space: nowrap;
     }
-    td { padding: 11px 14px; border-bottom: 1px solid #f1f5f9; color: #374151; }
+    td { padding: 10px 14px; border-bottom: 1px solid #f3f4f6; color: #374151; }
     tr:last-child td { border-bottom: none; }
-    tr:hover td { background: #fafafa; }
+    tbody tr:hover td { background: #fafbff; }
 
-    /* ── Buttons ───────────────────────────────────────────── */
+    /* ── Table action buttons ──────────────────────────────── */
+    .btn-sm {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; font-size: .78em; margin: 2px;
+      border-radius: 6px; cursor: pointer;
+      font-weight: 500; font-family: 'Inter', system-ui, sans-serif;
+      transition: background .12s, box-shadow .12s;
+    }
+    .btn-edit   { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+    .btn-delete { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
+    .btn-face   { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .btn-edit:hover   { background: #fef3c7; box-shadow: 0 1px 4px rgba(245,158,11,.2); }
+    .btn-delete:hover { background: #ffe4e6; box-shadow: 0 1px 4px rgba(190,18,60,.18); }
+    .btn-face:hover   { background: #dcfce7; box-shadow: 0 1px 4px rgba(22,101,52,.18); }
+
+    /* ── Primary / secondary ───────────────────────────────── */
     .btn-primary {
       background: #7c3aed; color: #fff;
-      padding: 9px 20px; border: none; border-radius: 9px;
-      cursor: pointer; font-size: .875em; font-weight: 600;
+      padding: 8px 18px; border: none; border-radius: 8px;
+      cursor: pointer; font-size: .855em; font-weight: 600;
       font-family: 'Inter', system-ui, sans-serif;
       transition: background .14s, box-shadow .14s;
-      box-shadow: 0 2px 10px rgba(124,58,237,.28);
     }
-    .btn-primary:hover { background: #6d28d9; box-shadow: 0 4px 18px rgba(124,58,237,.42); }
+    .btn-primary:hover { background: #6d28d9; box-shadow: 0 4px 16px rgba(124,58,237,.38); }
 
     .btn-secondary {
-      background: #f8fafc; color: #475569;
-      border: 1.5px solid #e2e8f0; padding: 9px 20px;
-      border-radius: 9px; cursor: pointer;
-      font-size: .875em; font-weight: 500;
+      background: #fff; color: #4b5563;
+      border: 1.5px solid #e5e7eb; padding: 8px 18px;
+      border-radius: 8px; cursor: pointer;
+      font-size: .855em; font-weight: 500;
       font-family: 'Inter', system-ui, sans-serif;
       transition: background .14s, border-color .14s;
     }
-    .btn-secondary:hover { background: #f1f5f9; border-color: #cbd5e1; }
-
-    .btn-sm {
-      padding: 5px 12px; font-size: .8em; margin: 2px;
-      border-radius: 7px; cursor: pointer; border: none;
-      font-weight: 500; font-family: 'Inter', system-ui, sans-serif;
-    }
-    .btn-edit   { background: #fef3c7; color: #92400e; }
-    .btn-delete { background: #fee2e2; color: #991b1b; }
-    .btn-face   { background: #d1fae5; color: #065f46; }
-    .btn-edit:hover   { background: #fde68a; }
-    .btn-delete:hover { background: #fecaca; }
-    .btn-face:hover   { background: #a7f3d0; }
+    .btn-secondary:hover { background: #f9fafb; border-color: #d1d5db; }
 
     /* ── Modal ─────────────────────────────────────────────── */
     #modal-overlay {
       display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,.5); z-index: 500;
-      backdrop-filter: blur(4px);
+      background: rgba(15,12,46,.55); z-index: 500;
+      backdrop-filter: blur(3px);
     }
     #modal-box {
       background: #fff; width: 520px;
       max-width: 95vw; margin: 5% auto;
-      border-radius: 16px; padding: 30px 28px;
-      box-shadow: 0 24px 60px rgba(0,0,0,.22);
-      border: 1px solid #e2e8f0;
+      border-radius: 16px; padding: 28px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.16), 0 0 0 1px rgba(0,0,0,.04);
     }
-    #modal-box h3 { margin: 0 0 20px; font-size: 1.1em; font-weight: 700; color: #1e293b; }
+    #modal-box h3 {
+      margin: 0 0 18px; font-size: 1.05em; font-weight: 700; color: #111827;
+      padding-bottom: 14px; border-bottom: 1px solid #f3f4f6;
+    }
     .form-group { margin-bottom: 14px; }
     .form-group label {
-      display: block; font-size: .78em; font-weight: 600;
-      color: #475569; margin-bottom: 5px; letter-spacing: .04em;
-      text-transform: uppercase;
+      display: block; font-size: .73em; font-weight: 600;
+      color: #6b7280; margin-bottom: 5px;
+      text-transform: uppercase; letter-spacing: .05em;
     }
     .form-group input, .form-group select {
       width: 100%; padding: 9px 12px;
-      border: 1.5px solid #e2e8f0; border-radius: 8px;
+      border: 1.5px solid #e5e7eb; border-radius: 8px;
       font-size: .9em; box-sizing: border-box;
-      font-family: 'Inter', system-ui, sans-serif; color: #1e293b;
-      transition: border-color .14s, box-shadow .14s;
+      font-family: 'Inter', system-ui, sans-serif; color: #111827;
+      background: #fff; transition: border-color .14s, box-shadow .14s;
     }
     .form-group input:focus, .form-group select:focus {
       border-color: #7c3aed; outline: none;
       box-shadow: 0 0 0 3px rgba(124,58,237,.1);
     }
-    .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+    .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
 
     /* ── Inputs inside content area ────────────────────────── */
     #seccionApp input[type="text"],
     #seccionApp input[type="number"],
     #seccionApp input[type="date"],
     #seccionApp select {
-      padding: 8px 11px; border: 1.5px solid #e2e8f0;
+      padding: 8px 11px; border: 1.5px solid #e5e7eb;
       border-radius: 8px; font-size: .875em;
       font-family: 'Inter', system-ui, sans-serif;
-      color: #1e293b; background: #fff;
+      color: #111827; background: #fff;
       transition: border-color .14s;
     }
     #seccionApp input[type="text"]:focus,
@@ -585,13 +602,14 @@
 
     /* ── Responsive ────────────────────────────────────────── */
     @media (max-width: 900px) {
-      .nav-tabs { width: 64px; }
-      .tab-btn  { padding: 13px 0; font-size: 1.2em; text-align: center; }
-      .sidebar-brand { padding: 14px 0; justify-content: center; }
-      .sb-text, .sidebar-label { display: none; }
+      .nav-tabs { width: 60px; }
+      .tab-btn { justify-content: center; gap: 0; padding: 11px 0; }
+      .tab-btn i { font-size: 1.18em; width: auto; opacity: 1; }
+      .tab-btn span, .sidebar-label, .sb-text { display: none; }
+      .sidebar-brand { padding: 14px; justify-content: center; }
       .sb-icon { margin: 0; }
-      .app-header { left: 64px; }
-      .tab-section { margin-left: 64px; padding: 20px 16px; }
+      .app-header { left: 60px; }
+      .tab-section { margin-left: 60px; padding: 18px 14px; }
     }
   </style>
 </head>
@@ -1039,10 +1057,17 @@
 <div id="seccionApp" style="display:none">
 
   <div class="app-header">
-    <h1>Sistema de Asistencia Facial</h1>
+    <div class="topbar-left">
+      <span class="topbar-brand">Sistema</span>
+      <span class="topbar-sep">/</span>
+      <span id="page-title" class="topbar-page">Panel</span>
+    </div>
     <div class="usuario-info">
-      Sesión: <strong id="nombreUsuario"></strong>
-      &nbsp;<button class="btn-sm btn-delete" onclick="cerrarSesion()">Salir</button>
+      <div class="user-avatar" id="user-avatar">A</div>
+      <strong id="nombreUsuario"></strong>
+      <button class="btn-salir" onclick="cerrarSesion()">
+        <i class="bi bi-box-arrow-right"></i> Salir
+      </button>
     </div>
   </div>
 
@@ -1050,39 +1075,40 @@
   <div class="nav-tabs" id="navTabs">
     <!-- Brand -->
     <div class="sidebar-brand">
-      <div class="sb-icon">🎓</div>
-      <div class="sb-text">Sistema<br><span>Asistencia Facial</span></div>
+      <div class="sb-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" stroke-width="0" fill="white"/></svg>
+      </div>
+      <div class="sb-text">Asistencia<br><span>Sistema Biométrico</span></div>
     </div>
 
     <!-- General -->
     <div class="sidebar-label">General</div>
-    <button class="tab-btn solo-admin activo" onclick="mostrarTab('panel')" id="tab-panel">📊 Panel</button>
-    <button class="tab-btn" onclick="mostrarTab('asistencia')" id="tab-asistencia">📷 Asistencia</button>
-    <button class="tab-btn" onclick="mostrarTab('reportes')" id="tab-reportes">📋 Reportes</button>
-    <button class="tab-btn" onclick="mostrarTab('comunicados')" id="tab-comunicados">📢 Comunicados</button>
+    <button class="tab-btn solo-admin activo" onclick="mostrarTab('panel')" id="tab-panel"><i class="bi bi-speedometer2"></i><span>Panel</span></button>
+    <button class="tab-btn" onclick="mostrarTab('asistencia')" id="tab-asistencia"><i class="bi bi-person-check"></i><span>Asistencia</span></button>
+    <button class="tab-btn" onclick="mostrarTab('reportes')" id="tab-reportes"><i class="bi bi-bar-chart-line"></i><span>Reportes</span></button>
+    <button class="tab-btn" onclick="mostrarTab('comunicados')" id="tab-comunicados"><i class="bi bi-megaphone"></i><span>Comunicados</span></button>
 
-    <!-- Gestión académica -->
+    <!-- Académico -->
     <div class="sidebar-label solo-admin">Académico</div>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('alumnos')" id="tab-alumnos">👤 Alumnos</button>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('cursos')" id="tab-cursos">📚 Cursos</button>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('profesores')" id="tab-profesores">👨‍🏫 Profesores</button>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('asignaturas')" id="tab-asignaturas">📖 Asignaturas</button>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('horarios')" id="tab-horarios">📅 Horarios</button>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('aulas')" id="tab-aulas">🏫 Aulas</button>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('notas')" id="tab-notas">📝 Notas</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('alumnos')" id="tab-alumnos"><i class="bi bi-people"></i><span>Alumnos</span></button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('cursos')" id="tab-cursos"><i class="bi bi-book"></i><span>Cursos</span></button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('profesores')" id="tab-profesores"><i class="bi bi-person-badge"></i><span>Profesores</span></button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('asignaturas')" id="tab-asignaturas"><i class="bi bi-journals"></i><span>Asignaturas</span></button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('horarios')" id="tab-horarios"><i class="bi bi-calendar3"></i><span>Horarios</span></button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('aulas')" id="tab-aulas"><i class="bi bi-building"></i><span>Aulas</span></button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('notas')" id="tab-notas"><i class="bi bi-pencil-square"></i><span>Notas</span></button>
 
     <!-- Personas -->
     <div class="sidebar-label solo-admin">Personas</div>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('apoderados')" id="tab-apoderados">👨‍👩‍👦 Apoderados</button>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('justificaciones')" id="tab-justificaciones">📋 Justificaciones</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('apoderados')" id="tab-apoderados"><i class="bi bi-person-lines-fill"></i><span>Apoderados</span></button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('justificaciones')" id="tab-justificaciones"><i class="bi bi-file-earmark-check"></i><span>Justificaciones</span></button>
 
     <!-- Sistema -->
     <div class="sidebar-label solo-admin">Sistema</div>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('usuarios')" id="tab-usuarios">🔑 Usuarios</button>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('configuracion')" id="tab-configuracion">⚙️ Configuración</button>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('bitacora')" id="tab-bitacora">🗂️ Bitácora</button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('usuarios')" id="tab-usuarios"><i class="bi bi-shield-lock"></i><span>Usuarios</span></button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('bitacora')" id="tab-bitacora"><i class="bi bi-clock-history"></i><span>Bitácora</span></button>
+    <button class="tab-btn solo-admin" onclick="mostrarTab('configuracion')" id="tab-configuracion"><i class="bi bi-sliders"></i><span>Configuración</span></button>
   </div>
-
   <!-- ── TAB: PANEL ────────────────────────────────────────────── -->
   <div class="tab-section solo-admin visible" id="sec-panel">
     <div class="seccion">

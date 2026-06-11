@@ -55,12 +55,15 @@ async function iniciarSesion() {
 function mostrarApp() {
   document.getElementById('seccionLogin').style.display = 'none'
   document.getElementById('seccionApp').style.display   = 'block'
+  document.body.classList.add('app-active')
 
   // Restaurar nombre de usuario desde el token (funciona aunque se refresque la página)
   const payload = decodificarToken(token)
   if (payload) {
     document.getElementById('nombreUsuario').textContent =
       `${payload.nombre_usuario} (${payload.rol})`
+    const av = document.getElementById('user-avatar')
+    if (av) av.textContent = payload.nombre_usuario[0].toUpperCase()
   }
 
   // Mostrar/ocultar tabs y secciones de solo-admin según rol
@@ -91,6 +94,7 @@ function cerrarSesion() {
   listaCursos = []; listaProfesores = []; listaAsignaturas = []; listaAulas = []; listaAlumnos = []; listaAlumnosCompleta = []
   detener()
   detenerAutoRefresh()
+  document.body.classList.remove('app-active')
   document.getElementById('seccionLogin').style.display = 'flex'
   document.getElementById('seccionApp').style.display   = 'none'
 }
@@ -120,12 +124,23 @@ function detenerAutoRefresh() {
 }
 
 /* ── TABS ──────────────────────────────────────────────────────── */
+const _TAB_TITLES = {
+  panel:'Panel', asistencia:'Asistencia', reportes:'Reportes',
+  alumnos:'Alumnos', cursos:'Cursos', profesores:'Profesores',
+  horarios:'Horarios', usuarios:'Usuarios', asignaturas:'Asignaturas',
+  aulas:'Aulas', notas:'Notas', apoderados:'Apoderados',
+  comunicados:'Comunicados', justificaciones:'Justificaciones',
+  configuracion:'Configuración', bitacora:'Bitácora'
+}
+
 function mostrarTab(nombre) {
   document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('visible'))
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'))
   document.getElementById('sec-' + nombre).classList.add('visible')
   document.getElementById('tab-' + nombre).classList.add('activo')
   tabActual = nombre
+  const pt = document.getElementById('page-title')
+  if (pt) pt.textContent = _TAB_TITLES[nombre] || nombre
   if (nombre === 'panel')       cargarPanel()
   if (nombre === 'reportes')    cargarReportes()
   if (nombre === 'alumnos')     cargarTablaAlumnos()
