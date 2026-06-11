@@ -17,6 +17,9 @@ const evaluacionesRoutes = require('./routes/evaluaciones');
 const apoderadosRoutes   = require('./routes/apoderados');
 const fichaMedicaRoutes  = require('./routes/ficha_medica');
 const comunicadosRoutes  = require('./routes/comunicados');
+const parametrosRoutes   = require('./routes/parametros');
+const bitacoraRoutes     = require('./routes/bitacora');
+const auditoria          = require('./middleware/auditoria');
 
 const app = express();
 
@@ -41,6 +44,9 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+// Auditoría: registra toda escritura exitosa en bitacora_operaciones
+app.use(auditoria);
+
 // ── Rutas ──────────────────────────────────────────────
 app.use('/login',       authRoutes);
 app.use('/alumnos',     alumnosRoutes);
@@ -55,6 +61,8 @@ app.use('/evaluaciones', evaluacionesRoutes);
 app.use('/apoderados',   apoderadosRoutes);
 app.use('/ficha-medica', fichaMedicaRoutes);
 app.use('/comunicados',  comunicadosRoutes);
+app.use('/parametros',   parametrosRoutes);
+app.use('/bitacora',     bitacoraRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
