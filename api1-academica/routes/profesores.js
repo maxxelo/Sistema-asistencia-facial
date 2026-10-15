@@ -221,6 +221,20 @@ router.delete('/:id', verificarToken, soloAdmin, async (req, res) => {
   if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
 
   try {
+    // Sus horarios se borran en CASCADE, y con ellos toda la asistencia de esas clases
+    const chk = await pool.query(
+      `SELECT COUNT(DISTINCT h.id)::int AS horarios, COUNT(ac.id)::int AS asistencias
+       FROM horarios h
+       LEFT JOIN asistencia_cabecera ac ON ac.id_horario = h.id
+       WHERE h.id_profesor = $1`, [id]
+    );
+    if (chk.rows[0].asistencias > 0) {
+      return res.status(409).json({
+        error: `No se puede eliminar: sus ${chk.rows[0].horarios} horario(s) tienen ${chk.rows[0].asistencias} registro(s) de asistencia ` +
+               'que se perderían. Reasigna esos horarios a otro profesor (editando cada horario) antes de eliminarlo.'
+      });
+    }
+
     const result = await pool.query(
       'DELETE FROM profesores WHERE id = $1 RETURNING id, nombre, apellido_paterno',
       [id]

@@ -61,8 +61,11 @@ router.put('/:id', verificarToken, soloAdmin, async (req, res) => {
 
   const { codigo, nombre, capacidad } = req.body;
 
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query('BEGIN');
+    const anterior = await client.query('SELECT codigo FROM aulas WHERE id = $1', [id]);
+    const result = await client.query(
       `UPDATE aulas SET
         codigo    = COALESCE($1, codigo),
         nombre    = COALESCE($2, nombre),
@@ -74,15 +77,25 @@ router.put('/:id', verificarToken, soloAdmin, async (req, res) => {
        capacidad ? parseInt(capacidad) : null,
        id]
     );
-    if (!result.rows.length) return res.status(404).json({ error: 'Aula no encontrada' });
+    if (!result.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Aula no encontrada' });
+    }
+    // Si cambió el código, los horarios que usaban esa sala se actualizan también
+    if (anterior.rows[0].codigo !== result.rows[0].codigo) {
+      await client.query('UPDATE horarios SET sala = $1 WHERE sala = $2',
+        [result.rows[0].codigo, anterior.rows[0].codigo]);
+    }
+    await client.query('COMMIT');
     res.json(result.rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     if (err.code === '23505') {
       return res.status(409).json({ error: 'Ya existe un aula con ese código' });
     }
     console.error('[PUT /aulas/:id]', err.message);
     res.status(500).json({ error: 'Error al actualizar aula' });
-  }
+  } finally { client.release(); }
 });
 
 // =====================================================
@@ -95,6 +108,18 @@ router.delete('/:id', verificarToken, soloAdmin, async (req, res) => {
   if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
 
   try {
+    const chk = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM horarios h
+       JOIN aulas a ON h.sala = a.codigo
+       JOIN cursos c ON h.id_curso = c.id AND c.activo = TRUE
+       WHERE a.id = $1`, [id]
+    );
+    if (chk.rows[0].total > 0) {
+      return res.status(409).json({
+        error: `No se puede eliminar: el aula se usa en ${chk.rows[0].total} horario(s). Cámbiales la sala primero.`
+      });
+    }
+
     const result = await pool.query(
       'DELETE FROM aulas WHERE id = $1 RETURNING id, codigo', [id]
     );

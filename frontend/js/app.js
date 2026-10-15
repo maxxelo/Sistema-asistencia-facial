@@ -161,6 +161,8 @@ const _TAB_TITLES = {
 }
 
 function mostrarTab(nombre) {
+  // Al salir de Asistencia se apaga la cámara (y el reconocimiento, para no marcar en segundo plano)
+  if (tabActual === 'asistencia' && nombre !== 'asistencia' && typeof detener === 'function') detener()
   document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('visible'))
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'))
   document.getElementById('sec-' + nombre).classList.add('visible')
@@ -1059,7 +1061,7 @@ async function editarProfesor(id) {
 }
 
 async function eliminarProfesor(id, nombre) {
-  if (!confirm(`⚠️ ¿Eliminar permanentemente al profesor ${nombre}?\n\nSe eliminarán también sus horarios asignados y TODOS los registros de asistencia de esas clases.\n(No se puede deshacer)`)) return
+  if (!confirm(`⚠️ ¿Eliminar permanentemente al profesor ${nombre}?\n\nSe eliminarán también sus horarios asignados. Si alguna de sus clases ya tiene asistencia registrada, el sistema no lo permitirá (primero reasigna esos horarios a otro profesor).\n(No se puede deshacer)`)) return
   const { ok, data } = await apiDelete(`${API1}/profesores/${id}`)
   document.getElementById('msg-profesores').innerHTML =
     ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
@@ -1920,9 +1922,10 @@ function renderFormulario(tipo, d) {
     // Detectar el curso del que este profesor es jefe (si está editando)
     const idProf = d ? d.id : null
     const cursoJefe = idProf ? listaCursos.find(c => c.id_profesor_jefe == idProf) : null
-    const opsCursosJefe = listaCursos.map(c =>
-      `<option value="${c.id}" ${cursoJefe && cursoJefe.id === c.id ? 'selected' : ''}>${c.nombre} (${c.anio})</option>`
-    ).join('')
+    const opsCursosJefe = listaCursos.map(c => {
+      const otroJefe = c.id_profesor_jefe && (!d || c.id_profesor_jefe != d.id) ? ` — jefe actual: ${c.profesor_jefe}` : ''
+      return `<option value="${c.id}" ${cursoJefe && cursoJefe.id === c.id ? 'selected' : ''}>${c.nombre} (${c.anio})${otroJefe}</option>`
+    }).join('')
 
     return `
       <div class="form-group">
@@ -2740,7 +2743,12 @@ async function guardarModal() {
       }
       // Si eligió un curso nuevo distinto al anterior, asignarlo
       if (nuevoCursoId && String(nuevoCursoId) !== String(cursoAnterior?.id)) {
-        await apiPatch(`${API1}/cursos/${nuevoCursoId}/jefe`, { id_profesor_jefe: parseInt(profesorId) })
+        const rj = await apiPatch(`${API1}/cursos/${nuevoCursoId}/jefe`, { id_profesor_jefe: parseInt(profesorId) })
+        if (!rj.ok) {
+          msg.innerHTML = `<span class="mensaje-err">⚠️ Profesor guardado, pero no se asignó la jefatura: ${rj.data.error}</span>`
+          cargarTablaProfesores()
+          return
+        }
       }
     }
 
