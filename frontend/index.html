@@ -1701,7 +1701,8 @@
         </span>
       </h2>
       <input type="text" id="buscar-apoderados" placeholder="Buscar por nombre, RUT o alumno vinculado..."
-             oninput="filtrarTabla('tbodyApoderados', this.value)" class="search-input" />
+             oninput="_filtrarApoderados()" class="search-input" />
+      <div id="apod-resumen" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"></div>
       <div id="msg-apoderados" style="margin-bottom:8px"></div>
       <table><thead>
         <tr><th>ID</th><th>RUT</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Parentesco</th><th>Alumno(s)</th><th>Acciones</th></tr>

@@ -1164,7 +1164,7 @@ async function cargarPanel() {
   statsEl.innerHTML = '<p style="color:gray;font-size:.9em">⏳ Cargando estadísticas...</p>'
 
   try {
-    const [alumnos, cursos, profesores, horarios, usuarios, asignaturas, aulas, riesgoResp] = await Promise.all([
+    const [alumnos, cursos, profesores, horarios, usuarios, asignaturas, aulas, riesgoResp, apoderados] = await Promise.all([
       apiGet(`${API1}/alumnos`),
       apiGet(`${API1}/cursos`),
       apiGet(`${API1}/profesores`),
@@ -1172,7 +1172,8 @@ async function cargarPanel() {
       apiGet(`${API1}/usuarios`),
       apiGet(`${API1}/asignaturas`),
       apiGet(`${API1}/aulas`),
-      apiGet(`${API4}/reportes/asistencia/riesgo`).catch(() => ({ total_en_riesgo: '?' }))
+      apiGet(`${API4}/reportes/asistencia/riesgo`).catch(() => ({ total_en_riesgo: '?' })),
+      apiGet(`${API1}/apoderados`).catch(() => [])
     ])
     const enRiesgo = riesgoResp.total_en_riesgo ?? riesgoResp.alumnos?.length ?? '?'
 
@@ -1236,6 +1237,11 @@ async function cargarPanel() {
     const prSinUser   = prActivos.filter(p => !profConUser.has(p.id))
     if (prSinUser.length)
       alertas.push({ tipo:'warn', msg:`${prSinUser.length} profesor(es) sin cuenta de acceso al sistema`, tab:'usuarios' })
+
+    const apSinAlumno = apoderados.filter(ap => ap.activo && !(ap.alumnos || []).length)
+    if (apSinAlumno.length)
+      alertas.push({ tipo:'warn', msg:`${apSinAlumno.length} apoderado(s) sin alumno vinculado`,
+                     onclick:`_apodFiltro='sin';mostrarTab('apoderados')` })
 
     const cuSinJefe = cuActivos.filter(c => !c.id_profesor_jefe)
     if (cuSinJefe.length)
@@ -1732,6 +1738,7 @@ async function abrirModal(tipo, datos = null) {
   }
   if (tipo === 'apoderado') {
     listaAlumnos = (await apiGet(`${API1}/alumnos`)).filter(a => a.activo)
+    _apodAlumnosSel = (datos?.alumnos || []).map(a => ({ ...a }))
   }
 
   // Restaurar botones del modal (en caso de que estuvieran en modo "ver")
@@ -1740,6 +1747,7 @@ async function abrirModal(tipo, datos = null) {
     <button class="btn-primary"   onclick="guardarModal()">Guardar</button>`
 
   document.getElementById('modal-form-container').innerHTML = renderFormulario(tipo, datos)
+  if (tipo === 'apoderado') _renderAlumnosApod()
   aplicarRestriccionesInput()
   document.getElementById('modal-overlay').style.display = 'block'
 }
@@ -2194,9 +2202,6 @@ function renderFormulario(tipo, d) {
 
   /* ── APODERADO ───────────────────────────────────────────── */
   if (tipo === 'apoderado') {
-    const opsAlumnos = listaAlumnos.map(a =>
-      `<option value="${a.id}" ${d&&d.id_alumno==a.id?'selected':''}>${a.nombre} ${a.apellido_paterno} — ${a.curso||'Sin curso'}</option>`
-    ).join('')
     return `
       <div class="form-group"><label>RUT * <small style="color:#888">Ej: 12345678-9</small></label>
         <input type="text" id="f-rut" value="${v('rut')}" maxlength="10" placeholder="12345678-9" autocomplete="off" /></div>
@@ -2215,8 +2220,15 @@ function renderFormulario(tipo, d) {
         <input type="text" id="f-email" value="${v('email')}" placeholder="maria@gmail.com" autocomplete="off" /></div>
       <div class="form-group"><label>Dirección</label>
         <input type="text" id="f-direccion" value="${v('direccion')}" placeholder="Calle Los Álamos 123" /></div>
-      <div class="form-group"><label>Vincular al alumno <small style="color:#888">Opcional</small></label>
-        <select id="f-id_alumno"><option value="">— Sin vincular por ahora —</option>${opsAlumnos}</select></div>`
+      <div class="form-group"><label>Alumno(s) a cargo <small style="color:#888">Busca por RUT o nombre</small></label>
+        <div id="apod-alumnos-sel" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"></div>
+        <div style="position:relative">
+          <input type="text" id="f-buscar-alumno" placeholder="Ej: 21234567-8 o Juan Pérez" autocomplete="off"
+                 oninput="_buscarAlumnoApod(this.value)" />
+          <div id="apod-alumnos-res" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:20;
+               background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.12);
+               max-height:220px;overflow-y:auto;margin-top:2px"></div>
+        </div></div>`
   }
 
   /* ── COMUNICADO ──────────────────────────────────────────── */
@@ -2689,7 +2701,7 @@ async function guardarModal() {
                telefono: leerCampo('f-telefono')||null,
                parentesco: leerCampo('f-parentesco')||null,
                direccion: leerCampo('f-direccion')||null,
-               id_alumno: leerCampo('f-id_alumno')||null }
+               id_alumnos: _apodAlumnosSel.map(a => a.id) }
     url    = modalId ? `${API1}/apoderados/${modalId}` : `${API1}/apoderados`
     method = modalId ? 'PUT' : 'POST'
   }
@@ -3593,19 +3605,123 @@ async function guardarModalNotas() {
 /* ══════════════════════════════════════════════════════════════════
    MÓDULO: APODERADOS
 ══════════════════════════════════════════════════════════════════ */
+let _apodAlumnosSel = []        // alumnos elegidos en el modal de apoderado
+let _apodFiltro      = 'todos'   // 'todos' | 'sin' | 'con'
+
+// RUT sin puntos, guión ni espacios, en minúscula (para comparar "12.345.678-9" con "123456789")
+const _rutPlano = r => String(r || '').replace(/[^0-9kK]/g, '').toLowerCase()
+
+function _buscarAlumnoApod(texto) {
+  const res = document.getElementById('apod-alumnos-res')
+  const q = texto.trim().toLowerCase()
+  const qRut = _rutPlano(q)
+  if (q.length < 2) { res.style.display = 'none'; return }
+  const elegidos = new Set(_apodAlumnosSel.map(a => a.id))
+  const matches = listaAlumnos.filter(a => !elegidos.has(a.id) && (
+    (qRut.length >= 2 && _rutPlano(a.rut).includes(qRut)) ||
+    `${a.nombre} ${a.apellido_paterno} ${a.apellido_materno || ''}`.toLowerCase().includes(q)
+  )).slice(0, 8)
+  res.innerHTML = matches.length
+    ? matches.map(a => `
+        <div onclick="_agregarAlumnoApod(${a.id})" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9"
+             onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background=''">
+          <strong>${_escHtml(a.rut)}</strong> · ${_escHtml(a.nombre)} ${_escHtml(a.apellido_paterno)}
+          <span style="color:#888;font-size:.85em">— ${_escHtml(a.curso || 'Sin curso')}</span>
+        </div>`).join('')
+    : `<div style="padding:8px 12px;color:#888">${_apodAlumnosSel.length ? 'No hay más alumnos activos que coincidan (los ya agregados no se repiten)' : 'No se encontró ningún alumno activo'}</div>`
+  res.style.display = 'block'
+}
+
+function _agregarAlumnoApod(id) {
+  const a = listaAlumnos.find(x => x.id === id)
+  if (!a || _apodAlumnosSel.some(x => x.id === id)) return
+  _apodAlumnosSel.push({ id: a.id, rut: a.rut, nombre: `${a.nombre} ${a.apellido_paterno}`, curso: a.curso })
+  const input = document.getElementById('f-buscar-alumno')
+  input.value = ''
+  document.getElementById('apod-alumnos-res').style.display = 'none'
+  _renderAlumnosApod()
+  input.focus()
+}
+
+function _quitarAlumnoApod(id) {
+  _apodAlumnosSel = _apodAlumnosSel.filter(a => a.id !== id)
+  _renderAlumnosApod()
+}
+
+function _renderAlumnosApod() {
+  const cont = document.getElementById('apod-alumnos-sel')
+  if (!cont) return
+  cont.innerHTML = _apodAlumnosSel.length
+    ? _apodAlumnosSel.map(a => `
+        <span style="display:inline-flex;align-items:center;gap:6px;background:#ede9fe;color:#5b21b6;
+                     padding:4px 6px 4px 10px;border-radius:14px;font-size:.85em">
+          ${_escHtml(a.nombre)} <small style="opacity:.75">${_escHtml(a.rut)}${a.curso ? ' · ' + _escHtml(a.curso) : ''}</small>
+          <button type="button" onclick="_quitarAlumnoApod(${a.id})" title="Quitar"
+                  style="border:none;background:#ddd6fe;color:#5b21b6;border-radius:50%;width:18px;height:18px;
+                         line-height:18px;padding:0;cursor:pointer;font-size:.8em">✕</button>
+        </span>`).join('')
+    : '<span style="color:#b45309;font-size:.85em">⚠️ Sin alumno vinculado</span>'
+}
+
+function _filtrarApoderados(filtro) {
+  if (filtro) _apodFiltro = filtro
+  const q = (document.getElementById('buscar-apoderados')?.value || '').toLowerCase().trim()
+  Array.from(document.getElementById('tbodyApoderados').rows).forEach(tr => {
+    const v = tr.dataset.vinculado
+    if (v === undefined) return   // filas de mensaje (cargando / vacío)
+    const okFiltro = _apodFiltro === 'todos' || (_apodFiltro === 'sin' ? v === '0' : v === '1')
+    tr.style.display = okFiltro && (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none'
+  })
+  document.querySelectorAll('#apod-filtros button').forEach(b => {
+    const activo = b.dataset.filtro === _apodFiltro
+    b.style.background = activo ? '#7c3aed' : '#fff'
+    b.style.color      = activo ? '#fff'    : '#374151'
+  })
+}
+
 async function cargarTablaApoderados() {
   const tbody = document.getElementById('tbodyApoderados')
+  const resumen = document.getElementById('apod-resumen')
   tbody.innerHTML = '<tr><td colspan="8">Cargando...</td></tr>'
   try {
-    const apods = await apiGet(`${API1}/apoderados`)
+    const [apods, alumnos] = await Promise.all([
+      apiGet(`${API1}/apoderados`),
+      apiGet(`${API1}/alumnos`).catch(() => [])
+    ])
+
+    // ── Resumen: apoderados sin alumno y alumnos sin apoderado ──
+    const sinVincular = apods.filter(ap => !ap.alumnos.length).length
+    const alConApod   = new Set(apods.filter(ap => ap.activo).flatMap(ap => ap.alumnos.map(a => a.id)))
+    const alSinApod   = alumnos.filter(a => a.activo && !alConApod.has(a.id))
+    if (resumen) {
+      const btn = (f, lbl) => `<button data-filtro="${f}" onclick="_filtrarApoderados('${f}')"
+        style="border:1px solid #d1d5db;border-radius:16px;padding:4px 12px;font-size:.85em;cursor:pointer">${lbl}</button>`
+      resumen.innerHTML = `
+        <div id="apod-filtros" style="display:flex;gap:6px;flex-wrap:wrap">
+          ${btn('todos', `Todos (${apods.length})`)}
+          ${btn('sin',   `⚠️ Sin alumno vinculado (${sinVincular})`)}
+          ${btn('con',   `Vinculados (${apods.length - sinVincular})`)}
+        </div>
+        ${alSinApod.length ? `
+          <div title="${_escHtml(alSinApod.map(a => `${a.nombre} ${a.apellido_paterno} (${a.rut})`).join('\n'))}"
+               style="font-size:.85em;color:#92400e;background:#fef3c7;border-radius:6px;padding:4px 10px;cursor:help">
+            ${alSinApod.length} alumno(s) activo(s) sin apoderado — no podrán dar consentimiento biométrico
+          </div>` : ''}`
+    }
+
     tbody.innerHTML = ''
     if (!apods.length) {
       tbody.innerHTML = '<tr><td colspan="8" style="color:gray">No hay apoderados registrados</td></tr>'; return
     }
     apods.forEach(ap => {
       const tr = document.createElement('tr')
+      tr.dataset.vinculado = ap.alumnos.length ? '1' : '0'
       const inactivo = !ap.activo
       if (inactivo) tr.style.cssText = 'background:#f9f0f0;color:#aaa'
+      else if (!ap.alumnos.length) tr.style.cssText = 'background:#fffbeb'
+      const celdaAlumnos = ap.alumnos.length
+        ? ap.alumnos.map(a => `${_escHtml(a.nombre)} <span style="color:#888">(${_escHtml(a.curso || 'Sin curso')})</span>`).join('<br>')
+        : '<span style="font-size:.85em;background:#fef3c7;color:#b45309;padding:2px 8px;border-radius:10px;white-space:nowrap">⚠️ Sin vincular</span>'
       tr.innerHTML = `
         <td>${ap.id}</td>
         <td>${ap.rut}</td>
@@ -3613,13 +3729,14 @@ async function cargarTablaApoderados() {
         <td>${ap.telefono||'—'}</td>
         <td>${ap.email||'—'}</td>
         <td>${ap.parentesco||'—'}</td>
-        <td style="font-size:.83em">${ap.alumnos_vinculados||'<span style="color:#aaa">Sin vincular</span>'}</td>
+        <td style="font-size:.83em">${celdaAlumnos}</td>
         <td>
           <button class="btn-sm btn-edit" onclick="editarApoderado(${ap.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
           <button class="btn-sm btn-delete" onclick="eliminarApoderado(${ap.id},'${ap.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
         </td>`
       tbody.appendChild(tr)
     })
+    _filtrarApoderados()
   } catch(err) {
     tbody.innerHTML = `<tr><td colspan="8" class="mensaje-err">Error: ${err.message}</td></tr>`
   }
