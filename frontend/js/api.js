@@ -63,7 +63,13 @@ async function descargarArchivo(url, nombreArchivo) {
   try {
     const token = localStorage.getItem('token')
     const resp  = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-    if (!resp.ok) { alert('No se pudo generar el archivo'); return }
+    if (!resp.ok) {
+      // Mostrar el motivo que entrega el servidor (p. ej. "Período no encontrado" o falta de permiso)
+      let detalle = ''
+      try { detalle = (await resp.json()).error || '' } catch (e) { /* respuesta sin JSON */ }
+      alert('No se pudo generar el archivo' + (detalle ? ': ' + detalle : ''))
+      return
+    }
     const blob   = await resp.blob()
     const link   = document.createElement('a')
     link.href    = URL.createObjectURL(blob)

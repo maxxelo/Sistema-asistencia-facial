@@ -38,28 +38,49 @@ window.onload = () => {
 
 /* ── LOGIN ─────────────────────────────────────────────────────── */
 async function iniciarSesion() {
-  const usuario  = document.getElementById('loginUsuario').value.trim()
-  const password = document.getElementById('loginPassword').value
-  const msg      = document.getElementById('mensajeLogin')
-  if (!usuario || !password) { msg.innerHTML = '<span class="mensaje-err">Completa usuario y contraseña</span>'; return }
-  msg.innerHTML = 'Ingresando...'
+  const campoU  = document.getElementById('loginUsuario')
+  const campoP  = document.getElementById('loginPassword')
+  const msg     = document.getElementById('mensajeLogin')
+  const btn     = document.getElementById('btnLogin')
+  const usuario  = campoU.value.trim()
+  const password = campoP.value
+  if (btn && btn.disabled) return                       // evita el doble envío
+
+  marcarCampoLogin(campoU, !usuario)
+  marcarCampoLogin(campoP, !password)
+  if (!usuario || !password) {
+    msg.innerHTML = `<span class="mensaje-err">${!usuario && !password ? 'Ingresa tu usuario y tu contraseña'
+                     : !usuario ? 'Ingresa tu usuario' : 'Ingresa tu contraseña'}</span>`
+    ;(!usuario ? campoU : campoP).focus()
+    return
+  }
+
+  msg.innerHTML = ''
+  if (btn) { btn.disabled = true; btn.classList.add('cargando'); btn.querySelector('.le-btn-texto').textContent = 'Ingresando…' }
   try {
     const resp  = await fetch(`${API1}/login`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nombre_usuario: usuario, password })
     })
     const datos = await resp.json()
-    if (!resp.ok) { msg.innerHTML = `<span class="mensaje-err">❌ ${datos.error}</span>`; return }
+    if (!resp.ok) {
+      msg.innerHTML = `<span class="mensaje-err">${datos.error || 'No se pudo iniciar sesión'}</span>`
+      marcarCampoLogin(campoU, true); marcarCampoLogin(campoP, true)
+      campoP.value = ''; campoP.focus()
+      return
+    }
     token      = datos.token
     rolUsuario = datos.usuario.tipo_persona
     localStorage.setItem('token', token)
     localStorage.setItem('rolUsuario', rolUsuario)
     document.getElementById('nombreUsuario').textContent =
       `${datos.usuario.nombre_usuario} (${datos.usuario.rol})`
+    marcarCampoLogin(campoU, false); marcarCampoLogin(campoP, false)
     mostrarApp()
-    msg.innerHTML = ''
   } catch (err) {
-    msg.innerHTML = `<span class="mensaje-err">❌ Error de red: ${err.message}</span>`
+    msg.innerHTML = '<span class="mensaje-err">No hay conexión con el servidor. Revisa que el sistema esté encendido.</span>'
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('cargando'); btn.querySelector('.le-btn-texto').textContent = 'Ingresar' }
   }
 }
 
@@ -121,6 +142,11 @@ function cerrarSesion() {
   detener()
   detenerAutoRefresh()
   detenerNotificaciones()
+  // En un PC compartido la contraseña no debe quedar escrita al salir
+  const campoClave = document.getElementById('loginPassword')
+  if (campoClave) { campoClave.value = ''; campoClave.type = 'password'; campoClave.removeAttribute('aria-invalid') }
+  document.getElementById('btnVerClave')?.setAttribute('aria-pressed', 'false')
+  const msgLogin = document.getElementById('mensajeLogin'); if (msgLogin) msgLogin.innerHTML = ''
   document.body.classList.remove('app-active')
   document.getElementById('seccionLogin').style.display = 'flex'
   document.getElementById('seccionApp').style.display   = 'none'
@@ -311,6 +337,10 @@ function renderReporteAlumno(id, nombre, resumen, historial) {
         <button onclick="descargarArchivo('${API4}/reportes/csv/alumno/${id}','asistencia-${nombreSafe}.csv')"
           style="background:#0891b2;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.83em">
           <i class="bi bi-download"></i> CSV</button>
+        <button onclick="descargarArchivo('${API4}/reportes/pdf/boletin/${id}','boletin-${nombreSafe}.pdf')"
+          title="Boletín de notas del período activo, con promedios y asistencia"
+          style="background:#3b1a5e;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.83em">
+          <i class="bi bi-journal-text"></i> Boletín de notas</button>
       </div>
     </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">`
@@ -414,7 +444,7 @@ async function cargarReporteCurso() {
     const byHorario = {}
     data.forEach(r => {
       const key = r.id_horario || 'sin_horario'
-      if (!byHorario[key]) byHorario[key] = { asignatura: r.asignatura, hora_inicio: r.hora_inicio, hora_fin: r.hora_fin, alumnos: [] }
+      if (!byHorario[key]) byHorario[key] = { id_horario: r.id_horario, asignatura: r.asignatura, hora_inicio: r.hora_inicio, hora_fin: r.hora_fin, alumnos: [] }
       byHorario[key].alumnos.push(r)
     })
     const nombreCurso = (listaCursos.find(c=>String(c.id)===String(idCurso))?.nombre||'curso').replace(/\s+/g,'-')
@@ -434,7 +464,13 @@ async function cargarReporteCurso() {
       html += `<div style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;padding:14px;margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <h4 style="margin:0;color:#1e40af">${bloque.asignatura||'Sin asignatura'} — ${bloque.hora_inicio?.slice(0,5)||''}</h4>
-          <span style="background:${color};color:#fff;padding:3px 12px;border-radius:20px;font-size:.85em;font-weight:600">${presentes}/${total} — ${pct}%</span>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            ${bloque.id_horario ? `<button onclick="descargarArchivo('${API4}/reportes/pdf/libro-clases/${bloque.id_horario}','libro-clases-${encodeURIComponent(nombreCurso)}-${encodeURIComponent((bloque.asignatura||'clase').replace(/\s+/g,'-'))}.pdf')"
+              title="Libro de clases: todos los alumnos por fecha (P, A, J) de esta clase"
+              style="background:#3b1a5e;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:.8em">
+              <i class="bi bi-journal-bookmark-fill"></i> Libro de clases</button>` : ''}
+            <span style="background:${color};color:#fff;padding:3px 12px;border-radius:20px;font-size:.85em;font-weight:600">${presentes}/${total} — ${pct}%</span>
+          </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px">`
       bloque.alumnos.forEach(a => {
