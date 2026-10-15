@@ -9,12 +9,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script src="assets/vendor/face-api.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body { font-family: Arial, sans-serif; padding: 20px; max-width: 950px; margin: 0 auto; }
     h1 { margin: 0 0 12px; }
-    body.app-active { padding: 0 !important; max-width: none !important; margin: 0 !important; overflow: hidden; }
+    body.app-active { padding: 0 !important; max-width: none !important; margin: 0 !important; overflow: hidden; height: 100vh; }
 
     /* ── LOGIN — Split panel ──────────────────────────────────────────
        IMPORTANT: display must always be flex (not block) so the right
@@ -464,11 +464,43 @@
     .btn-salir i { font-size: .9em; }
     .btn-salir:hover { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
 
+    /* ── Notificaciones (campana) ──────────────────────────── */
+    .notif-wrap { position: relative; }
+    .btn-notif {
+      position: relative; background: transparent; border: 1.5px solid #e5e7eb; color: #64748b;
+      width: 34px; height: 34px; border-radius: 8px; cursor: pointer; font-size: 1em;
+      display: flex; align-items: center; justify-content: center; transition: all .14s;
+    }
+    .btn-notif:hover { background: #f5f3ff; color: #7c3aed; border-color: #ddd6fe; }
+    .notif-badge {
+      position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px;
+      background: #dc2626; color: #fff; border-radius: 9px; font-size: .68em; font-weight: 700;
+      display: none; align-items: center; justify-content: center; box-shadow: 0 0 0 2px #fff;
+    }
+    .notif-panel {
+      display: none; position: absolute; top: 44px; right: 0; width: 380px; max-height: 460px;
+      background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; z-index: 400;
+      box-shadow: 0 12px 32px rgba(15,23,42,.16); overflow: hidden; text-align: left;
+    }
+    .notif-panel.abierto { display: block; }
+    .notif-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid #f1f5f9; }
+    .notif-head strong { color: #111827; font-size: .9em; }
+    .notif-head button { background: none; border: none; color: #7c3aed; font-size: .78em; cursor: pointer; font-weight: 600; }
+    .notif-lista { max-height: 396px; overflow-y: auto; }
+    .notif-item { padding: 11px 14px; border-bottom: 1px solid #f8fafc; cursor: pointer; }
+    .notif-item:hover { background: #faf5ff; }
+    .notif-item.nueva { background: #fff7ed; border-left: 3px solid #f97316; }
+    .notif-item .nt { font-weight: 600; color: #111827; font-size: .84em; }
+    .notif-item .nm { color: #475569; font-size: .8em; margin-top: 3px; line-height: 1.4; }
+    .notif-item .nf { color: #94a3b8; font-size: .72em; margin-top: 4px; }
+    .notif-vacio { padding: 26px 14px; text-align: center; color: #94a3b8; font-size: .85em; }
+
     /* ── Content area ──────────────────────────────────────── */
     .tab-section {
       display: none;
-      margin-left: 256px; margin-top: 56px;
-      min-height: calc(100vh - 56px);
+      position: fixed;
+      left: 256px; top: 56px; right: 0; bottom: 0;
+      overflow-y: auto;
       padding: 24px 28px;
       background: #f5f7fa;
     }
@@ -477,16 +509,16 @@
     /* ── Cards ─────────────────────────────────────────────── */
     .seccion {
       background: #fff;
-      padding: 20px 22px;
-      border-radius: 12px; margin-bottom: 16px;
-      border: 1px solid #eaecf0;
-      box-shadow: 0 1px 3px rgba(0,0,0,.03);
+      padding: 22px 24px;
+      border-radius: 14px; margin-bottom: 16px;
+      border: 1px solid #ede9fe;
+      box-shadow: 0 2px 14px rgba(109,40,217,.08), 0 1px 3px rgba(0,0,0,.04);
     }
     .seccion h2 {
-      margin: 0 0 16px;
-      font-size: .93em; font-weight: 600;
-      color: #111827; display: flex; align-items: center; gap: 8px;
-      padding-bottom: 12px; border-bottom: 1px solid #f3f4f6;
+      margin: 0 0 18px;
+      font-size: .95em; font-weight: 700;
+      color: #1e1b4b; display: flex; align-items: center; gap: 8px;
+      padding-bottom: 14px; border-bottom: 2px solid #ede9fe;
     }
 
     /* ── Camera ────────────────────────────────────────────── */
@@ -495,53 +527,70 @@
     #canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
 
     /* ── Tables ────────────────────────────────────────────── */
+    .table-wrap { border-radius: 10px; overflow: hidden; border: 1px solid #ddd6fe; margin: 12px 0 4px; }
     table { width: 100%; border-collapse: collapse; font-size: .875em; }
-    thead tr { background: #f9fafb; }
+    thead tr { background: linear-gradient(135deg, #1e1b4b 0%, #3730a3 100%); }
     th {
-      color: #4b5563; padding: 10px 14px;
-      text-align: left; font-size: .72em; font-weight: 700;
-      letter-spacing: .07em; text-transform: uppercase;
-      border-bottom: 1.5px solid #eaecf0;
+      color: #c7d2fe; padding: 11px 14px;
+      text-align: left; font-size: .7em; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase;
       white-space: nowrap;
     }
-    td { padding: 10px 14px; border-bottom: 1px solid #f3f4f6; color: #374151; }
+    td { padding: 11px 14px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
-    tbody tr:hover td { background: #fafbff; }
+    tbody tr { transition: background .14s; }
+    tbody tr:hover td { background: #f5f3ff; }
 
     /* ── Table action buttons ──────────────────────────────── */
     .btn-sm {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 4px 10px; font-size: .78em; margin: 2px;
-      border-radius: 6px; cursor: pointer;
-      font-weight: 500; font-family: 'Inter', system-ui, sans-serif;
-      transition: background .12s, box-shadow .12s;
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      min-width: 32px; height: 32px; padding: 0 10px; font-size: .8em; margin: 2px;
+      border-radius: 8px; cursor: pointer; border: 1px solid transparent;
+      font-weight: 600; font-family: 'Inter', system-ui, sans-serif;
+      transition: background .13s, box-shadow .13s, transform .13s;
     }
-    .btn-edit   { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
-    .btn-delete { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
-    .btn-face   { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
-    .btn-edit:hover   { background: #fef3c7; box-shadow: 0 1px 4px rgba(245,158,11,.2); }
-    .btn-delete:hover { background: #ffe4e6; box-shadow: 0 1px 4px rgba(190,18,60,.18); }
-    .btn-face:hover   { background: #dcfce7; box-shadow: 0 1px 4px rgba(22,101,52,.18); }
+    .btn-sm:hover { transform: translateY(-2px); }
+    .btn-sm i { font-size: .95em; line-height: 1; }
+    .btn-edit   { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+    .btn-delete { background: #ffe4e6; color: #be123c; border-color: #fecdd3; }
+    .btn-face   { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+    .btn-edit:hover   { background: #fde68a; box-shadow: 0 4px 10px rgba(245,158,11,.28); }
+    .btn-delete:hover { background: #fecdd3; box-shadow: 0 4px 10px rgba(190,18,60,.22); }
+    .btn-face:hover   { background: #a7f3d0; box-shadow: 0 4px 10px rgba(6,95,70,.2); }
 
     /* ── Primary / secondary ───────────────────────────────── */
     .btn-primary {
-      background: #7c3aed; color: #fff;
-      padding: 8px 18px; border: none; border-radius: 8px;
+      background: linear-gradient(135deg, #7c3aed, #6d28d9); color: #fff;
+      padding: 8px 18px; border: none; border-radius: 9px;
       cursor: pointer; font-size: .855em; font-weight: 600;
       font-family: 'Inter', system-ui, sans-serif;
-      transition: background .14s, box-shadow .14s;
+      transition: box-shadow .15s, transform .15s;
     }
-    .btn-primary:hover { background: #6d28d9; box-shadow: 0 4px 16px rgba(124,58,237,.38); }
+    .btn-primary:hover { box-shadow: 0 6px 20px rgba(124,58,237,.42); transform: translateY(-2px); }
+    .btn-primary:active { transform: translateY(0); }
 
     .btn-secondary {
       background: #fff; color: #4b5563;
       border: 1.5px solid #e5e7eb; padding: 8px 18px;
-      border-radius: 8px; cursor: pointer;
+      border-radius: 9px; cursor: pointer;
       font-size: .855em; font-weight: 500;
       font-family: 'Inter', system-ui, sans-serif;
-      transition: background .14s, border-color .14s;
+      transition: background .14s, border-color .14s, transform .14s;
     }
-    .btn-secondary:hover { background: #f9fafb; border-color: #d1d5db; }
+    .btn-secondary:hover { background: #f5f3ff; border-color: #c4b5fd; transform: translateY(-1px); }
+    .btn-secondary:active { transform: translateY(0); }
+
+    /* ── Search inputs ─────────────────────────────────────── */
+    .search-input {
+      width: 100%; padding: 9px 12px 9px 36px;
+      border: 1.5px solid #e5e7eb; border-radius: 9px;
+      margin-bottom: 12px; box-sizing: border-box;
+      font-size: .875em; color: #374151;
+      font-family: 'Inter', system-ui, sans-serif; outline: none;
+      background: #fafafa url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' fill='%239ca3af' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.117-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E") no-repeat 11px center;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .search-input:focus { border-color: #7c3aed; background-color: #fff; box-shadow: 0 0 0 3px rgba(124,58,237,.1); }
 
     /* ── Modal ─────────────────────────────────────────────── */
     #modal-overlay {
@@ -600,6 +649,89 @@
     .mensaje-ok  { color: #059669; font-weight: 500; }
     .mensaje-err { color: #dc2626; font-weight: 500; }
 
+    /* ── Asistencia en clase ──────────────────────────────────── */
+    .asis-header {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #f8fafc; border-radius: 10px; padding: 12px 16px; margin-bottom: 12px;
+      border: 1px solid #e5e7eb; flex-wrap: wrap; gap: 8px;
+    }
+    .asis-clase-info { font-weight: 600; color: #1e293b; font-size: .93em }
+    .asis-contadores { display: flex; gap: 6px; flex-wrap: wrap }
+    .cnt-chip { padding: 3px 10px; border-radius: 20px; font-size: .8em; font-weight: 600 }
+    .cnt-verde { background: #dcfce7; color: #15803d }
+    .cnt-rojo  { background: #fee2e2; color: #dc2626 }
+
+    .asis-banner {
+      background: #f0fdf4; border: 1px solid #86efac; color: #15803d;
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 12px;
+      font-weight: 600; font-size: .88em;
+    }
+    .asis-banner.bloqueada {
+      background: #fffbeb; border-color: #fcd34d; color: #92400e;
+    }
+
+    .lista-asis-placeholder {
+      color: #9ca3af; font-size: .9em; padding: 24px 0; text-align: center;
+    }
+    .lista-asis-container {
+      border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden;
+      max-height: 420px; overflow-y: auto;
+    }
+    .asistencia-row {
+      display: grid; grid-template-columns: 110px 1fr auto auto; align-items: center;
+      gap: 10px; padding: 9px 14px; border-bottom: 1px solid #f1f5f9;
+      transition: background .12s;
+    }
+    .vida-badge  { font-size: .72em; padding: 3px 8px; border-radius: 10px; white-space: nowrap; display: inline-block }
+    .vida-ok     { color: #6b7280 }
+    .vida-media  { background: #fef9c3; color: #854d0e; font-weight: 600 }
+    .vida-baja   { background: #fee2e2; color: #dc2626; font-weight: 700 }
+    .vida-cero   { background: #dc2626; color: #fff;    font-weight: 700 }
+    .asistencia-row:last-child { border-bottom: none }
+    .asistencia-row.presente  { background: #f0fdf4 }
+    .asistencia-row.ausente   { background: #fff }
+    .asistencia-row.presente:hover { background: #dcfce7 }
+    .asistencia-row.ausente:hover  { background: #f9fafb }
+
+    .badge-asis-presente {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: #16a34a; color: #fff;
+      padding: 3px 9px; border-radius: 20px; font-size: .78em; font-weight: 600;
+    }
+    .badge-asis-ausente {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: #f3f4f6; color: #9ca3af;
+      padding: 3px 9px; border-radius: 20px; font-size: .78em;
+    }
+    .asis-nombre { display: flex; flex-direction: column; gap: 1px; min-width: 0 }
+    .asis-nombre strong { font-size: .88em; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+    .asis-rut { font-size: .75em; color: #9ca3af }
+    .btn-toggle-asis {
+      padding: 4px 10px; border-radius: 6px; font-size: .76em; cursor: pointer;
+      border: 1px solid #e5e7eb; background: #fff; color: #374151; white-space: nowrap;
+    }
+    .btn-toggle-asis:hover:not(:disabled) { background: #f3f4f6 }
+    .btn-toggle-asis:disabled { opacity: .4; cursor: not-allowed }
+    .btn-guardar-asis {
+      background: #16a34a; color: #fff; padding: 8px 20px;
+      border-radius: 8px; border: none; cursor: pointer;
+      font-size: .88em; font-weight: 600;
+    }
+    .btn-guardar-asis:hover:not(:disabled) { background: #15803d }
+    .btn-guardar-asis:disabled { opacity: .5; cursor: not-allowed }
+    .btn-borrador-asis {
+      background: #fff; color: #374151; padding: 8px 20px;
+      border-radius: 8px; border: 1.5px solid #d1d5db; cursor: pointer;
+      font-size: .88em; font-weight: 500;
+    }
+    .btn-borrador-asis:hover:not(:disabled) { background: #f3f4f6 }
+    .btn-borrador-asis:disabled { opacity: .5; cursor: not-allowed }
+    .asis-resultado {
+      min-height: 36px; margin-top: 12px; font-size: .9em;
+      padding: 7px 12px; border-radius: 8px; background: #f8fafc;
+      color: #374151; border: 1px solid #e5e7eb;
+    }
+
     /* ── Responsive ────────────────────────────────────────── */
     @media (max-width: 900px) {
       .nav-tabs { width: 60px; }
@@ -609,7 +741,7 @@
       .sidebar-brand { padding: 14px; justify-content: center; }
       .sb-icon { margin: 0; }
       .app-header { left: 60px; }
-      .tab-section { margin-left: 60px; padding: 18px 14px; }
+      .tab-section { left: 60px; padding: 18px 14px; }
     }
   </style>
 </head>
@@ -1063,6 +1195,16 @@
       <span id="page-title" class="topbar-page">Panel</span>
     </div>
     <div class="usuario-info">
+      <div class="notif-wrap">
+        <button class="btn-notif" id="btn-notif" onclick="toggleNotificaciones(event)" title="Notificaciones">
+          <span style="font-size:1.05em;line-height:1">🔔</span><span class="notif-badge" id="notif-badge">0</span>
+        </button>
+        <div class="notif-panel" id="panel-notif">
+          <div class="notif-head"><strong>Notificaciones</strong>
+            <button onclick="marcarTodasLeidas()">Marcar todas como leídas</button></div>
+          <div class="notif-lista" id="notif-lista"><div class="notif-vacio">Cargando…</div></div>
+        </div>
+      </div>
       <div class="user-avatar" id="user-avatar">A</div>
       <strong id="nombreUsuario"></strong>
       <button class="btn-salir" onclick="cerrarSesion()">
@@ -1083,7 +1225,7 @@
 
     <!-- General -->
     <div class="sidebar-label">General</div>
-    <button class="tab-btn solo-admin activo" onclick="mostrarTab('panel')" id="tab-panel"><i class="bi bi-speedometer2"></i><span>Panel</span></button>
+    <button class="tab-btn activo" onclick="mostrarTab('panel')" id="tab-panel"><i class="bi bi-speedometer2"></i><span>Panel</span></button>
     <button class="tab-btn" onclick="mostrarTab('asistencia')" id="tab-asistencia"><i class="bi bi-person-check"></i><span>Asistencia</span></button>
     <button class="tab-btn" onclick="mostrarTab('reportes')" id="tab-reportes"><i class="bi bi-bar-chart-line"></i><span>Reportes</span></button>
     <button class="tab-btn" onclick="mostrarTab('comunicados')" id="tab-comunicados"><i class="bi bi-megaphone"></i><span>Comunicados</span></button>
@@ -1096,7 +1238,8 @@
     <button class="tab-btn solo-admin" onclick="mostrarTab('asignaturas')" id="tab-asignaturas"><i class="bi bi-journals"></i><span>Asignaturas</span></button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('horarios')" id="tab-horarios"><i class="bi bi-calendar3"></i><span>Horarios</span></button>
     <button class="tab-btn solo-admin" onclick="mostrarTab('aulas')" id="tab-aulas"><i class="bi bi-building"></i><span>Aulas</span></button>
-    <button class="tab-btn solo-admin" onclick="mostrarTab('notas')" id="tab-notas"><i class="bi bi-pencil-square"></i><span>Notas</span></button>
+    <div class="sidebar-label" id="sb-label-notas-prof" style="display:none">Académico</div>
+    <button class="tab-btn" id="tab-notas" onclick="mostrarTab('notas')"><i class="bi bi-pencil-square"></i><span>Notas</span></button>
 
     <!-- Personas -->
     <div class="sidebar-label solo-admin">Personas</div>
@@ -1110,10 +1253,11 @@
     <button class="tab-btn solo-admin" onclick="mostrarTab('configuracion')" id="tab-configuracion"><i class="bi bi-sliders"></i><span>Configuración</span></button>
   </div>
   <!-- ── TAB: PANEL ────────────────────────────────────────────── -->
-  <div class="tab-section solo-admin visible" id="sec-panel">
+  <div class="tab-section visible" id="sec-panel">
     <div class="seccion">
       <h2 style="margin-bottom:16px">👋 Bienvenido, <span id="panel-nombre-admin"></span></h2>
       <div id="panel-stats"></div>
+      <div id="panel-clases-dia" style="margin:16px 0"></div>
       <div id="panel-alertas" style="margin:16px 0"></div>
       <div id="panel-guia"></div>
     </div>
@@ -1139,13 +1283,51 @@
       </div>
     </div>
 
-    <!-- Registrar rostro -->
-    <div class="seccion">
+    <!-- Registrar rostro — solo admin -->
+    <div class="seccion solo-admin" id="sec-registrar-rostro">
       <h2>Registrar rostro de alumno</h2>
-      <div id="estadoCamara" style="color:gray; font-size:.88em; margin-bottom:6px"></div>
-      <label>ID Alumno: <input type="number" id="idAlumno" placeholder="Ej: 1" style="width:90px" /></label>
-      &nbsp;
-      <button class="btn-primary" onclick="registrarRostro()">📸 Capturar y Registrar</button>
+      <div id="estadoCamara" style="color:gray; font-size:.88em; margin-bottom:8px"></div>
+      <input type="hidden" id="idAlumno" />
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <label style="font-weight:600;font-size:.88em;color:#374151">Alumno:</label>
+        <select id="selectAlumnoRostro" onchange="seleccionarAlumnoRostro(this)" style="flex:1;min-width:220px;padding:7px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:.88em">
+          <option value="">— Selecciona un alumno —</option>
+        </select>
+      </div>
+      <div id="alumno-rostro-info" style="display:none;border-radius:8px;padding:10px 14px;margin-bottom:10px">
+        <div style="font-weight:600" id="alumno-rostro-nombre">—</div>
+        <div style="font-size:.82em;margin-top:2px" id="alumno-rostro-sub">Se registrarán 3 capturas faciales automáticamente</div>
+      </div>
+      <div id="panel-consentimiento" style="display:none;border:1px solid #fecaca;background:#fef2f2;border-radius:8px;padding:12px 14px;margin-bottom:10px">
+        <div style="font-weight:600;color:#991b1b;margin-bottom:4px">🔒 Consentimiento para el tratamiento de datos biométricos</div>
+        <div style="font-size:.82em;color:#7f1d1d;line-height:1.45;margin-bottom:10px">
+          El alumno es menor de edad. Para registrar su rostro, un apoderado debe autorizar el tratamiento de su dato
+          biométrico (Leyes N° 19.628 y N° 21.719). Solo se guarda el descriptor numérico del rostro, nunca la fotografía.
+        </div>
+        <div id="consent-form">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <select id="selectApoderadoConsiente" style="flex:1;min-width:220px;padding:7px 10px;border:1.5px solid #fecaca;border-radius:8px;font-size:.88em"></select>
+            <button class="btn-primary" id="btn-otorgar-consent" onclick="otorgarConsentimiento()">✅ Registrar consentimiento</button>
+          </div>
+          <label style="display:flex;gap:8px;align-items:flex-start;margin-top:8px;font-size:.82em;color:#7f1d1d;cursor:pointer">
+            <input type="checkbox" id="chk-consent-confirma" style="margin-top:2px">
+            <span>Confirmo que el apoderado seleccionado fue informado y autorizó el tratamiento del dato biométrico de su pupilo.</span>
+          </label>
+        </div>
+        <div id="consent-sin-apoderado" style="display:none;font-size:.85em;color:#7f1d1d">
+          Este alumno no tiene un apoderado vinculado. Vincúlalo primero en la pestaña
+          <a href="#" onclick="mostrarTab('apoderados');return false" style="color:#7c3aed;font-weight:600">Apoderados</a>.
+        </div>
+      </div>
+      <div id="consent-ok" style="display:none;font-size:.8em;color:#166534;margin-bottom:8px">
+        ✅ <span id="consent-ok-texto">Consentimiento del apoderado registrado</span>
+        · <a href="#" onclick="revocarConsentimiento();return false" style="color:#be123c">Revocar</a>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn-primary" onclick="registrarRostro()" id="btn-registrar-rostro" disabled style="opacity:.5">📸 Capturar y Registrar</button>
+        <button class="btn-secondary" onclick="confirmarReregistro()" id="btn-reregistrar-rostro" style="display:none">🔄 Re-registrar</button>
+        <button onclick="eliminarRostroAlumno()" id="btn-eliminar-rostro" style="display:none;background:#fff1f2;color:#be123c;border:1px solid #fecdd3;border-radius:8px;padding:6px 12px;font-size:.85em;cursor:pointer">🗑️ Eliminar rostro</button>
+      </div>
       <div id="resultadoRegistro" style="margin-top:8px"></div>
     </div>
 
@@ -1164,13 +1346,36 @@
       <div id="infoClase" style="color:gray; font-size:.88em; margin-top:6px"></div>
     </div>
 
-    <!-- Reconocimiento -->
-    <div class="seccion">
-      <h2>Reconocimiento automático</h2>
-      <div id="resultado" style="min-height:40px; font-size:1em">Esperando reconocimiento...</div>
-      <br>
-      <button class="btn-primary" onclick="iniciar()">▶ Iniciar</button>
-      <button class="btn-secondary" onclick="detener()">⏹ Detener</button>
+    <!-- Reconocimiento y lista de asistencia — solo profesores -->
+    <div class="seccion" id="sec-reconocimiento-profesor">
+
+      <!-- Cabecera: nombre de clase + contadores -->
+      <div id="asis-header" class="asis-header" style="display:none">
+        <div id="asis-clase-info" class="asis-clase-info"></div>
+        <div class="asis-contadores">
+          <span id="cnt-presentes" class="cnt-chip cnt-verde">0 presentes</span>
+          <span id="cnt-ausentes"  class="cnt-chip cnt-rojo">0 ausentes</span>
+        </div>
+      </div>
+
+      <!-- Banner: asistencia ya guardada -->
+      <div id="asis-banner" class="asis-banner" style="display:none"></div>
+
+      <!-- Lista de alumnos -->
+      <div id="lista-asis" class="lista-asis-placeholder">
+        Selecciona una clase para ver la lista de alumnos
+      </div>
+
+      <!-- Controles: Iniciar / Detener / Guardar -->
+      <div id="asis-controles" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center">
+        <button id="btn-iniciar-rec" class="btn-primary" onclick="iniciar()" disabled>▶ Iniciar Reconocimiento</button>
+        <button id="btn-detener-rec" class="btn-secondary" onclick="detener()" style="display:none">⏹ Detener</button>
+        <button id="btn-borrador-asis" class="btn-borrador-asis" onclick="guardarAsistencia(false)" style="display:none">💾 Guardar borrador</button>
+        <button id="btn-definitivo-asis" class="btn-guardar-asis" onclick="guardarAsistencia(true)" style="display:none">🔒 Registrar definitivamente</button>
+      </div>
+
+      <!-- Resultado del reconocimiento en vivo -->
+      <div id="resultado" class="asis-resultado">Esperando reconocimiento...</div>
     </div>
   </div>
 
@@ -1190,9 +1395,9 @@
       <div id="rsec-alumno">
         <h2 style="margin-bottom:12px">📊 Asistencia por alumno</h2>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
-          <input type="text" id="buscar-alumno-reporte" placeholder="🔍 Buscar por nombre o RUT..."
-                 style="flex:1;min-width:200px;padding:8px 12px;border:1px solid #ccc;border-radius:6px"
-                 oninput="filtrarAlumnosReporte()" />
+          <input type="text" id="buscar-alumno-reporte" placeholder="Buscar por nombre o RUT..."
+                 style="flex:1;min-width:200px;margin-bottom:0"
+                 oninput="filtrarAlumnosReporte()" class="search-input" />
           <div id="lista-alumnos-reporte" style="position:relative;flex:1;min-width:200px"></div>
         </div>
         <div id="resultado-reporte-alumno"></div>
@@ -1287,9 +1492,8 @@
           <button class="btn-primary" onclick="abrirModal('alumno')">+ Nuevo Alumno</button>
         </span>
       </h2>
-      <input type="text" id="buscar-alumnos" placeholder="🔍 Buscar por nombre, RUT o curso..."
-             oninput="filtrarTabla('tbodyAlumnos', this.value)"
-             style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;margin-bottom:8px;box-sizing:border-box" />
+      <input type="text" id="buscar-alumnos" placeholder="Buscar por nombre, RUT o curso..."
+             oninput="filtrarTabla('tbodyAlumnos', this.value)" class="search-input" />
       <div id="msg-alumnos" style="margin-bottom:8px"></div>
       <table id="tablaAlumnos">
         <thead>
@@ -1310,9 +1514,8 @@
           <button class="btn-primary" onclick="abrirModal('curso')">+ Nuevo Curso</button>
         </span>
       </h2>
-      <input type="text" id="buscar-cursos" placeholder="🔍 Buscar por nombre, nivel o profesor jefe..."
-             oninput="filtrarTabla('tbodyCursos', this.value)"
-             style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;margin-bottom:8px;box-sizing:border-box" />
+      <input type="text" id="buscar-cursos" placeholder="Buscar por nombre, nivel o profesor jefe..."
+             oninput="filtrarTabla('tbodyCursos', this.value)" class="search-input" />
       <div id="msg-cursos" style="margin-bottom:8px"></div>
       <table id="tablaCursos">
         <thead>
@@ -1331,9 +1534,8 @@
           <button class="btn-primary" onclick="abrirModal('profesor')">+ Nuevo Profesor</button>
         </span>
       </h2>
-      <input type="text" id="buscar-profesores" placeholder="🔍 Buscar por nombre, RUT o especialidad..."
-             oninput="filtrarTabla('tbodyProfesores', this.value)"
-             style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;margin-bottom:8px;box-sizing:border-box" />
+      <input type="text" id="buscar-profesores" placeholder="Buscar por nombre, RUT o especialidad..."
+             oninput="filtrarTabla('tbodyProfesores', this.value)" class="search-input" />
       <div id="msg-profesores" style="margin-bottom:8px"></div>
       <table id="tablaProfesores">
         <thead>
@@ -1348,31 +1550,38 @@
   <div class="tab-section" id="sec-horarios">
     <div class="seccion">
       <h2>Gestión de Horarios
-        <span style="float:right">
+        <span style="float:right;display:flex;gap:8px">
+          <button id="btn-vista-horario" class="btn-secondary" onclick="toggleVistaHorario()" style="font-size:.82em"><i class="bi bi-calendar-week"></i> Vista calendario</button>
           <button class="btn-primary" onclick="abrirModal('horario')">+ Nuevo Bloque</button>
         </span>
       </h2>
-      <div style="margin-bottom:8px">
-        Filtrar por día:
-        <select id="filtro-dia-horario" onchange="cargarTablaHorarios()" style="margin-left:4px">
-          <option value="">Todos los días</option>
-          <option value="1">Lunes</option>
-          <option value="2">Martes</option>
-          <option value="3">Miércoles</option>
-          <option value="4">Jueves</option>
-          <option value="5">Viernes</option>
-        </select>
+
+      <!-- Vista tabla -->
+      <div id="vista-tabla-horarios">
+        <div style="margin-bottom:8px">
+          Filtrar por día:
+          <select id="filtro-dia-horario" onchange="cargarTablaHorarios()" style="margin-left:4px">
+            <option value="">Todos los días</option>
+            <option value="1">Lunes</option>
+            <option value="2">Martes</option>
+            <option value="3">Miércoles</option>
+            <option value="4">Jueves</option>
+            <option value="5">Viernes</option>
+          </select>
+        </div>
+        <input type="text" id="buscar-horarios" placeholder="Buscar por curso, asignatura, profesor o sala..."
+               oninput="filtrarTabla('tbodyHorarios', this.value)" class="search-input" />
+        <div id="msg-horarios" style="margin-bottom:8px"></div>
+        <table id="tablaHorarios">
+          <thead>
+            <tr><th>Día</th><th>Hora</th><th>Curso</th><th>Asignatura</th><th>Profesor</th><th>Sala</th><th>Acciones</th></tr>
+          </thead>
+          <tbody id="tbodyHorarios"></tbody>
+        </table>
       </div>
-      <input type="text" id="buscar-horarios" placeholder="🔍 Buscar por curso, asignatura, profesor o sala..."
-             oninput="filtrarTabla('tbodyHorarios', this.value)"
-             style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;margin-bottom:8px;box-sizing:border-box" />
-      <div id="msg-horarios" style="margin-bottom:8px"></div>
-      <table id="tablaHorarios">
-        <thead>
-          <tr><th>Día</th><th>Hora</th><th>Curso</th><th>Asignatura</th><th>Profesor</th><th>Sala</th><th>Acciones</th></tr>
-        </thead>
-        <tbody id="tbodyHorarios"></tbody>
-      </table>
+
+      <!-- Vista calendario semanal -->
+      <div id="vista-cal-horarios" style="display:none;overflow-x:auto"></div>
     </div>
   </div>
 
@@ -1431,11 +1640,11 @@
   </div>
 
   <!-- ── TAB: NOTAS ──────────────────────────────────────────── -->
-  <div class="tab-section solo-admin" id="sec-notas">
+  <div class="tab-section" id="sec-notas">
     <div class="seccion">
       <!-- Sub-tabs de notas -->
       <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
-        <button id="ntab-periodos"     class="btn-primary"   onclick="mostrarNotasTab('periodos')"   style="font-size:.88em">📅 Períodos</button>
+        <button id="ntab-periodos"     class="btn-primary solo-admin"   onclick="mostrarNotasTab('periodos')"   style="font-size:.88em">📅 Períodos</button>
         <button id="ntab-evaluaciones" class="btn-secondary" onclick="mostrarNotasTab('evaluaciones')" style="font-size:.88em">📋 Evaluaciones</button>
         <button id="ntab-calificaciones" class="btn-secondary" onclick="mostrarNotasTab('calificaciones')" style="font-size:.88em">📝 Ingresar Notas</button>
       </div>
@@ -1459,7 +1668,7 @@
             <select id="filtro-periodo-eval" onchange="cargarEvaluaciones()" style="padding:6px;border-radius:6px;border:1px solid #ccc">
               <option value="">Todos los períodos</option>
             </select>
-            <button class="btn-primary" onclick="abrirModalNotas('evaluacion')">+ Nueva Evaluación</button>
+            <button class="btn-primary solo-admin" onclick="abrirModalNotas('evaluacion')">+ Nueva Evaluación</button>
           </div>
         </div>
         <div id="msg-evaluaciones" style="margin-bottom:8px"></div>
@@ -1491,9 +1700,8 @@
           <button class="btn-primary" onclick="abrirModal('apoderado')">+ Nuevo Apoderado</button>
         </span>
       </h2>
-      <input type="text" id="buscar-apoderados" placeholder="🔍 Buscar por nombre, RUT o alumno vinculado..."
-             oninput="filtrarTabla('tbodyApoderados', this.value)"
-             style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;margin-bottom:8px;box-sizing:border-box" />
+      <input type="text" id="buscar-apoderados" placeholder="Buscar por nombre, RUT o alumno vinculado..."
+             oninput="filtrarTabla('tbodyApoderados', this.value)" class="search-input" />
       <div id="msg-apoderados" style="margin-bottom:8px"></div>
       <table><thead>
         <tr><th>ID</th><th>RUT</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Parentesco</th><th>Alumno(s)</th><th>Acciones</th></tr>
@@ -1600,7 +1808,7 @@
             <option value="500">500</option>
           </select>
         </div>
-        <button class="btn-primary" onclick="cargarBitacora()" style="font-size:.83em">🔍 Filtrar</button>
+        <button class="btn-primary" onclick="cargarBitacora()" style="font-size:.83em"><i class="bi bi-funnel-fill"></i> Filtrar</button>
       </div>
 
       <div id="tabla-bitacora"><p style="color:gray;font-size:.88em">⏳ Cargando...</p></div>

@@ -5,13 +5,14 @@ const { verificarToken, soloAdmin, adminOProfesor } = require('../middleware/aut
 
 // ─── EVALUACIONES ────────────────────────────────────────────────
 
-// GET /evaluaciones  (filtrables por ?id_asignatura=N &id_periodo=N)
+// GET /evaluaciones  (filtrables por ?id_asignatura=N &id_periodo=N &id_profesor=N)
 router.get('/', verificarToken, adminOProfesor, async (req, res) => {
-  const { id_asignatura, id_periodo } = req.query;
+  const { id_asignatura, id_periodo, id_profesor } = req.query;
   try {
     let where = 'WHERE 1=1'; const params = [];
     if (id_asignatura) { params.push(id_asignatura); where += ` AND e.id_asignatura=$${params.length}`; }
     if (id_periodo)    { params.push(id_periodo);    where += ` AND e.id_periodo=$${params.length}`; }
+    if (id_profesor)   { params.push(id_profesor);   where += ` AND e.id_asignatura IN (SELECT DISTINCT id_asignatura FROM horarios WHERE id_profesor=$${params.length})`; }
     const r = await pool.query(
       `SELECT e.*, asig.nombre AS asignatura, asig.codigo AS codigo_asig,
               p.nombre AS periodo

@@ -125,6 +125,13 @@ async function registrarRostro() {
     const d = await r.json()
     divReg.innerHTML = r.ok ? `<span class="mensaje-ok">✅ ${d.mensaje}</span>`
                              : `<span class="mensaje-err">❌ ${d.error}</span>`
+    if (r.ok) {
+      _alumnoTieneRostro[parseInt(idAlumno)] = true
+      await cargarSelectAlumnos()
+      const sel = document.getElementById('selectAlumnoRostro')
+      if (sel) { sel.value = idAlumno; seleccionarAlumnoRostro(sel) }
+      if (typeof tabActual !== 'undefined' && tabActual === 'alumnos') cargarTablaAlumnos()
+    }
   } catch (err) { divReg.innerHTML = `❌ Error de red: ${err.message}` }
 }
 
@@ -144,17 +151,16 @@ function conectarWebSocket() {
   ws.onmessage = (evento) => {
     const r   = JSON.parse(evento.data)
     const div = document.getElementById('resultado')
-    if (r.exito) {
-      // Reconocido y marcado (o ya estaba marcado hace menos de 1 minuto)
-      div.innerHTML = `✅ <strong>${r.alumno.nombre} ${r.alumno.apellido}</strong><br>
-         RUT: ${r.alumno.rut} — Confianza: ${r.alumno.confianza}<br>
-         <small class="mensaje-ok">${r.ya_registrado ? 'Asistencia ya registrada ✓' : 'Asistencia registrada ✓'}</small>`
-    } else if (r.reconocido && r.alumno) {
-      // Reconocido pero la marca fue rechazada (otro curso, día incorrecto...)
-      div.innerHTML = `⚠️ <strong>${r.alumno.nombre} ${r.alumno.apellido}</strong><br>
-         <small class="mensaje-err">${r.mensaje}</small>`
+    if (r.exito && r.alumno) {
+      const conf = r.alumno.confianza ? ` — ${Math.round(r.alumno.confianza * 100)}%` : ''
+      div.innerHTML = `📸 <strong>${r.alumno.nombre} ${r.alumno.apellido}</strong>${conf}`
+      if (!r.ya_enviado && typeof marcarPresente === 'function') {
+        marcarPresente(r.alumno.id, 'facial')
+      }
     } else {
-      div.innerHTML = `❌ ${r.mensaje}`
+      div.innerHTML = r.mensaje === 'Rostro no reconocido'
+        ? '🔍 Buscando...'
+        : `<span class="mensaje-err">⚠️ ${r.mensaje || 'Sin resultado'}</span>`
     }
   }
 }
@@ -184,18 +190,28 @@ function detener() {
   detenerPreview()
   if (intervaloReconocimiento) { clearInterval(intervaloReconocimiento); intervaloReconocimiento = null }
   if (ws) { ws.close(); ws = null }
-  document.getElementById('resultado').innerHTML = 'Reconocimiento detenido.'
+  const res = document.getElementById('resultado')
+  if (res) res.innerHTML = 'Reconocimiento detenido.'
+  const btnIni = document.getElementById('btn-iniciar-rec')
+  const btnDet = document.getElementById('btn-detener-rec')
+  if (btnIni && typeof _asistenciaGuardada !== 'undefined' && !_asistenciaGuardada) btnIni.disabled = false
+  if (btnDet) btnDet.style.display = 'none'
 }
 
 async function iniciar() {
   const id_horario = document.getElementById('selectorHorario').value
   const fecha      = document.getElementById('fechaClase').value
   if (!id_horario || !fecha) { alert('Selecciona la clase activa primero'); return }
-  document.getElementById('resultado').innerHTML = 'Cargando modelos...'
+  const res = document.getElementById('resultado')
+  if (res) res.innerHTML = 'Cargando modelos...'
   if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
   if (!modoIP) await activarWebcam()
   conectarWebSocket()
   if (intervaloReconocimiento) clearInterval(intervaloReconocimiento)
   intervaloReconocimiento = setInterval(enviarFrame, 2000)
-  document.getElementById('resultado').innerHTML = 'Buscando rostros...'
+  if (res) res.innerHTML = '🔍 Buscando rostros...'
+  const btnIni = document.getElementById('btn-iniciar-rec')
+  const btnDet = document.getElementById('btn-detener-rec')
+  if (btnIni) btnIni.disabled = true
+  if (btnDet) btnDet.style.display = 'inline-block'
 }

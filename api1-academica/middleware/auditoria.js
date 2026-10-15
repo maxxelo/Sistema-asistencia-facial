@@ -10,6 +10,7 @@ const MAPA_TABLAS = {
   'asignaturas':  'asignaturas',
   'aulas':        'aulas',
   'periodos':     'periodos_academicos',
+  'feriados':     'feriados',
   'evaluaciones': 'evaluaciones',
   'apoderados':   'apoderados',
   'ficha-medica': 'ficha_medica',

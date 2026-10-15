@@ -13,12 +13,14 @@ const usuariosRoutes     = require('./routes/usuarios');
 const asignaturasRoutes  = require('./routes/asignaturas');
 const aulasRoutes        = require('./routes/aulas');
 const periodosRoutes     = require('./routes/periodos');
+const feriadosRoutes     = require('./routes/feriados');
 const evaluacionesRoutes = require('./routes/evaluaciones');
 const apoderadosRoutes   = require('./routes/apoderados');
 const fichaMedicaRoutes  = require('./routes/ficha_medica');
 const comunicadosRoutes  = require('./routes/comunicados');
 const parametrosRoutes   = require('./routes/parametros');
 const bitacoraRoutes     = require('./routes/bitacora');
+const notificacionesRoutes = require('./routes/notificaciones');
 const auditoria          = require('./middleware/auditoria');
 
 const app = express();
@@ -57,12 +59,14 @@ app.use('/usuarios',     usuariosRoutes);
 app.use('/asignaturas',  asignaturasRoutes);
 app.use('/aulas',        aulasRoutes);
 app.use('/periodos',     periodosRoutes);
+app.use('/feriados',     feriadosRoutes);
 app.use('/evaluaciones', evaluacionesRoutes);
 app.use('/apoderados',   apoderadosRoutes);
 app.use('/ficha-medica', fichaMedicaRoutes);
 app.use('/comunicados',  comunicadosRoutes);
 app.use('/parametros',   parametrosRoutes);
 app.use('/bitacora',     bitacoraRoutes);
+app.use('/notificaciones', notificacionesRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/connection');
 const { verificarToken, soloAdmin, adminOProfesor } = require('../middleware/auth');
+const { generarAlertas } = require('../lib/alertas');
 
 const NOMBRE_DIA = { 1: 'lunes', 2: 'martes', 3: 'miércoles', 4: 'jueves', 5: 'viernes', 6: 'sábado', 7: 'domingo' };
 
@@ -23,7 +24,7 @@ function fechaValida(fechaStr) {
 // Auth: JWT (Admin o Profesor)
 // =====================================================
 router.post('/marcar', verificarToken, adminOProfesor, async (req, res) => {
-  const { id_curso, id_horario, fecha, alumnos } = req.body;
+  const { id_curso, id_horario, fecha, alumnos, definitivo } = req.body;
   const id_profesor = req.usuario.id_profesor || null;
 
   if (!id_curso || !id_horario || !fecha || !Array.isArray(alumnos) || alumnos.length === 0) {
@@ -90,8 +91,21 @@ router.post('/marcar', verificarToken, adminOProfesor, async (req, res) => {
       );
     }
 
+    if (definitivo === true) {
+      await client.query('UPDATE asistencia_cabecera SET guardada = TRUE WHERE id = $1', [id_cabecera]);
+    }
     await client.query('COMMIT');
-    res.status(201).json({ mensaje: 'Asistencia registrada correctamente', id_cabecera });
+
+    // R.26: al dejar el registro definitivo se revisan los alumnos y se notifica a quienes
+    // quedaron bajo el umbral de asistencia. Es complementario: si falla, no afecta el registro.
+    const alertas = definitivo === true ? await generarAlertas(alumnos.map(a => a.id_alumno)) : 0;
+
+    res.status(201).json({
+      mensaje: definitivo ? 'Asistencia registrada definitivamente' : 'Borrador guardado',
+      id_cabecera,
+      guardada: definitivo === true,
+      alertas_generadas: alertas
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('[POST /marcar]', err.message);
@@ -267,6 +281,183 @@ router.get('/alumno/:id', verificarToken, adminOProfesor, async (req, res) => {
 });
 
 // =====================================================
+// GET /asistencia/vidas
+// Para cada alumno del curso, calcula cuántas ausencias le quedan
+// antes de reprobar (15 % máx según ley). Excluye la fecha actual
+// para no contar el borrador/sesión activa de hoy.
+// Query params: ?id_horario=N&id_curso=M&fecha=YYYY-MM-DD
+// Returns: [{ id_alumno, total_clases, max_ausencias, ausencias_previas }]
+// Auth: JWT (Admin o Profesor)
+// =====================================================
+router.get('/vidas', verificarToken, adminOProfesor, async (req, res) => {
+  const { id_horario, id_curso, fecha } = req.query;
+  if (!id_horario || !id_curso) {
+    return res.status(400).json({ error: 'Se requieren id_horario e id_curso' });
+  }
+  try {
+    const r = await pool.query(`
+      WITH periodo AS (
+        SELECT fecha_inicio, fecha_fin
+        FROM periodos_academicos
+        WHERE activo = TRUE
+        LIMIT 1
+      ),
+      total_clases_cte AS (
+        SELECT COALESCE((
+          SELECT COUNT(*)::int
+          FROM generate_series(
+            (SELECT fecha_inicio FROM periodo),
+            (SELECT fecha_fin   FROM periodo),
+            '1 day'::interval
+          ) d
+          WHERE EXTRACT(ISODOW FROM d) = (
+            SELECT h.dia_semana FROM horarios h WHERE h.id = $1
+          )
+          -- Excluir feriados y días no lectivos: no cuentan como clases
+          AND d::date NOT IN (SELECT fecha FROM feriados)
+        ), 0) AS total
+      ),
+      ausencias_cte AS (
+        SELECT ad.id_alumno, COUNT(*)::int AS n
+        FROM asistencia_detalle ad
+        JOIN asistencia_cabecera ac ON ac.id = ad.id_asistencia_cabecera
+        WHERE ac.id_horario = $1
+          AND ad.presente = FALSE
+          AND ($3::date IS NULL OR ac.fecha != $3::date)
+        GROUP BY ad.id_alumno
+      )
+      SELECT
+        a.id                             AS id_alumno,
+        tc.total                         AS total_clases,
+        FLOOR(tc.total * 0.15)::int      AS max_ausencias,
+        COALESCE(aus.n, 0)               AS ausencias_previas
+      FROM alumnos a
+      CROSS JOIN total_clases_cte tc
+      LEFT JOIN ausencias_cte aus ON aus.id_alumno = a.id
+      WHERE a.id_curso = $2 AND a.activo = TRUE
+      ORDER BY a.apellido_paterno, a.nombre
+    `, [id_horario, id_curso, fecha || null]);
+    res.json(r.rows);
+  } catch (err) {
+    console.error('[GET /asistencia/vidas]', err.message);
+    res.status(500).json({ error: 'Error al calcular vidas' });
+  }
+});
+
+// =====================================================
+// GET /asistencia/estado
+// Estado rápido de asistencia de un horario en una fecha
+// Query params: ?fecha=YYYY-MM-DD&id_horario=N
+// Returns: { estado: 'nueva'|'borrador'|'definitivo', presentes, total, id_cabecera }
+// Auth: JWT (Admin o Profesor)
+// =====================================================
+router.get('/estado', verificarToken, adminOProfesor, async (req, res) => {
+  const { fecha, id_horario } = req.query;
+  if (!fecha || !id_horario) {
+    return res.status(400).json({ error: 'Se requieren fecha e id_horario' });
+  }
+  try {
+    const r = await pool.query(
+      `SELECT ac.id, ac.guardada,
+              COUNT(asis.id) FILTER (WHERE asis.presente = TRUE) AS presentes,
+              COUNT(asis.id) AS total
+       FROM asistencia_cabecera ac
+       LEFT JOIN asistencia_detalle asis ON asis.id_asistencia_cabecera = ac.id
+       WHERE ac.id_horario = $1 AND ac.fecha = $2
+       GROUP BY ac.id, ac.guardada`,
+      [id_horario, fecha]
+    );
+    if (!r.rows.length) return res.json({ estado: 'nueva', presentes: 0, total: 0 });
+    const row = r.rows[0];
+    res.json({
+      estado:       row.guardada ? 'definitivo' : 'borrador',
+      presentes:    parseInt(row.presentes) || 0,
+      total:        parseInt(row.total)     || 0,
+      id_cabecera:  row.id
+    });
+  } catch (err) {
+    console.error('[GET /asistencia/estado]', err.message);
+    res.status(500).json({ error: 'Error al obtener estado de asistencia' });
+  }
+});
+
+// =====================================================
+// GET /asistencia/resumen-dia
+// Dashboard: todas las clases programadas para una fecha con su estado de
+// asistencia (pendiente / borrador / definitivo). Alimenta el panel del admin.
+// Query obligatorio: ?fecha=YYYY-MM-DD   Opcional: ?id_profesor=N
+// Auth: JWT (Admin o Profesor)
+// =====================================================
+router.get('/resumen-dia', verificarToken, adminOProfesor, async (req, res) => {
+  const { fecha, id_profesor } = req.query;
+  if (!fecha) return res.status(400).json({ error: 'Se requiere fecha' });
+  try {
+    const params = [fecha];
+    let filtroProf = '';
+    if (id_profesor) {
+      params.push(id_profesor);
+      filtroProf = ` AND h.id_profesor = $${params.length}`;
+    }
+
+    // ¿La fecha es feriado? Lo informamos para que el panel lo muestre.
+    const feriadoRes = await pool.query('SELECT descripcion FROM feriados WHERE fecha = $1', [fecha]);
+
+    const r = await pool.query(
+      `SELECT
+         h.id              AS id_horario,
+         h.hora_inicio, h.hora_fin, h.sala,
+         c.id              AS id_curso,
+         c.nombre          AS curso,
+         asig.nombre       AS asignatura,
+         p.nombre || ' ' || p.apellido_paterno AS profesor,
+         ac.id             AS id_cabecera,
+         ac.guardada,
+         COUNT(ad.id) FILTER (WHERE ad.presente = TRUE) AS presentes,
+         COUNT(ad.id)      AS marcados,
+         (SELECT COUNT(*) FROM alumnos al WHERE al.id_curso = c.id AND al.activo = TRUE) AS total_alumnos
+       FROM horarios h
+       JOIN cursos      c    ON h.id_curso = c.id AND c.activo = TRUE
+       JOIN asignaturas asig ON h.id_asignatura = asig.id
+       JOIN profesores  p    ON h.id_profesor = p.id
+       LEFT JOIN asistencia_cabecera ac ON ac.id_horario = h.id AND ac.fecha = $1
+       LEFT JOIN asistencia_detalle  ad ON ad.id_asistencia_cabecera = ac.id
+       WHERE h.dia_semana = EXTRACT(ISODOW FROM $1::date)${filtroProf}
+       GROUP BY h.id, c.id, c.nombre, asig.nombre, p.nombre, p.apellido_paterno, ac.id, ac.guardada
+       ORDER BY h.hora_inicio, c.nombre`,
+      params
+    );
+
+    const clases = r.rows.map(row => ({
+      id_horario:    row.id_horario,
+      id_curso:      row.id_curso,
+      curso:         row.curso,
+      asignatura:    row.asignatura,
+      profesor:      row.profesor,
+      hora_inicio:   row.hora_inicio,
+      hora_fin:      row.hora_fin,
+      sala:          row.sala,
+      total_alumnos: parseInt(row.total_alumnos) || 0,
+      presentes:     parseInt(row.presentes) || 0,
+      marcados:      parseInt(row.marcados) || 0,
+      estado: row.id_cabecera === null ? 'pendiente' : (row.guardada ? 'definitivo' : 'borrador')
+    }));
+
+    res.json({
+      fecha,
+      feriado: feriadoRes.rows.length ? feriadoRes.rows[0].descripcion : null,
+      total_clases: clases.length,
+      pendientes:   clases.filter(c => c.estado === 'pendiente').length,
+      borradores:   clases.filter(c => c.estado === 'borrador').length,
+      definitivos:  clases.filter(c => c.estado === 'definitivo').length,
+      clases
+    });
+  } catch (err) {
+    console.error('[GET /asistencia/resumen-dia]', err.message);
+    res.status(500).json({ error: 'Error al obtener resumen del día' });
+  }
+});
+
+// =====================================================
 // GET /asistencia/curso/:id
 // Lista de asistencia de los alumnos de un curso en una fecha
 // Query params obligatorio : ?fecha=YYYY-MM-DD
@@ -297,10 +488,12 @@ router.get('/curso/:id', verificarToken, adminOProfesor, async (req, res) => {
     const result = await pool.query(
       `SELECT
         al.id                        AS id_alumno,
+        al.rut,
         al.nombre,
         al.apellido_paterno,
         al.apellido_materno,
         ac.id                        AS id_cabecera,
+        COALESCE(ac.guardada, FALSE)  AS guardada,
         asig.nombre                  AS asignatura,
         h.id                         AS id_horario,
         h.hora_inicio,

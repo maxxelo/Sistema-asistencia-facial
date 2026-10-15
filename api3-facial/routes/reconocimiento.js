@@ -63,6 +63,7 @@ async function buscarAlumno(descriptorRecibido) {
     FROM rostros r
     JOIN alumnos a ON r.id_alumno = a.id
     WHERE r.activo = TRUE AND a.activo = TRUE
+      AND a.consentimiento_biometrico = TRUE   -- sin consentimiento no se reconoce (R.40)
   `)
 
   if (resultado.rows.length === 0) {
@@ -107,11 +108,18 @@ async function buscarAlumno(descriptorRecibido) {
 // Devuelve cuántas capturas quedaron registradas.
 async function registrarRostro(idAlumno, descriptores) {
   const alumno = await pool.query(
-    'SELECT id, activo FROM alumnos WHERE id = $1',
+    'SELECT id, activo, consentimiento_biometrico FROM alumnos WHERE id = $1',
     [idAlumno]
   )
   if (alumno.rows.length === 0) throw new Error('Alumno no encontrado')
   if (!alumno.rows[0].activo)   throw new Error('El alumno está inactivo')
+  // R.40 · Leyes 19.628 y 21.719: el alumno es menor de edad y su dato biométrico
+  // solo puede tratarse con el consentimiento de su apoderado.
+  if (!alumno.rows[0].consentimiento_biometrico) {
+    const err = new Error('El alumno no tiene el consentimiento de su apoderado para el tratamiento de datos biométricos')
+    err.codigo = 'SIN_CONSENTIMIENTO'
+    throw err
+  }
 
   if (!Array.isArray(descriptores) || descriptores.length === 0) {
     throw new Error('Se requiere al menos un descriptor facial')

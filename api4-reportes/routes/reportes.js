@@ -3,6 +3,7 @@ const router  = express.Router();
 const pool    = require('../db/connection');
 const PDFDocument = require('pdfkit');
 const { verificarToken, soloAdmin, adminOProfesor } = require('../middleware/auth');
+const { permisoCurso, permisoAlumno, permisoHorario, cursosDelProfesor } = require('../middleware/permisos');
 
 // ── Historial de reportes (tablas reportes_plantillas / reportes_generados) ──
 // Deja constancia de cada reporte emitido y quién lo generó.
@@ -112,7 +113,7 @@ function pdfTabla(doc, columnas, filas, yInicial) {
 //   - flag de riesgo (<= umbral configurable, default 85%)
 // Auth: Admin o Profesor
 // =====================================================
-router.get('/asistencia/alumno/:id', verificarToken, adminOProfesor, async (req, res) => {
+router.get('/asistencia/alumno/:id', verificarToken, adminOProfesor, permisoAlumno, async (req, res) => {
   const { id } = req.params;
   const umbral = parseFloat(req.query.umbral) || 85;
   if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
@@ -206,7 +207,7 @@ router.get('/asistencia/alumno/:id', verificarToken, adminOProfesor, async (req,
 // Devuelve: lista de alumnos con % global y por asignatura.
 // Auth: Admin o Profesor
 // =====================================================
-router.get('/asistencia/curso/:id', verificarToken, adminOProfesor, async (req, res) => {
+router.get('/asistencia/curso/:id', verificarToken, adminOProfesor, permisoCurso, async (req, res) => {
   const { id } = req.params;
   const umbral = parseFloat(req.query.umbral) || 85;
   if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
@@ -299,6 +300,10 @@ router.get('/asistencia/riesgo', verificarToken, adminOProfesor, async (req, res
   const umbral = parseFloat(req.query.umbral) || 85;
 
   try {
+    // R.23: el profesor solo ve a los alumnos de los cursos que le están asignados
+    const soloCursos = req.usuario.tipo_persona === 'admin'
+      ? null
+      : await cursosDelProfesor(req.usuario.id_profesor);
     const result = await pool.query(
       `SELECT
          a.id, a.rut,
@@ -313,12 +318,13 @@ router.get('/asistencia/riesgo', verificarToken, adminOProfesor, async (req, res
        LEFT JOIN cursos c ON a.id_curso = c.id
        LEFT JOIN asistencia_detalle ad ON ad.id_alumno = a.id
        WHERE a.activo = TRUE
+         AND ($2::int[] IS NULL OR a.id_curso = ANY($2::int[]))
        GROUP BY a.id, a.rut, a.nombre, a.apellido_paterno, c.nombre, c.nivel
        HAVING COUNT(ad.id) > 0
           AND ROUND(100.0 * SUM(CASE WHEN ad.presente THEN 1 ELSE 0 END)
                 / NULLIF(COUNT(ad.id),0), 1) < $1
        ORDER BY porcentaje ASC, c.nombre, a.apellido_paterno`,
-      [umbral]
+      [umbral, soloCursos]
     );
 
     res.json({
@@ -382,7 +388,7 @@ router.get('/asistencia/colegio', verificarToken, soloAdmin, async (req, res) =>
 // Exporta la asistencia del curso como CSV
 // Auth: Admin o Profesor
 // =====================================================
-router.get('/csv/curso/:id', verificarToken, adminOProfesor, async (req, res) => {
+router.get('/csv/curso/:id', verificarToken, adminOProfesor, permisoCurso, async (req, res) => {
   const { id } = req.params;
   if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
 
@@ -438,7 +444,7 @@ router.get('/csv/curso/:id', verificarToken, adminOProfesor, async (req, res) =>
 // Exporta el historial de asistencia de un alumno como CSV
 // Auth: Admin o Profesor
 // =====================================================
-router.get('/csv/alumno/:id', verificarToken, adminOProfesor, async (req, res) => {
+router.get('/csv/alumno/:id', verificarToken, adminOProfesor, permisoAlumno, async (req, res) => {
   const { id } = req.params;
   if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
 
@@ -497,7 +503,7 @@ router.get('/csv/alumno/:id', verificarToken, adminOProfesor, async (req, res) =
 // Informe de asistencia de un alumno en PDF
 // Auth: Admin o Profesor
 // =====================================================
-router.get('/pdf/alumno/:id', verificarToken, adminOProfesor, async (req, res) => {
+router.get('/pdf/alumno/:id', verificarToken, adminOProfesor, permisoAlumno, async (req, res) => {
   const { id } = req.params;
   if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
 
@@ -628,7 +634,7 @@ router.get('/pdf/alumno/:id', verificarToken, adminOProfesor, async (req, res) =
 // Informe de asistencia de un curso completo en PDF
 // Auth: Admin o Profesor
 // =====================================================
-router.get('/pdf/curso/:id', verificarToken, adminOProfesor, async (req, res) => {
+router.get('/pdf/curso/:id', verificarToken, adminOProfesor, permisoCurso, async (req, res) => {
   const { id } = req.params;
   if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
 
@@ -704,6 +710,342 @@ router.get('/pdf/curso/:id', verificarToken, adminOProfesor, async (req, res) =>
   } catch (err) {
     console.error('[GET /reportes/pdf/curso/:id]', err.message);
     if (!res.headersSent) res.status(500).json({ error: 'Error al generar PDF del curso' });
+  }
+});
+
+// =====================================================
+// GET /reportes/pdf/libro-clases/:id   (id = horario)
+// Libro de clases: matriz alumnos × fechas con P (presente) / A (ausente) /
+// J (justificado). Formato horizontal (landscape). Reemplaza el libro físico.
+// Auth: Admin o Profesor
+// =====================================================
+router.get('/pdf/libro-clases/:id', verificarToken, adminOProfesor, permisoHorario, async (req, res) => {
+  const { id } = req.params;
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+  try {
+    const horarioRes = await pool.query(
+      `SELECT h.id, h.id_curso, h.dia_semana, h.hora_inicio, h.hora_fin,
+              c.nombre AS curso, c.anio,
+              asig.nombre AS asignatura,
+              p.nombre || ' ' || p.apellido_paterno AS profesor
+       FROM horarios h
+       JOIN cursos c        ON h.id_curso = c.id
+       JOIN asignaturas asig ON h.id_asignatura = asig.id
+       JOIN profesores p    ON h.id_profesor = p.id
+       WHERE h.id = $1`, [id]
+    );
+    if (!horarioRes.rows.length) return res.status(404).json({ error: 'Horario no encontrado' });
+    const hor = horarioRes.rows[0];
+
+    const fechasRes = await pool.query(
+      'SELECT fecha FROM asistencia_cabecera WHERE id_horario = $1 ORDER BY fecha', [id]
+    );
+    const fechas = fechasRes.rows.map(r => r.fecha);
+
+    const alumnosRes = await pool.query(
+      `SELECT id, apellido_paterno || ' ' || COALESCE(apellido_materno,'') || ', ' || nombre AS alumno
+       FROM alumnos WHERE id_curso = $1 AND activo = TRUE
+       ORDER BY apellido_paterno, apellido_materno, nombre`, [hor.id_curso]
+    );
+    const alumnos = alumnosRes.rows;
+
+    const detalleRes = await pool.query(
+      `SELECT ad.id_alumno, ac.fecha, ad.presente, j.estado AS just_estado
+       FROM asistencia_detalle ad
+       JOIN asistencia_cabecera ac ON ad.id_asistencia_cabecera = ac.id
+       LEFT JOIN justificaciones j ON j.id_asistencia_detalle = ad.id
+       WHERE ac.id_horario = $1`, [id]
+    );
+
+    // Matriz: clave `idAlumno|fechaISO` → 'P' | 'A' | 'J'
+    const matriz = new Map();
+    const fechaKey = f => new Date(f).toISOString().slice(0, 10);
+    detalleRes.rows.forEach(d => {
+      let v = d.presente ? 'P' : (d.just_estado === 'aprobada' ? 'J' : 'A');
+      matriz.set(`${d.id_alumno}|${fechaKey(d.fecha)}`, v);
+    });
+
+    const colegio  = await nombreColegio();
+    const fechaHoy = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition',
+      `attachment; filename="libro_clases_${hor.curso.replace(/\s+/g,'_')}_${hor.asignatura.replace(/\s+/g,'_')}_${fechaHoy}.pdf"`);
+
+    // ── Landscape ──
+    const M = 40, ANCHO = 841.89, ALTO = 595.28;
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: M });
+    doc.pipe(res);
+
+    // Anchos de columna fijas + reparto para fechas
+    const wNum = 20, wAlumno = 150, wPct = 34, wFecha = 24;
+    const xFechasIni = M + wNum + wAlumno + wPct;
+    const anchoFechas = (ANCHO - M) - xFechasIni;
+    const fechasPorPagina = Math.max(1, Math.floor(anchoFechas / wFecha));
+    const altoFila = 15, limiteY = ALTO - M;
+
+    // Resumen global por alumno (sobre todas las fechas)
+    const resumenAlumno = {};
+    alumnos.forEach(a => {
+      let p = 0, t = 0;
+      fechas.forEach(f => {
+        const v = matriz.get(`${a.id}|${fechaKey(f)}`);
+        if (v) { t++; if (v === 'P' || v === 'J') p++; }
+      });
+      resumenAlumno[a.id] = t > 0 ? Math.round(100 * p / t) : null;
+    });
+
+    // Dibuja un bloque (subconjunto de fechas) — repite cabecera por página
+    function dibujarBloque(fechasBloque) {
+      let y = M;
+
+      // Título / encabezado del documento (compacto, una vez por página)
+      doc.fontSize(9).fillColor('#666666').text(colegio, M, y);
+      doc.fontSize(14).fillColor('#1e3a8a')
+         .text(`Libro de Clases — ${hor.curso} · ${hor.asignatura}`, M, y + 12);
+      doc.fontSize(8).fillColor('#6b7280')
+         .text(`Prof. ${hor.profesor}  ·  ${hor.hora_inicio?.slice(0,5)}-${hor.hora_fin?.slice(0,5)}  ·  Año ${hor.anio}  ·  Generado ${new Date().toLocaleDateString('es-CL')}`,
+               M, y + 30);
+      y += 48;
+
+      const dibujarHeaderTabla = () => {
+        doc.rect(M, y, (ANCHO - M) - M, altoFila).fill('#1e3a8a');
+        doc.fontSize(7).fillColor('#ffffff');
+        doc.text('N°', M + 2, y + 4, { width: wNum - 4 });
+        doc.text('Alumno', M + wNum + 3, y + 4, { width: wAlumno - 6 });
+        doc.text('%', M + wNum + wAlumno + 2, y + 4, { width: wPct - 4, align: 'center' });
+        let x = xFechasIni;
+        fechasBloque.forEach(f => {
+          const d = new Date(f);
+          doc.text(`${d.getUTCDate()}/${d.getUTCMonth() + 1}`, x + 1, y + 4,
+            { width: wFecha - 2, align: 'center' });
+          x += wFecha;
+        });
+        y += altoFila;
+      };
+
+      dibujarHeaderTabla();
+
+      alumnos.forEach((a, i) => {
+        if (y + altoFila > limiteY) { doc.addPage(); y = M; dibujarHeaderTabla(); }
+        if (i % 2 === 0) doc.rect(M, y, (ANCHO - M) - M, altoFila).fill('#f3f4f6');
+
+        doc.fontSize(7).fillColor('#111827');
+        doc.text(String(i + 1), M + 2, y + 4, { width: wNum - 4 });
+        doc.text(a.alumno, M + wNum + 3, y + 4, { width: wAlumno - 6, lineBreak: false });
+        const pct = resumenAlumno[a.id];
+        doc.fillColor(pct !== null && pct < 85 ? '#b91c1c' : '#111827')
+           .text(pct !== null ? `${pct}` : '—', M + wNum + wAlumno + 2, y + 4,
+                 { width: wPct - 4, align: 'center' });
+
+        let x = xFechasIni;
+        fechasBloque.forEach(f => {
+          const v = matriz.get(`${a.id}|${fechaKey(f)}`) || '·';
+          const color = v === 'P' ? '#16a34a' : v === 'A' ? '#dc2626'
+                      : v === 'J' ? '#2563eb' : '#d1d5db';
+          doc.fillColor(color).text(v, x + 1, y + 4, { width: wFecha - 2, align: 'center' });
+          x += wFecha;
+        });
+        y += altoFila;
+      });
+
+      // Leyenda
+      y += 10;
+      doc.fontSize(8).fillColor('#16a34a').text('P = Presente', M, y, { continued: true })
+         .fillColor('#6b7280').text('   ', { continued: true })
+         .fillColor('#dc2626').text('A = Ausente', { continued: true })
+         .fillColor('#6b7280').text('   ', { continued: true })
+         .fillColor('#2563eb').text('J = Justificado', { continued: true })
+         .fillColor('#6b7280').text('   ·  · = sin registro');
+    }
+
+    if (!fechas.length) {
+      doc.fontSize(11).fillColor('#6b7280')
+         .text('Aún no hay clases con asistencia registrada para este horario.', M, M + 60);
+    } else {
+      // Partir las fechas en bloques que quepan a lo ancho
+      for (let i = 0; i < fechas.length; i += fechasPorPagina) {
+        if (i > 0) doc.addPage();
+        dibujarBloque(fechas.slice(i, i + fechasPorPagina));
+      }
+    }
+
+    doc.end();
+    registrarReporte('libro_clases_pdf', 'Libro de clases de un horario', req.usuario?.id);
+  } catch (err) {
+    console.error('[GET /reportes/pdf/libro-clases/:id]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Error al generar libro de clases' });
+  }
+});
+
+// =====================================================
+// GET /reportes/asignaturas
+// Estadísticas de ausentismo por asignatura (para detectar problemas).
+// Devuelve, por asignatura: % asistencia, registros, días con clase, cursos.
+// Auth: Admin o Profesor
+// =====================================================
+router.get('/asignaturas', verificarToken, soloAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT
+         asig.id, asig.nombre AS asignatura, asig.codigo,
+         COUNT(ad.id)                                  AS total_registros,
+         SUM(CASE WHEN ad.presente THEN 1 ELSE 0 END)  AS presentes,
+         ROUND(100.0 * SUM(CASE WHEN ad.presente THEN 1 ELSE 0 END)
+               / NULLIF(COUNT(ad.id),0), 1)            AS porcentaje,
+         COUNT(DISTINCT ac.fecha)                      AS dias_con_clase,
+         COUNT(DISTINCT h.id_curso)                    AS cursos
+       FROM asignaturas asig
+       LEFT JOIN horarios h            ON h.id_asignatura = asig.id
+       LEFT JOIN asistencia_cabecera ac ON ac.id_horario = h.id
+       LEFT JOIN asistencia_detalle ad  ON ad.id_asistencia_cabecera = ac.id
+       WHERE asig.activo = TRUE
+       GROUP BY asig.id, asig.nombre, asig.codigo
+       ORDER BY porcentaje ASC NULLS LAST, asig.nombre`
+    );
+    res.json({ asignaturas: result.rows });
+  } catch (err) {
+    console.error('[GET /reportes/asignaturas]', err.message);
+    res.status(500).json({ error: 'Error al generar estadísticas por asignatura' });
+  }
+});
+
+// =====================================================
+// GET /reportes/pdf/boletin/:id   (id = alumno)
+// Boletín de notas del período: notas por asignatura, promedios y asistencia.
+// Query opcional: ?id_periodo=N  (default: período activo)
+// Auth: Admin o Profesor
+// =====================================================
+router.get('/pdf/boletin/:id', verificarToken, adminOProfesor, permisoAlumno, async (req, res) => {
+  const { id } = req.params;
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+  try {
+    // Período: el indicado o el activo
+    let idPeriodo = req.query.id_periodo;
+    const periodoRes = await pool.query(
+      idPeriodo
+        ? 'SELECT id, nombre, fecha_inicio, fecha_fin FROM periodos_academicos WHERE id = $1'
+        : 'SELECT id, nombre, fecha_inicio, fecha_fin FROM periodos_academicos WHERE activo = TRUE LIMIT 1',
+      idPeriodo ? [idPeriodo] : []
+    );
+    if (!periodoRes.rows.length) return res.status(404).json({ error: 'Período no encontrado' });
+    const periodo = periodoRes.rows[0];
+    idPeriodo = periodo.id;
+
+    // Datos del alumno
+    const alumnoRes = await pool.query(
+      `SELECT a.id, a.rut, a.nombre, a.apellido_paterno, a.apellido_materno,
+              c.nombre AS curso
+       FROM alumnos a LEFT JOIN cursos c ON a.id_curso = c.id
+       WHERE a.id = $1`, [id]
+    );
+    if (!alumnoRes.rows.length) return res.status(404).json({ error: 'Alumno no encontrado' });
+    const al = alumnoRes.rows[0];
+
+    // Notas individuales del período, por asignatura
+    const notasRes = await pool.query(
+      `SELECT asig.id AS id_asignatura, asig.nombre AS asignatura,
+              e.nombre AS evaluacion, e.tipo_evaluacion, c.nota
+       FROM calificaciones c
+       JOIN evaluaciones e   ON c.id_evaluacion = e.id
+       JOIN asignaturas asig ON e.id_asignatura = asig.id
+       WHERE c.id_alumno = $1 AND e.id_periodo = $2
+       ORDER BY asig.nombre, e.fecha`, [id, idPeriodo]
+    );
+
+    // Promedios por asignatura
+    const promRes = await pool.query(
+      `SELECT asig.nombre AS asignatura, pr.promedio
+       FROM promedios pr
+       JOIN asignaturas asig ON pr.id_asignatura = asig.id
+       WHERE pr.id_alumno = $1 AND pr.id_periodo = $2
+       ORDER BY asig.nombre`, [id, idPeriodo]
+    );
+
+    // % de asistencia global del alumno
+    const asisRes = await pool.query(
+      `SELECT COUNT(ad.id) AS total,
+              SUM(CASE WHEN ad.presente THEN 1 ELSE 0 END) AS presentes
+       FROM asistencia_detalle ad
+       JOIN asistencia_cabecera ac ON ad.id_asistencia_cabecera = ac.id
+       WHERE ad.id_alumno = $1`, [id]
+    );
+    const asis = asisRes.rows[0];
+    const pctAsis = parseInt(asis.total) > 0
+      ? (100 * parseInt(asis.presentes) / parseInt(asis.total)).toFixed(1) : null;
+
+    // Agrupar notas por asignatura
+    const porAsig = {};
+    notasRes.rows.forEach(n => {
+      if (!porAsig[n.asignatura]) porAsig[n.asignatura] = [];
+      porAsig[n.asignatura].push(parseFloat(n.nota).toFixed(1));
+    });
+    const promMap = {};
+    promRes.rows.forEach(p => { promMap[p.asignatura] = p.promedio; });
+
+    const colegio      = await nombreColegio();
+    const nombreAlumno = `${al.nombre} ${al.apellido_paterno} ${al.apellido_materno || ''}`.trim();
+    const fechaHoy     = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="boletin_${al.rut}_${fechaHoy}.pdf"`);
+
+    const doc = new PDFDocument({ size: 'A4', margin: PDF_MARGEN });
+    doc.pipe(res);
+
+    let y = pdfEncabezado(doc, colegio, 'Boletín de Notas',
+      `${nombreAlumno}  ·  RUT ${al.rut}  ·  Curso ${al.curso || 'sin curso'}  ·  ${periodo.nombre}`);
+
+    // Filas: asignatura | notas | promedio
+    const asignaturas = Array.from(new Set([
+      ...Object.keys(porAsig), ...Object.keys(promMap)
+    ])).sort();
+
+    if (!asignaturas.length) {
+      doc.fontSize(11).fillColor('#6b7280')
+         .text('No hay notas registradas para este alumno en el período seleccionado.', PDF_MARGEN, y);
+    } else {
+      const filas = asignaturas.map(asig => {
+        const notas = porAsig[asig] || [];
+        const prom  = promMap[asig] != null ? parseFloat(promMap[asig]).toFixed(1) : '—';
+        return [asig, notas.length ? notas.join('  ') : '—', prom];
+      });
+      y = pdfTabla(doc,
+        [
+          { titulo: 'Asignatura', ancho: 180 },
+          { titulo: 'Notas del período', ancho: 230 },
+          { titulo: 'Promedio', ancho: 85, align: 'center' }
+        ],
+        filas, y
+      );
+      y += 14;
+
+      // Promedio general (de los promedios por asignatura)
+      const proms = asignaturas.map(a => promMap[a]).filter(v => v != null).map(parseFloat);
+      const promGeneral = proms.length
+        ? (proms.reduce((s, x) => s + x, 0) / proms.length).toFixed(1) : null;
+
+      doc.fontSize(12).fillColor('#1e3a8a')
+         .text(`Promedio general: ${promGeneral ?? '—'}`, PDF_MARGEN, y);
+      y += 18;
+    }
+
+    // Asistencia
+    doc.fontSize(11).fillColor('#111827')
+       .text(`Asistencia global: ${pctAsis !== null ? pctAsis + '%' : 'sin registros'}`
+             + (parseInt(asis.total) ? `   (${asis.presentes} de ${asis.total} clases)` : ''),
+             PDF_MARGEN, y);
+    if (pctAsis !== null && parseFloat(pctAsis) < 85) {
+      y += 15;
+      doc.fontSize(9).fillColor('#b91c1c')
+         .text('Asistencia bajo el 85% mínimo legal.', PDF_MARGEN, y);
+    }
+
+    doc.end();
+    registrarReporte('boletin_notas_pdf', 'Boletín de notas de un alumno', req.usuario?.id);
+  } catch (err) {
+    console.error('[GET /reportes/pdf/boletin/:id]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Error al generar boletín' });
   }
 });
 

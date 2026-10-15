@@ -12,7 +12,7 @@ const DIAS_VALIDOS = { 1:'Lunes', 2:'Martes', 3:'Miércoles', 4:'Jueves', 5:'Vie
 // Auth: JWT (Admin o Profesor)
 // =====================================================
 router.get('/', verificarToken, adminOProfesor, async (req, res) => {
-  const { dia_semana, id_curso } = req.query;
+  const { dia_semana, id_curso, id_profesor } = req.query;
 
   try {
     const params = [];
@@ -25,6 +25,10 @@ router.get('/', verificarToken, adminOProfesor, async (req, res) => {
     if (id_curso) {
       params.push(id_curso);
       where += ` AND h.id_curso = $${params.length}`;
+    }
+    if (id_profesor) {
+      params.push(id_profesor);
+      where += ` AND h.id_profesor = $${params.length}`;
     }
 
     const result = await pool.query(

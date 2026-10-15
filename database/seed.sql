@@ -24,6 +24,12 @@ INSERT INTO alumnos (rut, nombre, apellido_paterno, apellido_materno, email, id_
 ('55555555-5', 'Bastián',  'Herrera', 'Fuentes','bherrera@alumno.cl', 2)
 ON CONFLICT (rut) DO NOTHING;
 
+-- Consentimiento biométrico de los alumnos de prueba (solo para desarrollo y pruebas).
+-- En producción lo registra el administrador por cada alumno, con su apoderado.
+UPDATE alumnos SET consentimiento_biometrico = TRUE, consentimiento_fecha = NOW()
+WHERE rut IN ('11111111-1','22222222-2','33333333-3','44444444-4','55555555-5')
+  AND consentimiento_biometrico = FALSE;
+
 -- Asignaturas de prueba
 INSERT INTO asignaturas (nombre, codigo, horas_semanales) VALUES
 ('Matemáticas', 'MAT', 6),

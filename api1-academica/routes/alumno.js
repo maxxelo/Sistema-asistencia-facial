@@ -24,7 +24,9 @@ router.get('/', verificarToken, adminOProfesor, async (req, res) => {
       SELECT
         a.id, a.rut, a.nombre, a.apellido_paterno, a.apellido_materno,
         a.email, a.telefono, a.fecha_nacimiento, a.activo,
-        c.nombre AS curso, c.id AS id_curso
+        a.consentimiento_biometrico, a.consentimiento_fecha,
+        c.nombre AS curso, c.id AS id_curso,
+        EXISTS(SELECT 1 FROM rostros r WHERE r.id_alumno = a.id AND r.activo = TRUE) AS tiene_rostro
       FROM alumnos a
       LEFT JOIN cursos c ON a.id_curso = c.id
       WHERE 1=1
@@ -62,6 +64,8 @@ router.get('/:id', verificarToken, adminOProfesor, async (req, res) => {
       `SELECT
         a.id, a.rut, a.nombre, a.apellido_paterno, a.apellido_materno,
         a.email, a.telefono, a.direccion, a.fecha_nacimiento, a.activo,
+        a.consentimiento_biometrico, a.consentimiento_fecha,
+        a.consentimiento_id_apoderado,
         c.id AS id_curso, c.nombre AS curso
        FROM alumnos a
        LEFT JOIN cursos c ON a.id_curso = c.id
@@ -113,6 +117,80 @@ router.post('/', verificarToken, soloAdmin, async (req, res) => {
     }
     console.error('[POST /alumnos]', err.message);
     res.status(500).json({ error: 'Error al crear alumno' });
+  }
+});
+
+// =====================================================
+// POST /alumnos/importar
+// Importación masiva. Body: { alumnos: [{ rut, nombre, apellido_paterno,
+//   apellido_materno?, email?, telefono?, curso? }] }
+// El campo "curso" acepta el NOMBRE del curso (ej: "3°A") o un id numérico.
+// Devuelve resumen: { importados, errores: [{ fila, rut, error }] }
+// Auth: JWT (Solo Admin)
+// =====================================================
+router.post('/importar', verificarToken, soloAdmin, async (req, res) => {
+  const { alumnos } = req.body;
+  if (!Array.isArray(alumnos) || !alumnos.length)
+    return res.status(400).json({ error: 'Se requiere un array "alumnos" con al menos una fila' });
+
+  const client = await pool.connect();
+  try {
+    // Mapa nombre_curso (en minúsculas) → id, para resolver el curso por nombre
+    const cursosRes = await client.query('SELECT id, nombre FROM cursos WHERE activo = TRUE');
+    const mapaCursos = new Map(cursosRes.rows.map(c => [c.nombre.toLowerCase().trim(), c.id]));
+
+    await client.query('BEGIN');
+    let importados = 0;
+    const errores = [];
+
+    for (let i = 0; i < alumnos.length; i++) {
+      const a = alumnos[i];
+      const fila = i + 1;
+      const rut = (a.rut || '').trim();
+
+      if (!rut || !a.nombre || !a.apellido_paterno) {
+        errores.push({ fila, rut, error: 'Faltan campos requeridos (rut, nombre, apellido_paterno)' });
+        continue;
+      }
+
+      // Resolver curso: numérico → id directo; texto → buscar por nombre
+      let idCurso = null;
+      const cursoRaw = (a.curso ?? a.id_curso ?? '').toString().trim();
+      if (cursoRaw) {
+        if (/^\d+$/.test(cursoRaw)) {
+          idCurso = parseInt(cursoRaw);
+        } else {
+          idCurso = mapaCursos.get(cursoRaw.toLowerCase()) ?? null;
+          if (idCurso === null) {
+            errores.push({ fila, rut, error: `Curso "${cursoRaw}" no existe` });
+            continue;
+          }
+        }
+      }
+
+      try {
+        await client.query(
+          `INSERT INTO alumnos
+             (rut, nombre, apellido_paterno, apellido_materno, email, telefono, id_curso)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [rut, a.nombre.trim(), a.apellido_paterno.trim(),
+           a.apellido_materno?.trim() || null, a.email?.trim() || null,
+           a.telefono?.trim() || null, idCurso]
+        );
+        importados++;
+      } catch (e) {
+        errores.push({ fila, rut, error: e.code === '23505' ? 'RUT ya existe' : 'Error al insertar' });
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ importados, total: alumnos.length, errores });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[POST /alumnos/importar]', err.message);
+    res.status(500).json({ error: 'Error al importar alumnos' });
+  } finally {
+    client.release();
   }
 });
 
@@ -179,6 +257,81 @@ router.patch('/:id/reactivar', verificarToken, soloAdmin, async (req, res) => {
   } catch (err) {
     console.error('[PATCH /alumnos/:id/reactivar]', err.message);
     res.status(500).json({ error: 'Error al reactivar alumno' });
+  }
+});
+
+// =====================================================
+// PUT /alumnos/:id/consentimiento
+// Registra o revoca el consentimiento del apoderado para el tratamiento de
+// datos biométricos del alumno (Leyes N° 19.628 y N° 21.719, R.40).
+// Body: { otorgado: true,  id_apoderado: N }  → otorga (el apoderado debe estar vinculado)
+//       { otorgado: false }                    → revoca y ELIMINA el rostro registrado
+// Auth: JWT (Solo Admin)
+// =====================================================
+router.put('/:id/consentimiento', verificarToken, soloAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { otorgado, id_apoderado } = req.body;
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+  if (typeof otorgado !== 'boolean') {
+    return res.status(400).json({ error: 'El campo "otorgado" debe ser verdadero o falso' });
+  }
+
+  const client = await pool.connect();
+  try {
+    const alumno = await client.query('SELECT id, nombre, apellido_paterno FROM alumnos WHERE id = $1', [id]);
+    if (alumno.rows.length === 0) return res.status(404).json({ error: 'Alumno no encontrado' });
+
+    await client.query('BEGIN');
+    let rostroEliminado = false;
+
+    if (otorgado) {
+      if (!id_apoderado || isNaN(id_apoderado)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Debes indicar el apoderado que otorga el consentimiento' });
+      }
+      const vinculo = await client.query(
+        'SELECT 1 FROM alumnos_apoderados WHERE id_alumno = $1 AND id_apoderado = $2',
+        [id, id_apoderado]
+      );
+      if (vinculo.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'El apoderado indicado no está vinculado a este alumno' });
+      }
+      await client.query(
+        `UPDATE alumnos
+            SET consentimiento_biometrico = TRUE, consentimiento_fecha = NOW(),
+                consentimiento_id_apoderado = $2
+          WHERE id = $1`,
+        [id, id_apoderado]
+      );
+    } else {
+      await client.query(
+        `UPDATE alumnos
+            SET consentimiento_biometrico = FALSE, consentimiento_fecha = NOW()
+          WHERE id = $1`,
+        [id]
+      );
+      // Derecho de cancelación: sin consentimiento no se conserva el dato biométrico
+      const borrado = await client.query('DELETE FROM rostros WHERE id_alumno = $1', [id]);
+      rostroEliminado = borrado.rowCount > 0;
+    }
+    await client.query('COMMIT');
+
+    const a = alumno.rows[0];
+    res.json({
+      mensaje: otorgado
+        ? `Consentimiento registrado para ${a.nombre} ${a.apellido_paterno}`
+        : `Consentimiento revocado para ${a.nombre} ${a.apellido_paterno}` +
+          (rostroEliminado ? ' y su rostro fue eliminado' : ''),
+      consentimiento_biometrico: otorgado,
+      rostro_eliminado: rostroEliminado
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[PUT /alumnos/:id/consentimiento]', err.message);
+    res.status(500).json({ error: 'Error al registrar el consentimiento' });
+  } finally {
+    client.release();
   }
 });
 

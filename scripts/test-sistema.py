@@ -109,15 +109,117 @@ check("alumno inexistente → 400", st == 400, f"status {st}: {r}")
 
 print("══ API 4: REPORTES ══")
 st, r = llamar("GET", BASE4 + "/reportes/pdf/curso/1", token=TOKEN, raw=True)
-check("PDF de curso se genera", st == 200 and r[:4] == b"%PDF", f"status {st}, inicio: {r[:10]}")
+check("PDF de curso se genera", st == 200 and isinstance(r, bytes) and r[:4] == b"%PDF", f"status {st}: {str(r)[:60]}")
 st, r = llamar("GET", BASE4 + "/reportes/pdf/alumno/1", token=TOKEN, raw=True)
-check("PDF de alumno se genera", st == 200 and r[:4] == b"%PDF", f"status {st}, inicio: {r[:10]}")
+check("PDF de alumno se genera", st == 200 and isinstance(r, bytes) and r[:4] == b"%PDF", f"status {st}: {str(r)[:60]}")
 st, r = llamar("GET", BASE4 + "/reportes/csv/curso/1", token=TOKEN, raw=True)
 check("CSV de curso sigue funcionando", st == 200 and b"RUT" in r[:50], f"status {st}")
 st, r = llamar("GET", BASE4 + "/reportes/asistencia/riesgo", token=TOKEN)
 check("reporte de riesgo JSON", st == 200 and "alumnos" in r, str(r)[:80])
 st, r = llamar("GET", BASE4 + "/reportes/pdf/curso/1")  # sin token
 check("PDF sin token → 401", st == 401, f"status {st}")
+
+print("══ R.40: CONSENTIMIENTO BIOMÉTRICO ══")
+st, r = llamar("GET", BASE1 + "/alumnos/5", token=TOKEN)
+check("el seed deja consentimiento en alumno 5", r.get("consentimiento_biometrico") is True, str(r)[:90])
+st, r = llamar("PUT", BASE1 + "/alumnos/5/consentimiento", {"otorgado": False}, token=TOKEN)
+check("revocar consentimiento", st == 200 and r.get("consentimiento_biometrico") is False, f"status {st}: {r}")
+st, r = llamar("POST", BASE3 + "/rostros", {"id_alumno": 5, "descriptor": descriptor_falso}, token=TOKEN)
+check("registrar rostro SIN consentimiento → 403", st == 403 and "consentimiento" in str(r.get("error", "")),
+      f"status {st}: {r}")
+st, r = llamar("PUT", BASE1 + "/alumnos/5/consentimiento", {"otorgado": True}, token=TOKEN)
+check("otorgar sin apoderado → 400", st == 400, f"status {st}: {r}")
+st, ap = llamar("POST", BASE1 + "/apoderados",
+                {"rut": "10101010-1", "nombre": "Rosa Herrera", "telefono": "+56911112222",
+                 "email": "rherrera@correo.cl", "parentesco": "Madre"}, token=TOKEN)
+st, r = llamar("PUT", BASE1 + "/alumnos/5/consentimiento",
+               {"otorgado": True, "id_apoderado": ap.get("id")}, token=TOKEN)
+check("otorgar con apoderado NO vinculado → 400", st == 400 and "vinculado" in str(r.get("error", "")),
+      f"status {st}: {r}")
+llamar("POST", BASE1 + f"/apoderados/{ap.get('id')}/vincular", {"id_alumno": 5}, token=TOKEN)
+st, r = llamar("PUT", BASE1 + "/alumnos/5/consentimiento",
+               {"otorgado": True, "id_apoderado": ap.get("id")}, token=TOKEN)
+check("otorgar con apoderado vinculado", st == 200 and r.get("consentimiento_biometrico") is True,
+      f"status {st}: {r}")
+st, r = llamar("POST", BASE3 + "/rostros", {"id_alumno": 5, "descriptor": descriptor_falso}, token=TOKEN)
+check("registrar rostro CON consentimiento", st == 200, f"status {st}: {r}")
+st, r = llamar("PUT", BASE1 + "/alumnos/5/consentimiento", {"otorgado": False}, token=TOKEN)
+check("revocar elimina el rostro (derecho de cancelación)", st == 200 and r.get("rostro_eliminado") is True,
+      f"status {st}: {r}")
+st, r = llamar("GET", BASE3 + "/rostros/5", token=TOKEN)
+check("el rostro ya no existe tras revocar", st == 404, f"status {st}: {r}")
+st, r = llamar("POST", BASE1 + "/login", {"nombre_usuario": "profesor1", "password": "profesor123"})
+TOKEN_PROF = r.get("token", "")
+st, r = llamar("PUT", BASE1 + "/alumnos/5/consentimiento", {"otorgado": False}, token=TOKEN_PROF)
+check("un profesor no puede gestionar consentimientos → 403", st == 403, f"status {st}")
+
+print("══ R.23: PROFESOR SOLO VE SUS CURSOS ══")
+check("login profesor1", bool(TOKEN_PROF))
+# Asistencia en el curso 2 (4°B) para que el filtro por curso tenga datos que ocultar.
+# 2026-06-09 es martes → horario 5 (4°B, martes). El alumno 5 tiene apoderado (creado arriba).
+st, r = llamar("POST", BASE2 + "/asistencia/marcar",
+               {"id_curso": 2, "id_horario": 5, "fecha": "2026-06-09", "definitivo": True,
+                "alumnos": [{"id_alumno": 4, "presente": True}, {"id_alumno": 5, "presente": False}]},
+               token=TOKEN)
+check("preparación: asistencia en curso ajeno (4°B)", st == 201, f"status {st}: {r}")
+st, r = llamar("GET", BASE4 + "/reportes/pdf/curso/1", token=TOKEN_PROF, raw=True)
+check("profesor: PDF de su curso (3°A) → 200", st == 200 and isinstance(r, bytes) and r[:4] == b"%PDF", f"status {st}")
+st, r = llamar("GET", BASE4 + "/reportes/pdf/curso/2", token=TOKEN_PROF, raw=True)
+check("profesor: PDF de curso ajeno (4°B) → 403", st == 403, f"status {st}")
+st, r = llamar("GET", BASE4 + "/reportes/csv/curso/2", token=TOKEN_PROF, raw=True)
+check("profesor: CSV de curso ajeno → 403", st == 403, f"status {st}")
+st, r = llamar("GET", BASE4 + "/reportes/pdf/alumno/4", token=TOKEN_PROF, raw=True)
+check("profesor: PDF de alumno de curso ajeno → 403", st == 403, f"status {st}")
+st, r = llamar("GET", BASE4 + "/reportes/pdf/alumno/1", token=TOKEN_PROF, raw=True)
+check("profesor: PDF de alumno propio → 200", st == 200, f"status {st}")
+st, r = llamar("GET", BASE4 + "/reportes/asistencia/curso/2", token=TOKEN_PROF)
+check("profesor: asistencia de curso ajeno → 403", st == 403, f"status {st}")
+st, r = llamar("GET", BASE4 + "/reportes/asignaturas", token=TOKEN_PROF)
+check("profesor: estadística global de asignaturas → 403", st == 403, f"status {st}")
+st, r = llamar("GET", BASE4 + "/reportes/asistencia/riesgo?umbral=101", token=TOKEN_PROF)
+cursos_vistos = {a.get("curso") for a in r.get("alumnos", [])} if isinstance(r, dict) else {"?"}
+check("profesor: riesgo ve su curso y NO el ajeno", st == 200 and cursos_vistos == {"3°A"}, f"{st} {cursos_vistos}")
+st, r = llamar("GET", BASE4 + "/reportes/asistencia/riesgo?umbral=101", token=TOKEN)
+cursos_admin = {a.get("curso") for a in r.get("alumnos", [])} if isinstance(r, dict) else set()
+check("admin: riesgo ve ambos cursos", st == 200 and cursos_admin == {"3°A", "4°B"}, f"{st} {cursos_admin}")
+st, r = llamar("GET", BASE4 + "/reportes/pdf/curso/2", token=TOKEN, raw=True)
+check("admin: PDF de cualquier curso → 200", st == 200, f"status {st}")
+
+print("══ R.26: ALERTA DE ASISTENCIA BAJO 85 % ══")
+# alumno 2 queda ausente y definitivo → 0 % de asistencia → alerta para admin y profesor jefe
+st, r = llamar("POST", BASE2 + "/asistencia/marcar",
+               {"id_curso": 1, "id_horario": 4, "fecha": FECHA_JUE, "definitivo": True,
+                "alumnos": [{"id_alumno": 1, "presente": True}, {"id_alumno": 2, "presente": False}]},
+               token=TOKEN)
+check("registro definitivo genera alertas", st == 201 and r.get("alertas_generadas", 0) >= 2, f"status {st}: {r}")
+st, r = llamar("GET", BASE1 + "/notificaciones", token=TOKEN)
+alertas = [n for n in r.get("notificaciones", []) if "Rojas" in n.get("titulo", "")] if isinstance(r, dict) else []
+check("admin recibe la alerta del alumno", len(alertas) >= 1 and r.get("no_leidas", 0) >= 1, str(r)[:120])
+st, rr = llamar("GET", BASE1 + "/notificaciones?limite=100", token=TOKEN)
+con_apoderado = [n for n in rr.get("notificaciones", []) if "Herrera" in n.get("titulo", "")]
+check("la alerta incluye nombre, teléfono y correo del apoderado",
+      bool(con_apoderado) and all(x in con_apoderado[0]["mensaje"] for x in ("Rosa Herrera", "+56911112222", "rherrera@correo.cl")),
+      con_apoderado[0]["mensaje"][:160] if con_apoderado else "sin alerta para alumno 5")
+check("sin apoderado, la alerta lo indica",
+      bool(alertas) and "no tiene apoderado registrado" in alertas[0].get("mensaje", ""),
+      alertas[0].get("mensaje", "")[:120] if alertas else "")
+st, r2 = llamar("GET", BASE1 + "/notificaciones", token=TOKEN_PROF)
+check("el profesor jefe también la recibe", any("Rojas" in n.get("titulo", "") for n in r2.get("notificaciones", [])),
+      str(r2)[:120])
+st, r = llamar("POST", BASE2 + "/asistencia/marcar",
+               {"id_curso": 1, "id_horario": 4, "fecha": FECHA_JUE, "definitivo": True,
+                "alumnos": [{"id_alumno": 1, "presente": True}, {"id_alumno": 2, "presente": False}]},
+               token=TOKEN)
+check("no se repite la alerta el mismo día", st == 201 and r.get("alertas_generadas") == 0, f"status {st}: {r}")
+if alertas:
+    st, r = llamar("PATCH", BASE1 + f"/notificaciones/{alertas[0]['id']}/leida", token=TOKEN)
+    check("marcar notificación como leída", st == 200, f"status {st}: {r}")
+st, r = llamar("PATCH", BASE1 + "/notificaciones/leer-todas", token=TOKEN)
+check("marcar todas como leídas", st == 200, f"status {st}: {r}")
+st, r = llamar("GET", BASE1 + "/notificaciones", token=TOKEN)
+check("sin notificaciones pendientes", r.get("no_leidas") == 0, str(r)[:80])
+st, r = llamar("GET", BASE1 + "/notificaciones")
+check("notificaciones sin token → 401", st == 401, f"status {st}")
 
 print()
 print(f"RESULTADO: {ok} pruebas OK, {fallos} fallos")

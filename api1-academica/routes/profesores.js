@@ -98,6 +98,58 @@ router.post('/', verificarToken, soloAdmin, async (req, res) => {
 });
 
 // =====================================================
+// POST /profesores/importar
+// Importación masiva. Body: { profesores: [{ rut, nombre, apellido_paterno,
+//   apellido_materno?, email?, telefono?, especialidad? }] }
+// Devuelve resumen: { importados, total, errores: [{ fila, rut, error }] }
+// Auth: JWT (Solo Admin)
+// =====================================================
+router.post('/importar', verificarToken, soloAdmin, async (req, res) => {
+  const { profesores } = req.body;
+  if (!Array.isArray(profesores) || !profesores.length)
+    return res.status(400).json({ error: 'Se requiere un array "profesores" con al menos una fila' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let importados = 0;
+    const errores = [];
+
+    for (let i = 0; i < profesores.length; i++) {
+      const p = profesores[i];
+      const fila = i + 1;
+      const rut = (p.rut || '').trim();
+
+      if (!rut || !p.nombre || !p.apellido_paterno) {
+        errores.push({ fila, rut, error: 'Faltan campos requeridos (rut, nombre, apellido_paterno)' });
+        continue;
+      }
+      try {
+        await client.query(
+          `INSERT INTO profesores (rut, nombre, apellido_paterno, apellido_materno, email, telefono, especialidad)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [rut, p.nombre.trim(), p.apellido_paterno.trim(),
+           p.apellido_materno?.trim() || null, p.email?.trim() || null,
+           p.telefono?.trim() || null, p.especialidad?.trim() || null]
+        );
+        importados++;
+      } catch (e) {
+        errores.push({ fila, rut, error: e.code === '23505' ? 'RUT ya existe' : 'Error al insertar' });
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ importados, total: profesores.length, errores });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[POST /profesores/importar]', err.message);
+    res.status(500).json({ error: 'Error al importar profesores' });
+  } finally {
+    client.release();
+  }
+});
+
+// =====================================================
 // PUT /profesores/:id
 // Actualizar datos de un profesor
 // Auth: JWT (Solo Admin)

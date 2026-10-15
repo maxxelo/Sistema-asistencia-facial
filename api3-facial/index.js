@@ -6,61 +6,11 @@ const cors      = require('cors')
 const rateLimit = require('express-rate-limit')
 require('dotenv').config()
 
-// http para llamar a API 2 internamente; jwt para el token de servicio y la auth del WS
-const http = require('http')
 const jwt  = require('jsonwebtoken')
 
-const { verificarToken, adminOProfesor } = require('./middleware/auth')
+const { verificarToken, adminOProfesor, soloAdmin } = require('./middleware/auth')
 const { buscarAlumno, registrarRostro, registrarIntento } = require('./routes/reconocimiento')
-
-// ── Llama a API 2 para registrar la asistencia ─────────
-// Se ejecuta después de reconocer exitosamente a un alumno.
-// Si API 2 rechaza la marca (alumno de otro curso, fecha que no
-// coincide con el día de la clase, etc.) rechaza con ese mensaje.
-function registrarAsistenciaEnAPI2(id_alumno, id_horario, fecha, confianza) {
-  return new Promise((resolve, reject) => {
-    // Token de servicio de corta duración, con claim que identifica a esta API
-    const token = jwt.sign(
-      { id: 0, tipo_persona: 'admin', servicio: 'api3', nombre_usuario: 'api3-servicio' },
-      process.env.JWT_SECRET,
-      { expiresIn: '1m' }
-    )
-
-    const body = JSON.stringify({ id_alumno, id_horario, fecha, confianza })
-
-    const opciones = {
-      hostname: process.env.API2_HOST || 'api2',   // nombre del contenedor en la red Docker
-      port: 3002,
-      path: '/asistencia/marcar-facial',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body),
-        'Authorization': `Bearer ${token}`
-      }
-    }
-
-    const req = http.request(opciones, (res) => {
-      let data = ''
-      res.on('data', chunk => data += chunk)
-      res.on('end', () => {
-        let json = {}
-        try { json = JSON.parse(data) } catch { /* respuesta no-JSON */ }
-        if (res.statusCode >= 400) {
-          const err = new Error(json.error || `API 2 respondió ${res.statusCode}`)
-          err.statusCode = res.statusCode
-          return reject(err)
-        }
-        resolve(json)
-      })
-    })
-
-    req.on('error', reject)
-    req.setTimeout(5000, () => req.destroy(new Error('Timeout al llamar a API 2')))
-    req.write(body)
-    req.end()
-  })
-}
+const pool = require('./db/connection')
 
 // ── Aplicación Express ──────────────────────────────────
 const app = express()
@@ -95,9 +45,9 @@ app.get('/health', (req, res) => {
 // Registra el rostro de un alumno (1 a 5 capturas)
 // Body: { id_alumno, descriptor: [128 floats] }
 //   o   { id_alumno, descriptores: [[128 floats], ...] }
-// Auth: JWT (Admin o Profesor)
+// Auth: JWT (solo Admin)
 // =====================================================
-app.post('/rostros', verificarToken, adminOProfesor, async (req, res) => {
+app.post('/rostros', verificarToken, soloAdmin, async (req, res) => {
   const { id_alumno, descriptor, descriptores } = req.body
 
   // Acepta el formato nuevo (varias capturas) y el antiguo (una sola)
@@ -116,7 +66,40 @@ app.post('/rostros', verificarToken, adminOProfesor, async (req, res) => {
       mensaje: `Rostro registrado correctamente (${capturas} captura${capturas > 1 ? 's' : ''})`
     })
   } catch (err) {
-    res.status(400).json({ error: err.message })
+    // 403: la solicitud es válida pero falta el consentimiento del apoderado
+    res.status(err.codigo === 'SIN_CONSENTIMIENTO' ? 403 : 400).json({ error: err.message })
+  }
+})
+
+// GET /rostros/:id_alumno — consultar si un alumno tiene rostro registrado (admin)
+app.get('/rostros/:id_alumno', verificarToken, soloAdmin, async (req, res) => {
+  const id = parseInt(req.params.id_alumno)
+  if (isNaN(id)) return res.status(400).json({ error: 'id_alumno inválido' })
+  try {
+    const r = await pool.query(
+      'SELECT id, id_alumno, fecha_captura, activo FROM rostros WHERE id_alumno = $1 AND activo = TRUE',
+      [id]
+    )
+    if (!r.rows.length) return res.status(404).json({ tiene_rostro: false })
+    res.json({ tiene_rostro: true, fecha_captura: r.rows[0].fecha_captura })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// DELETE /rostros/:id_alumno — eliminar rostro de un alumno (solo admin)
+app.delete('/rostros/:id_alumno', verificarToken, soloAdmin, async (req, res) => {
+  const id = parseInt(req.params.id_alumno)
+  if (isNaN(id)) return res.status(400).json({ error: 'id_alumno inválido' })
+  try {
+    const r = await pool.query(
+      'UPDATE rostros SET activo = FALSE WHERE id_alumno = $1 AND activo = TRUE RETURNING id',
+      [id]
+    )
+    if (!r.rows.length) return res.status(404).json({ error: 'No se encontró rostro activo para este alumno' })
+    res.json({ ok: true, mensaje: 'Rostro eliminado correctamente' })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
   }
 })
 
@@ -136,7 +119,7 @@ const wss = new WebSocketServer({ server })
 // Cooldown: una vez marcado un alumno en una clase, se ignoran
 // nuevas detecciones suyas por 60 s (evita llamadas y logs repetidos
 // mientras sigue frente a la cámara).
-const COOLDOWN_MS = 60 * 1000
+const COOLDOWN_MS = 5 * 1000
 const ultimasMarcas = new Map()   // clave "alumno|horario|fecha" → timestamp
 
 function enCooldown(clave) {
@@ -204,41 +187,23 @@ wss.on('connection', (ws, req) => {
         confianza
       }
 
-      // Si ya se marcó hace menos de 60 s, no repetir la llamada a API 2
+      // Cooldown de 5 s: evita enviar el mismo alumno repetidamente al frontend
       const claveCooldown = `${alumno.id_alumno}|${datos.id_horario}|${datos.fecha}`
       if (enCooldown(claveCooldown)) {
         ws.send(JSON.stringify({
           exito: true,
-          ya_registrado: true,
-          mensaje: 'Asistencia ya registrada',
+          ya_enviado: true,
           alumno: datosAlumno
         }))
         return
       }
 
-      // Llamar a API 2 para registrar la asistencia en la BD
-      try {
-        await registrarAsistenciaEnAPI2(alumno.id_alumno, datos.id_horario, datos.fecha, confianza)
-        ultimasMarcas.set(claveCooldown, Date.now())
-        ws.send(JSON.stringify({
-          exito: true,
-          mensaje: 'Alumno identificado y asistencia registrada',
-          alumno: datosAlumno
-        }))
-      } catch (errAPI2) {
-        console.error('[API3] API 2 rechazó la marca:', errAPI2.message)
-        // Rechazos de validación (alumno de otro curso, día incorrecto...) también
-        // entran en cooldown para no insistir cada 2 segundos con el mismo alumno
-        if (errAPI2.statusCode && errAPI2.statusCode < 500) {
-          ultimasMarcas.set(claveCooldown, Date.now())
-        }
-        ws.send(JSON.stringify({
-          exito: false,
-          reconocido: true,
-          mensaje: errAPI2.message,
-          alumno: datosAlumno
-        }))
-      }
+      ultimasMarcas.set(claveCooldown, Date.now())
+      ws.send(JSON.stringify({
+        exito: true,
+        mensaje: 'Alumno identificado',
+        alumno: datosAlumno
+      }))
 
     } catch (error) {
       console.error('Error procesando mensaje:', error)

@@ -23,7 +23,13 @@ CREATE TABLE IF NOT EXISTS alumnos (
     fecha_nacimiento DATE,
     id_curso INTEGER,
     activo BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- Consentimiento para el tratamiento de datos biométricos (Leyes 19.628 y 21.719).
+    -- Al ser menores de edad, lo otorga un apoderado. Sin él no se puede registrar
+    -- ni reconocer el rostro del alumno. La revocación desactiva el rostro.
+    consentimiento_biometrico BOOLEAN NOT NULL DEFAULT FALSE,
+    consentimiento_fecha TIMESTAMP,
+    consentimiento_id_apoderado INTEGER
 );
 
 -- 2. apoderados
@@ -63,7 +69,7 @@ CREATE TABLE IF NOT EXISTS profesores (
 
 
 -- =====================================================
--- MÓDULO 2: ACADÉMICO (4 tablas)
+-- MÓDULO 2: ACADÉMICO (5 tablas)
 -- =====================================================
 
 -- 5. cursos
@@ -80,6 +86,9 @@ CREATE TABLE IF NOT EXISTS cursos (
 
 ALTER TABLE alumnos ADD CONSTRAINT fk_alumnos_curso
     FOREIGN KEY (id_curso) REFERENCES cursos(id) ON DELETE SET NULL;
+
+ALTER TABLE alumnos ADD CONSTRAINT fk_alumnos_consiente_apoderado
+    FOREIGN KEY (consentimiento_id_apoderado) REFERENCES apoderados(id) ON DELETE SET NULL;
 
 -- 6. asignaturas
 CREATE TABLE IF NOT EXISTS asignaturas (
@@ -116,6 +125,17 @@ CREATE TABLE IF NOT EXISTS periodos_academicos (
     activo BOOLEAN DEFAULT FALSE
 );
 
+-- 8b. feriados (días no lectivos: feriados nacionales, vacaciones, suspensiones)
+-- Se excluyen del cálculo de clases totales para no inflar el % de asistencia
+-- ni el número de "vidas" (faltas permitidas) de cada alumno.
+CREATE TABLE IF NOT EXISTS feriados (
+    id SERIAL PRIMARY KEY,
+    fecha DATE UNIQUE NOT NULL,
+    descripcion VARCHAR(100) NOT NULL,
+    tipo VARCHAR(20) DEFAULT 'nacional' CHECK (tipo IN ('nacional', 'institucional', 'vacaciones'))
+);
+CREATE INDEX IF NOT EXISTS idx_feriados_fecha ON feriados(fecha);
+
 -- =====================================================
 -- MÓDULO 3: ASISTENCIA (4 tablas)
 -- =====================================================
@@ -132,6 +152,7 @@ CREATE TABLE IF NOT EXISTS asistencia_cabecera (
     hora_registro TIME DEFAULT CURRENT_TIME,
     id_profesor INTEGER,
     observacion TEXT,
+    guardada BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (id_curso) REFERENCES cursos(id) ON DELETE CASCADE,
     FOREIGN KEY (id_horario) REFERENCES horarios(id) ON DELETE CASCADE,
     FOREIGN KEY (id_profesor) REFERENCES profesores(id) ON DELETE SET NULL,
@@ -452,3 +473,23 @@ INSERT INTO parametros_sistema (clave, valor, descripcion) VALUES
 ('comuna',               '',                        'Comuna donde se ubica el colegio'),
 ('region',               'Región Metropolitana',   'Región del colegio')
 ON CONFLICT (clave) DO NOTHING;
+
+-- Feriados nacionales de Chile 2026 (días no lectivos)
+INSERT INTO feriados (fecha, descripcion, tipo) VALUES
+('2026-01-01', 'Año Nuevo',                          'nacional'),
+('2026-04-03', 'Viernes Santo',                      'nacional'),
+('2026-04-04', 'Sábado Santo',                       'nacional'),
+('2026-05-01', 'Día del Trabajo',                    'nacional'),
+('2026-05-21', 'Día de las Glorias Navales',         'nacional'),
+('2026-06-20', 'Día Nacional de los Pueblos Indígenas','nacional'),
+('2026-06-29', 'San Pedro y San Pablo',              'nacional'),
+('2026-07-16', 'Virgen del Carmen',                  'nacional'),
+('2026-08-15', 'Asunción de la Virgen',              'nacional'),
+('2026-09-18', 'Independencia Nacional',             'nacional'),
+('2026-09-19', 'Día de las Glorias del Ejército',    'nacional'),
+('2026-10-12', 'Encuentro de Dos Mundos',            'nacional'),
+('2026-10-31', 'Día de las Iglesias Evangélicas',    'nacional'),
+('2026-11-01', 'Día de Todos los Santos',            'nacional'),
+('2026-12-08', 'Inmaculada Concepción',              'nacional'),
+('2026-12-25', 'Navidad',                            'nacional')
+ON CONFLICT (fecha) DO NOTHING;
