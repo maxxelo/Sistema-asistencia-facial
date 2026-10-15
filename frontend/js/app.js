@@ -1384,136 +1384,337 @@ async function _cargarClasesDiaAdmin() {
 }
 
 /* ── TABLA: HORARIOS ──────────────────────────────────────────── */
-async function cargarTablaHorarios() {
-  const tbody = document.getElementById('tbodyHorarios')
-  tbody.innerHTML = '<tr><td colspan="7">Cargando...</td></tr>'
-  try {
-    const dia = document.getElementById('filtro-dia-horario')?.value || ''
-    const url = dia ? `${API1}/horarios?dia_semana=${dia}` : `${API1}/horarios`
-    const horarios = await apiGet(url)
-    tbody.innerHTML = ''
-    if (!horarios.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="color:gray">No hay bloques horarios</td></tr>'; return
+/* ══════════════════════════════════════════════════════════════════
+   MÓDULO: HORARIOS
+   - Vista calendario (principal): semana de UN curso, profesor o sala,
+     con bloques del alto proporcional a su duración. Clic en un espacio
+     vacío = nuevo bloque prellenado; clic en un bloque = editar.
+   - Vista tabla: todos los bloques agrupados por día, con filtros.
+   - Los choques (mismo profesor, curso o sala a la misma hora) se marcan en rojo.
+══════════════════════════════════════════════════════════════════ */
+const _hor = {
+  datos: [], cursos: [], profesores: [], aulas: [],
+  choques: new Map(),   // id_horario → [motivos]
+  pares: [],            // [{ a, b, motivo }] para el aviso
+  vista: 'cal',         // 'cal' | 'tabla'
+  ver: 'curso',         // 'curso' | 'profesor' | 'sala'
+  id: ''                // id del curso/profesor o código de sala que se está viendo
+}
+const HOR_PX_MIN = 1.15   // alto en px de cada minuto en el calendario
+const HOR_SNAP   = 15     // al hacer clic, se redondea a bloques de 15 min
+
+try {
+  const g = JSON.parse(localStorage.getItem('horarios_vista') || '{}')
+  if (g.vista) _hor.vista = g.vista
+  if (g.ver)   _hor.ver   = g.ver
+  if (g.id)    _hor.id    = g.id
+} catch {}
+function _horGuardarPref() {
+  try { localStorage.setItem('horarios_vista', JSON.stringify({ vista: _hor.vista, ver: _hor.ver, id: _hor.id })) } catch {}
+}
+
+const _horMin = t => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m }
+const _horHHMM = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
+
+// Color estable por asignatura (mismo ramo = mismo color en todas las vistas).
+// Paleta sin rojos ni rosados: el rojo queda reservado para marcar choques.
+const HOR_TONOS = [217, 158, 42, 262, 190, 130, 290, 200, 75, 240]
+function _horColor(txt) {
+  let h = 0
+  for (let i = 0; i < txt.length; i++) h = txt.charCodeAt(i) + ((h << 5) - h)
+  const hue = HOR_TONOS[Math.abs(h) % HOR_TONOS.length]
+  return { fondo: `hsl(${hue}, 70%, 94%)`, borde: `hsl(${hue}, 55%, 55%)`, texto: `hsl(${hue}, 60%, 22%)` }
+}
+
+// Busca todos los pares de bloques que se cruzan el mismo día
+function _horCalcularChoques() {
+  _hor.choques = new Map(); _hor.pares = []
+  const hs = _hor.datos
+  for (let i = 0; i < hs.length; i++) {
+    for (let j = i + 1; j < hs.length; j++) {
+      const a = hs[i], b = hs[j]
+      if (a.dia_semana !== b.dia_semana) continue
+      if (!(_horMin(a.hora_inicio) < _horMin(b.hora_fin) && _horMin(a.hora_fin) > _horMin(b.hora_inicio))) continue
+      const motivos = []
+      if (a.id_profesor === b.id_profesor) motivos.push(`profesor ${a.profesor}`)
+      if (a.id_curso    === b.id_curso)    motivos.push(`curso ${a.curso}`)
+      if (a.sala && a.sala === b.sala)     motivos.push(`sala ${a.sala}`)
+      if (!motivos.length) continue
+      const motivo = motivos.join(', ')
+      _hor.pares.push({ a, b, motivo })
+      ;[a, b].forEach(h => {
+        if (!_hor.choques.has(h.id)) _hor.choques.set(h.id, [])
+        _hor.choques.get(h.id).push(`Choca con ${(h === a ? b : a).asignatura} (${(h === a ? b : a).curso}) — mismo ${motivo}`)
+      })
     }
-    horarios.forEach(h => {
-      const tr = document.createElement('tr')
-      tr.innerHTML = `
-        <td><strong>${DIAS_SEMANA[h.dia_semana] || h.dia_semana}</strong></td>
-        <td>${h.hora_inicio.slice(0,5)} – ${h.hora_fin.slice(0,5)}</td>
-        <td>${h.curso}</td>
-        <td>${h.asignatura}</td>
-        <td>${h.profesor}</td>
-        <td>${h.sala || '—'}</td>
-        <td>
-          <button class="btn-sm btn-edit"   onclick="editarHorario(${h.id})"><i class="bi bi-pencil-fill"></i></button>
-          <button class="btn-sm btn-delete" onclick="eliminarHorario(${h.id})"><i class="bi bi-trash3-fill"></i></button>
-        </td>`
-      tbody.appendChild(tr)
-    })
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="7" class="mensaje-err">Error: ${err.message}</td></tr>`
   }
 }
 
+/* ── CARGA ─────────────────────────────────────────────────────── */
+async function cargarTablaHorarios() {
+  const cal = document.getElementById('hor-cal')
+  if (cal && !_hor.datos.length) cal.innerHTML = '<p style="color:gray;font-size:.9em">⏳ Cargando horarios...</p>'
+  try {
+    const [horarios, cursos, profesores, aulas] = await Promise.all([
+      apiGet(`${API1}/horarios`),
+      apiGet(`${API1}/cursos`),
+      apiGet(`${API1}/profesores`),
+      apiGet(`${API1}/aulas`)
+    ])
+    _hor.datos      = horarios
+    _hor.cursos     = cursos.filter(c => c.activo)
+    _hor.profesores = profesores.filter(p => p.activo)
+    _hor.aulas      = aulas
+    _horCalcularChoques()
+    _horRender()
+  } catch (err) {
+    if (cal) cal.innerHTML = `<p class="mensaje-err">Error al cargar horarios: ${_escHtml(err.message)}</p>`
+  }
+}
+
+function _horRender() {
+  document.querySelectorAll('#hor-vista-btns button').forEach(b =>
+    b.classList.toggle('activo', b.dataset.vista === _hor.vista))
+  document.getElementById('vista-cal-horarios').style.display   = _hor.vista === 'cal'   ? '' : 'none'
+  document.getElementById('vista-tabla-horarios').style.display = _hor.vista === 'tabla' ? '' : 'none'
+  _horRenderChoques()
+  if (_hor.vista === 'cal') _horRenderCalendario()
+  else                      _horRenderTabla()
+}
+
+function horCambiarVista(vista) { _hor.vista = vista; _horGuardarPref(); _horRender() }
+
+/* ── AVISO DE CHOQUES ──────────────────────────────────────────── */
+function _horRenderChoques() {
+  const cont = document.getElementById('hor-choques')
+  if (!_hor.pares.length) { cont.innerHTML = ''; return }
+  const linea = p => {
+    const fmt = h => `${_escHtml(h.asignatura)} ${_escHtml(h.curso)} ${h.hora_inicio.slice(0, 5)}–${h.hora_fin.slice(0, 5)}`
+    return `<li>${DIAS_SEMANA[p.a.dia_semana]}: <strong>${fmt(p.a)}</strong> y <strong>${fmt(p.b)}</strong>
+      — mismo ${_escHtml(p.motivo)}
+      <button class="hor-link" onclick="editarHorario(${p.b.id})">Editar</button></li>`
+  }
+  cont.innerHTML = `
+    <div class="hor-alerta">
+      <div><i class="bi bi-exclamation-triangle-fill"></i>
+        <strong>${_hor.pares.length} choque(s) de horario</strong> — se marcan en rojo en el calendario.
+        Corrígelos editando uno de los bloques.</div>
+      <ul>${_hor.pares.map(linea).join('')}</ul>
+    </div>`
+}
+
+/* ── VISTA CALENDARIO ──────────────────────────────────────────── */
+function _horOpcionesEntidad() {
+  const cuenta = fn => _hor.datos.filter(fn).length
+  if (_hor.ver === 'curso')
+    return _hor.cursos.map(c => ({ id: String(c.id), lbl: c.nombre, n: cuenta(h => h.id_curso === c.id) }))
+  if (_hor.ver === 'profesor')
+    return _hor.profesores.map(p => ({ id: String(p.id), lbl: `${p.nombre} ${p.apellido_paterno}`, n: cuenta(h => h.id_profesor === p.id) }))
+  return _hor.aulas.map(a => ({ id: a.codigo, lbl: a.codigo + (a.nombre ? ` — ${a.nombre}` : ''), n: cuenta(h => h.sala === a.codigo) }))
+}
+
+function horCambiarVer(ver) {
+  _hor.ver = ver; _hor.id = ''
+  _horGuardarPref(); _horRenderCalendario()
+}
+function horCambiarEntidad(id) { _hor.id = id; _horGuardarPref(); _horRenderCalendario() }
+
+function _horRenderCalendario() {
+  const cont = document.getElementById('hor-cal')
+  const opciones = _horOpcionesEntidad()
+  if (!opciones.some(o => o.id === _hor.id)) _hor.id = opciones[0]?.id || ''
+
+  const nombresVer = { curso: 'Curso', profesor: 'Profesor', sala: 'Sala' }
+  const toolbar = `
+    <div class="hor-toolbar">
+      <span class="hor-lbl">Ver horario de</span>
+      <div class="hor-seg">
+        ${['curso', 'profesor', 'sala'].map(v =>
+          `<button class="${_hor.ver === v ? 'activo' : ''}" onclick="horCambiarVer('${v}')">${nombresVer[v]}</button>`).join('')}
+      </div>
+      <select class="hor-select" onchange="horCambiarEntidad(this.value)">
+        ${opciones.map(o => `<option value="${_escHtml(o.id)}" ${o.id === _hor.id ? 'selected' : ''}>${_escHtml(o.lbl)} (${o.n} bloque${o.n === 1 ? '' : 's'})</option>`).join('')
+          || `<option value="">No hay ${nombresVer[_hor.ver].toLowerCase()}s registrados</option>`}
+      </select>
+      <span class="hor-tip"><i class="bi bi-hand-index"></i> Clic en un espacio libre para agregar un bloque</span>
+    </div>`
+
+  if (!_hor.id) { cont.innerHTML = toolbar; return }
+
+  const visibles = _hor.datos.filter(h =>
+    _hor.ver === 'curso'    ? String(h.id_curso)    === _hor.id :
+    _hor.ver === 'profesor' ? String(h.id_profesor) === _hor.id :
+                              h.sala === _hor.id)
+
+  // Rango de horas: el mismo para todas las entidades (para que no "salte" al cambiar)
+  let ini = 8 * 60, fin = 16 * 60
+  _hor.datos.forEach(h => { ini = Math.min(ini, _horMin(h.hora_inicio)); fin = Math.max(fin, _horMin(h.hora_fin)) })
+  ini = Math.floor(ini / 60) * 60; fin = Math.ceil(fin / 60) * 60
+  const alto = (fin - ini) * HOR_PX_MIN
+
+  // Lunes a viernes, más sábado/domingo solo si hay bloques esos días
+  const dias = [1, 2, 3, 4, 5, ...[6, 7].filter(d => _hor.datos.some(h => h.dia_semana === d))]
+
+  const horas = []
+  for (let m = ini; m <= fin; m += 60) horas.push(m)
+  const gutter = horas.map(m =>
+    `<div class="hor-hora" style="top:${(m - ini) * HOR_PX_MIN}px">${_horHHMM(m)}</div>`).join('')
+
+  const columna = d => {
+    const delDia = visibles.filter(h => h.dia_semana === d).sort((a, b) => _horMin(a.hora_inicio) - _horMin(b.hora_inicio))
+    // Si hay bloques que se cruzan (choque), se ponen lado a lado en "carriles"
+    const carriles = []
+    delDia.forEach(h => {
+      let c = carriles.findIndex(finCarril => finCarril <= _horMin(h.hora_inicio))
+      if (c === -1) { c = carriles.length; carriles.push(0) }
+      carriles[c] = _horMin(h.hora_fin); h._carril = c
+    })
+    const nCarriles = Math.max(1, carriles.length)
+
+    const bloques = delDia.map(h => {
+      const top = (_horMin(h.hora_inicio) - ini) * HOR_PX_MIN
+      const hgt = (_horMin(h.hora_fin) - _horMin(h.hora_inicio)) * HOR_PX_MIN
+      const col = _horColor(h.asignatura)
+      const choque = _hor.choques.get(h.id)
+      const detalle =
+        _hor.ver === 'curso'    ? [h.profesor, h.sala] :
+        _hor.ver === 'profesor' ? [h.curso, h.sala] :
+                                  [h.curso, h.profesor]
+      const titulo = `${h.asignatura} · ${h.hora_inicio.slice(0, 5)}–${h.hora_fin.slice(0, 5)}\n${h.curso} · ${h.profesor}${h.sala ? ' · Sala ' + h.sala : ''}` +
+        (choque ? '\n\n⚠️ ' + choque.join('\n⚠️ ') : '')
+      return `
+        <div class="hor-bloque${choque ? ' choque' : ''}" title="${_escHtml(titulo)}"
+             onclick="event.stopPropagation(); editarHorario(${h.id})"
+             style="top:${top}px;height:${hgt}px;
+                    left:calc(${(h._carril / nCarriles) * 100}% + 3px);width:calc(${100 / nCarriles}% - 6px);
+                    background:${choque ? '#fee2e2' : col.fondo};border-left-color:${choque ? '#dc2626' : col.borde};
+                    color:${choque ? '#7f1d1d' : col.texto}">
+          <div class="hor-b-hora">${choque ? '<i class="bi bi-exclamation-triangle-fill"></i> ' : ''}${h.hora_inicio.slice(0, 5)}–${h.hora_fin.slice(0, 5)}</div>
+          <div class="hor-b-asig">${_escHtml(h.asignatura)}</div>
+          <div class="hor-b-det">${detalle.filter(Boolean).map(_escHtml).join(' · ')}</div>
+          <button class="hor-b-del" title="Eliminar bloque" onclick="event.stopPropagation(); eliminarHorario(${h.id})"><i class="bi bi-x-lg"></i></button>
+        </div>`
+    }).join('')
+
+    return `
+      <div class="hor-col" data-dia="${d}" style="height:${alto}px;background-size:100% ${60 * HOR_PX_MIN}px"
+           onclick="_horClicColumna(event, ${d}, ${ini})" onmousemove="_horHover(event, ${ini})" onmouseleave="_horHoverFuera(this)">
+        ${bloques}
+        <div class="hor-fantasma"></div>
+      </div>`
+  }
+
+  cont.innerHTML = toolbar + `
+    <div class="hor-cal-scroll">
+      <div class="hor-grid" style="grid-template-columns:56px repeat(${dias.length}, minmax(120px, 1fr))">
+        <div></div>
+        ${dias.map(d => `<div class="hor-dia">${DIAS_SEMANA[d]}</div>`).join('')}
+        <div class="hor-gutter" style="height:${alto}px">${gutter}</div>
+        ${dias.map(columna).join('')}
+      </div>
+    </div>
+    ${visibles.length ? '' : `<p class="hor-vacio">Sin bloques todavía. Haz clic en el calendario para agregar el primero.</p>`}`
+}
+
+// Minuto (redondeado a HOR_SNAP) según la posición vertical del mouse en la columna
+function _horMinutoEn(ev, ini) {
+  const col = ev.currentTarget
+  const y = ev.clientY - col.getBoundingClientRect().top
+  return ini + Math.round(y / HOR_PX_MIN / HOR_SNAP) * HOR_SNAP
+}
+
+function _horHover(ev, ini) {
+  const fant = ev.currentTarget.querySelector('.hor-fantasma')
+  if (ev.target.closest('.hor-bloque')) { fant.style.display = 'none'; return }
+  const m = _horMinutoEn(ev, ini)
+  fant.style.display = 'block'
+  fant.style.top = `${(m - ini) * HOR_PX_MIN}px`
+  fant.textContent = `+ ${_horHHMM(m)}`
+}
+function _horHoverFuera(col) { col.querySelector('.hor-fantasma').style.display = 'none' }
+
+// Clic en espacio libre → "Nuevo bloque" con día, hora y curso/sala ya puestos
+function _horClicColumna(ev, dia, ini) {
+  if (ev.target.closest('.hor-bloque')) return
+  const m = _horMinutoEn(ev, ini)
+  const pre = { dia_semana: dia, hora_inicio: _horHHMM(m), hora_fin: _horHHMM(Math.min(m + 90, 23 * 60 + 45)) }
+  if (_hor.ver === 'curso') pre.id_curso = parseInt(_hor.id)
+  if (_hor.ver === 'sala')  pre.sala     = _hor.id
+  abrirModal('horario', pre)   // sin "id" → se abre como bloque nuevo
+}
+
+/* ── VISTA TABLA ───────────────────────────────────────────────── */
+function _horRenderTabla() {
+  // Mantener lo elegido en los filtros al volver a pintar
+  const val = id => document.getElementById(id)?.value || ''
+  const f = { curso: val('hf-curso'), prof: val('hf-prof'), sala: val('hf-sala'), dia: val('hf-dia') }
+  const sel = (id, todos, ops, actual) => `
+    <select id="${id}" class="hor-select" onchange="_horRenderTabla()">
+      <option value="">${todos}</option>
+      ${ops.map(([v, l]) => `<option value="${_escHtml(v)}" ${String(v) === actual ? 'selected' : ''}>${_escHtml(l)}</option>`).join('')}
+    </select>`
+
+  document.getElementById('hor-filtros').innerHTML = `
+    ${sel('hf-curso', 'Todos los cursos',     _hor.cursos.map(c => [c.id, c.nombre]), f.curso)}
+    ${sel('hf-prof',  'Todos los profesores', _hor.profesores.map(p => [p.id, `${p.nombre} ${p.apellido_paterno}`]), f.prof)}
+    ${sel('hf-sala',  'Todas las salas',      _hor.aulas.map(a => [a.codigo, a.codigo]), f.sala)}
+    ${sel('hf-dia',   'Todos los días',       [1, 2, 3, 4, 5, 6, 7].map(d => [d, DIAS_SEMANA[d]]), f.dia)}`
+
+  const q = (document.getElementById('buscar-horarios')?.value || '').toLowerCase().trim()
+  const filas = _hor.datos.filter(h =>
+    (!f.curso || String(h.id_curso)    === f.curso) &&
+    (!f.prof  || String(h.id_profesor) === f.prof)  &&
+    (!f.sala  || h.sala                === f.sala)  &&
+    (!f.dia   || String(h.dia_semana)  === f.dia)   &&
+    (!q || `${h.curso} ${h.asignatura} ${h.profesor} ${h.sala || ''}`.toLowerCase().includes(q)))
+
+  const tbody = document.getElementById('tbodyHorarios')
+  document.getElementById('hor-contador').textContent =
+    `${filas.length} de ${_hor.datos.length} bloque${_hor.datos.length === 1 ? '' : 's'}`
+  if (!filas.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="color:gray">${_hor.datos.length ? 'Ningún bloque coincide con los filtros' : 'No hay bloques horarios'}</td></tr>`
+    return
+  }
+
+  let html = '', diaActual = null
+  filas.forEach(h => {   // ya vienen ordenados por día y hora desde la API
+    if (h.dia_semana !== diaActual) {
+      diaActual = h.dia_semana
+      const n = filas.filter(x => x.dia_semana === diaActual).length
+      html += `<tr class="hor-fila-dia"><td colspan="6">${DIAS_SEMANA[diaActual]} <span>${n} bloque${n === 1 ? '' : 's'}</span></td></tr>`
+    }
+    const choque = _hor.choques.get(h.id)
+    html += `
+      <tr class="${choque ? 'hor-fila-choque' : ''}" ${choque ? `title="${_escHtml(choque.join('\n'))}"` : ''}>
+        <td style="white-space:nowrap">${choque ? '<i class="bi bi-exclamation-triangle-fill" style="color:#dc2626"></i> ' : ''}${h.hora_inicio.slice(0, 5)} – ${h.hora_fin.slice(0, 5)}</td>
+        <td>${_escHtml(h.curso)}</td>
+        <td><span class="hor-chip" style="background:${_horColor(h.asignatura).fondo};color:${_horColor(h.asignatura).texto}">${_escHtml(h.asignatura)}</span></td>
+        <td>${_escHtml(h.profesor)}</td>
+        <td>${_escHtml(h.sala || '—')}</td>
+        <td style="white-space:nowrap">
+          <button class="btn-sm btn-edit"   title="Editar"   onclick="editarHorario(${h.id})"><i class="bi bi-pencil-fill"></i></button>
+          <button class="btn-sm btn-delete" title="Eliminar" onclick="eliminarHorario(${h.id})"><i class="bi bi-trash3-fill"></i></button>
+        </td>
+      </tr>`
+  })
+  tbody.innerHTML = html
+}
+
+/* ── ACCIONES ──────────────────────────────────────────────────── */
 async function editarHorario(id) {
-  // Obtener datos del horario desde la lista cargada en la tabla
-  const rows = document.querySelectorAll('#tbodyHorarios tr')
-  // Re-carga todos los horarios para buscar el ID
-  const horarios = await apiGet(`${API1}/horarios`)
-  const h = horarios.find(x => x.id === id)
+  const h = _hor.datos.find(x => x.id === id)
   if (h) await abrirModal('horario', h)
 }
 
 async function eliminarHorario(id) {
-  if (!confirm('⚠️ ¿Eliminar este bloque horario?\n\nSe eliminarán también los registros de asistencia asociados.')) return
+  const h = _hor.datos.find(x => x.id === id)
+  const desc = h ? `\n\n${h.asignatura} · ${h.curso}\n${DIAS_SEMANA[h.dia_semana]} ${h.hora_inicio.slice(0, 5)}–${h.hora_fin.slice(0, 5)}` : ''
+  if (!confirm(`⚠️ ¿Eliminar este bloque horario?${desc}\n\nSi la clase ya tiene asistencia registrada, el sistema no permitirá eliminarla.`)) return
   const { ok, data } = await apiDelete(`${API1}/horarios/${id}`)
   document.getElementById('msg-horarios').innerHTML =
     ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
        : `<span class="mensaje-err">❌ ${data.error}</span>`
   cargarTablaHorarios()
-  if (_vistaCalHorario) _renderCalendarioHorarios()
-}
-
-/* ── VISTA CALENDARIO SEMANAL DE HORARIOS ─────────────────────── */
-let _vistaCalHorario = false
-async function toggleVistaHorario() {
-  _vistaCalHorario = !_vistaCalHorario
-  const vTabla = document.getElementById('vista-tabla-horarios')
-  const vCal   = document.getElementById('vista-cal-horarios')
-  const btn    = document.getElementById('btn-vista-horario')
-  if (_vistaCalHorario) {
-    vTabla.style.display = 'none'; vCal.style.display = ''
-    btn.innerHTML = '<i class="bi bi-table"></i> Vista tabla'
-    await _renderCalendarioHorarios()
-  } else {
-    vTabla.style.display = ''; vCal.style.display = 'none'
-    btn.innerHTML = '<i class="bi bi-calendar-week"></i> Vista calendario'
-  }
-}
-
-async function _renderCalendarioHorarios() {
-  const cont = document.getElementById('vista-cal-horarios')
-  cont.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando calendario...</p>'
-  try {
-    const horarios = await apiGet(`${API1}/horarios`)
-    const DIAS = [1, 2, 3, 4, 5]
-    const DIAS_LBL = { 1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes' }
-
-    if (!horarios.length) {
-      cont.innerHTML = '<p style="color:#6b7280;font-size:.9em">No hay horarios configurados todavía.</p>'; return
-    }
-
-    // Bloques de hora únicos (ordenados por hora de inicio)
-    const bloquesMap = new Map()
-    horarios.forEach(h => {
-      const key = `${h.hora_inicio}|${h.hora_fin}`
-      if (!bloquesMap.has(key)) bloquesMap.set(key, { ini: h.hora_inicio, fin: h.hora_fin })
-    })
-    const bloques = Array.from(bloquesMap.values()).sort((a, b) => a.ini.localeCompare(b.ini))
-
-    // Color pastel estable por asignatura
-    const colorAsig = txt => {
-      let h = 0
-      for (let i = 0; i < txt.length; i++) h = txt.charCodeAt(i) + ((h << 5) - h)
-      return `hsl(${Math.abs(h) % 360}, 65%, 92%)`
-    }
-    const bordeAsig = txt => {
-      let h = 0
-      for (let i = 0; i < txt.length; i++) h = txt.charCodeAt(i) + ((h << 5) - h)
-      return `hsl(${Math.abs(h) % 360}, 55%, 70%)`
-    }
-
-    const celda = c => `
-      <div style="background:${colorAsig(c.asignatura)};border-left:3px solid ${bordeAsig(c.asignatura)};
-                  border-radius:6px;padding:5px 8px;margin-bottom:5px;font-size:.76em;line-height:1.3">
-        <div style="font-weight:700;color:#1f2937">${c.asignatura}</div>
-        <div style="color:#374151">${c.curso}${c.sala ? ' · ' + c.sala : ''}</div>
-        <div style="color:#6b7280">${c.profesor}</div>
-      </div>`
-
-    let html = `<table style="width:100%;border-collapse:separate;border-spacing:0;min-width:720px;font-size:.875em">
-      <thead><tr>
-        <th style="background:#1e1b4b;color:#c7d2fe;padding:10px;border-radius:8px 0 0 0;width:78px;font-size:.8em">Hora</th>
-        ${DIAS.map((d, i) => `<th style="background:#1e1b4b;color:#fff;padding:10px;font-size:.85em;${i === DIAS.length - 1 ? 'border-radius:0 8px 0 0' : ''}">${DIAS_LBL[d]}</th>`).join('')}
-      </tr></thead><tbody>`
-
-    bloques.forEach(b => {
-      html += `<tr>
-        <td style="background:#f5f3ff;color:#4c1d95;font-weight:600;text-align:center;padding:8px 4px;font-size:.78em;border:1px solid #ede9fe;white-space:nowrap">
-          ${b.ini.slice(0, 5)}<br>${b.fin.slice(0, 5)}</td>`
-      DIAS.forEach(d => {
-        const clases = horarios.filter(h =>
-          h.dia_semana === d && h.hora_inicio === b.ini && h.hora_fin === b.fin)
-        html += `<td style="vertical-align:top;padding:6px;border:1px solid #f1f1f4;min-width:130px;background:#fff">
-          ${clases.map(celda).join('') || '<span style="color:#d1d5db;font-size:.8em">—</span>'}</td>`
-      })
-      html += `</tr>`
-    })
-    html += `</tbody></table>`
-    cont.innerHTML = html
-  } catch (err) {
-    cont.innerHTML = `<p class="mensaje-err">Error al cargar calendario: ${err.message}</p>`
-  }
 }
 
 /* ── TABLA: USUARIOS ───────────────────────────────────────────── */
