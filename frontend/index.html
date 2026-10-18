@@ -593,6 +593,80 @@
       .app-header { left: 60px; }
       .tab-section { left: 60px; padding: 18px 14px; }
     }
+    /* ── Horarios: calendario semanal y tabla ─────────────── */
+    .hor-seg { display: inline-flex; background: #f3f4f6; border-radius: 9px; padding: 3px; gap: 2px; }
+    .hor-seg button {
+      border: none; background: transparent; color: #4b5563; padding: 6px 12px; border-radius: 7px;
+      font: 500 .82em 'Inter', system-ui, sans-serif; cursor: pointer; display: inline-flex; gap: 6px; align-items: center;
+    }
+    .hor-seg button:hover { color: #6d28d9; }
+    .hor-seg button.activo { background: #fff; color: #6d28d9; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+    .hor-toolbar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-bottom: 12px; }
+    .hor-lbl { font-size: .85em; font-weight: 600; color: #374151; }
+    .hor-select {
+      padding: 7px 10px; border: 1.5px solid #e5e7eb; border-radius: 9px; background: #fff;
+      font: .85em 'Inter', system-ui, sans-serif; color: #374151; min-width: 160px;
+    }
+    .hor-select:focus { outline: none; border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124,58,237,.1); }
+    .hor-tip { font-size: .78em; color: #9ca3af; margin-left: auto; }
+    .hor-alerta {
+      background: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #dc2626; color: #7f1d1d;
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: .86em;
+    }
+    .hor-alerta ul { margin: 6px 0 0; padding-left: 20px; }
+    .hor-alerta li { margin: 3px 0; }
+    .hor-link { background: none; border: none; color: #b91c1c; text-decoration: underline; cursor: pointer; font-size: 1em; padding: 0 4px; }
+
+    .hor-cal-scroll { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 10px; }
+    .hor-grid { display: grid; min-width: 680px; }
+    .hor-dia {
+      background: #1e1b4b; color: #fff; text-align: center; padding: 9px 4px;
+      font-size: .8em; font-weight: 600; letter-spacing: .3px; position: sticky; top: 0; z-index: 2;
+    }
+    .hor-grid > div:first-child { background: #1e1b4b; }
+    .hor-gutter { position: relative; background: #faf9ff; border-right: 1px solid #ede9fe; }
+    .hor-hora {
+      position: absolute; right: 6px; transform: translateY(-50%);
+      font-size: .7em; color: #6b7280; font-variant-numeric: tabular-nums;
+    }
+    .hor-hora:first-child { transform: none; }
+    .hor-hora:last-child  { transform: translateY(-100%); }
+    .hor-col {
+      position: relative; border-right: 1px solid #f1f1f4; cursor: copy;
+      background-image: linear-gradient(to bottom, #eef0f4 1px, transparent 1px);
+    }
+    .hor-col:last-child { border-right: none; }
+    .hor-col:hover { background-color: #fcfbff; }
+    .hor-bloque {
+      position: absolute; box-sizing: border-box; overflow: hidden; cursor: pointer;
+      border-left: 4px solid; border-radius: 7px; padding: 4px 7px; font-size: .74em; line-height: 1.3;
+      box-shadow: 0 1px 2px rgba(0,0,0,.06); transition: box-shadow .15s, transform .15s; z-index: 1;
+    }
+    .hor-bloque:hover { box-shadow: 0 4px 12px rgba(0,0,0,.14); transform: translateY(-1px); z-index: 3; }
+    .hor-bloque.choque { outline: 2px solid #dc2626; outline-offset: -2px; }
+    .hor-b-hora { font-size: .9em; opacity: .8; font-variant-numeric: tabular-nums; }
+    .hor-b-asig { font-weight: 700; }
+    .hor-b-det  { opacity: .85; }
+    .hor-b-del {
+      position: absolute; top: 3px; right: 3px; display: none; width: 20px; height: 20px; padding: 0;
+      border: none; border-radius: 5px; background: rgba(255,255,255,.85); color: #be123c; cursor: pointer; font-size: .85em;
+    }
+    .hor-bloque:hover .hor-b-del { display: block; }
+    .hor-b-del:hover { background: #ffe4e6; }
+    .hor-fantasma {
+      display: none; position: absolute; left: 3px; right: 3px; height: 22px; pointer-events: none;
+      border: 1.5px dashed #a78bfa; border-radius: 6px; background: rgba(237,233,254,.7);
+      color: #6d28d9; font-size: .72em; font-weight: 600; padding: 3px 7px; box-sizing: border-box;
+    }
+    .hor-vacio { text-align: center; color: #6b7280; font-size: .88em; margin: 10px 0 0; }
+
+    .hor-fila-dia td {
+      background: #f5f3ff !important; color: #4c1d95; font-weight: 700; font-size: .82em;
+      letter-spacing: .3px; padding-top: 8px; padding-bottom: 8px;
+    }
+    .hor-fila-dia span { font-weight: 500; color: #7c3aed; margin-left: 6px; }
+    .hor-fila-choque td { background: #fef2f2; }
+    .hor-chip { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: .85em; font-weight: 600; }
   </style>
   <link rel="stylesheet" href="css/sicaf-iconos.css">
   <link rel="stylesheet" href="css/sicaf-tema.css">
@@ -1100,39 +1174,38 @@
   <!-- ── TAB: HORARIOS ──────────────────────────────────────── -->
   <div class="tab-section" id="sec-horarios">
     <div class="seccion">
-      <h2>Gestión de Horarios
-        <span style="float:right;display:flex;gap:8px">
-          <button id="btn-vista-horario" class="btn-secondary" onclick="toggleVistaHorario()" style="font-size:.82em"><i class="bi bi-calendar-week"></i> Vista calendario</button>
+      <h2 style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">Gestión de Horarios
+        <span style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <span class="hor-seg" id="hor-vista-btns">
+            <button data-vista="cal"   onclick="horCambiarVista('cal')"><i class="bi bi-calendar-week"></i> Calendario</button>
+            <button data-vista="tabla" onclick="horCambiarVista('tabla')"><i class="bi bi-table"></i> Tabla</button>
+          </span>
           <button class="btn-primary" onclick="abrirModal('horario')">+ Nuevo Bloque</button>
         </span>
       </h2>
+      <div id="msg-horarios" style="margin-bottom:8px"></div>
+      <div id="hor-choques"></div>
 
-      <!-- Vista tabla -->
-      <div id="vista-tabla-horarios">
-        <div style="margin-bottom:8px">
-          Filtrar por día:
-          <select id="filtro-dia-horario" onchange="cargarTablaHorarios()" style="margin-left:4px">
-            <option value="">Todos los días</option>
-            <option value="1">Lunes</option>
-            <option value="2">Martes</option>
-            <option value="3">Miércoles</option>
-            <option value="4">Jueves</option>
-            <option value="5">Viernes</option>
-          </select>
+      <!-- Vista calendario: semana de un curso, profesor o sala -->
+      <div id="vista-cal-horarios">
+        <div id="hor-cal"></div>
+      </div>
+
+      <!-- Vista tabla: todos los bloques, agrupados por día -->
+      <div id="vista-tabla-horarios" style="display:none">
+        <div id="hor-filtros" class="hor-toolbar"></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <input type="text" id="buscar-horarios" placeholder="Buscar por curso, asignatura, profesor o sala..."
+                 oninput="_horRenderTabla()" class="search-input" style="flex:1" />
+          <span id="hor-contador" style="font-size:.82em;color:#6b7280;white-space:nowrap;margin-bottom:12px"></span>
         </div>
-        <input type="text" id="buscar-horarios" placeholder="Buscar por curso, asignatura, profesor o sala..."
-               oninput="filtrarTabla('tbodyHorarios', this.value)" class="search-input" />
-        <div id="msg-horarios" style="margin-bottom:8px"></div>
         <table id="tablaHorarios">
           <thead>
-            <tr><th>Día</th><th>Hora</th><th>Curso</th><th>Asignatura</th><th>Profesor</th><th>Sala</th><th>Acciones</th></tr>
+            <tr><th>Hora</th><th>Curso</th><th>Asignatura</th><th>Profesor</th><th>Sala</th><th>Acciones</th></tr>
           </thead>
           <tbody id="tbodyHorarios"></tbody>
         </table>
       </div>
-
-      <!-- Vista calendario semanal -->
-      <div id="vista-cal-horarios" style="display:none;overflow-x:auto"></div>
     </div>
   </div>
 
@@ -1252,7 +1325,8 @@
         </span>
       </h2>
       <input type="text" id="buscar-apoderados" placeholder="Buscar por nombre, RUT o alumno vinculado..."
-             oninput="filtrarTabla('tbodyApoderados', this.value)" class="search-input" />
+             oninput="_filtrarApoderados()" class="search-input" />
+      <div id="apod-resumen" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"></div>
       <div id="msg-apoderados" style="margin-bottom:8px"></div>
       <table><thead>
         <tr><th>ID</th><th>RUT</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Parentesco</th><th>Alumno(s)</th><th>Acciones</th></tr>

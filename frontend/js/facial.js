@@ -10,7 +10,7 @@ let modoIP = false
 function cambiarModo(modo) {
   modoIP = (modo === 'ip')
   document.getElementById('config-ip').style.display = modoIP ? 'block' : 'none'
-  detenerPreview()
+  detener()
 }
 
 async function conectarIP() {
@@ -72,6 +72,21 @@ function detenerPreview() {
   if (intervaloPreview) { clearInterval(intervaloPreview); intervaloPreview = null }
 }
 
+// Libera la cámara: detener los tracks es lo que apaga la luz de la webcam.
+// Solo limpiar intervalos o el WebSocket NO suelta el dispositivo.
+function apagarWebcam() {
+  const video = document.getElementById('video')
+  if (video && video.srcObject) {
+    video.srcObject.getTracks().forEach(t => t.stop())
+    video.srcObject = null
+  }
+  const canvas = document.getElementById('canvas')
+  if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
+}
+
+// El navegador también la libera al cerrar la pestaña, pero así queda explícito
+window.addEventListener('pagehide', apagarWebcam)
+
 function cargarSnapshot(url) {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -94,6 +109,14 @@ async function registrarRostro() {
   const idAlumno = document.getElementById('idAlumno').value
   const divReg   = document.getElementById('resultadoRegistro')
   if (!idAlumno) { divReg.innerHTML = '<i class="im im-alerta" aria-hidden="true"></i> Ingresa el ID del alumno'; return }
+  try { await _registrarRostro(idAlumno, divReg) }
+  finally {
+    // La cámara se prendió solo para las capturas: apagarla si no se está pasando asistencia
+    if (!intervaloReconocimiento) { detenerPreview(); apagarWebcam() }
+  }
+}
+
+async function _registrarRostro(idAlumno, divReg) {
   divReg.innerHTML = 'Cargando modelos...'
   if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
   if (!modoIP) await activarWebcam()
@@ -190,6 +213,7 @@ function detener() {
   detenerPreview()
   if (intervaloReconocimiento) { clearInterval(intervaloReconocimiento); intervaloReconocimiento = null }
   if (ws) { ws.close(); ws = null }
+  apagarWebcam()
   const res = document.getElementById('resultado')
   if (res) res.innerHTML = 'Reconocimiento detenido.'
   const btnIni = document.getElementById('btn-iniciar-rec')
@@ -205,7 +229,14 @@ async function iniciar() {
   const res = document.getElementById('resultado')
   if (res) res.innerHTML = 'Cargando modelos...'
   if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
-  if (!modoIP) await activarWebcam()
+  if (!modoIP) {
+    try { await activarWebcam() }
+    catch (err) {
+      if (res) res.innerHTML = `<span class="mensaje-err">No se pudo abrir la cámara: ${err.message}</span>`
+      return
+    }
+  }
+  if (ws) ws.close()
   conectarWebSocket()
   if (intervaloReconocimiento) clearInterval(intervaloReconocimiento)
   intervaloReconocimiento = setInterval(enviarFrame, 2000)

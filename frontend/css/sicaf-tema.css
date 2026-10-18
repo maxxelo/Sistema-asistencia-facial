@@ -404,3 +404,7 @@ body.app-active #modal-box h3 { color: #1f1630; }
   .pn-clase-info { flex: 1 1 60%; }
   .pn-clase > .sk-btn { margin-left: auto; }
 }
+
+/* Calendario de horarios (rediseño del compañero): encabezado con el morado del tema */
+#seccionApp .hor-dia { background: var(--sk-violeta); color: #fff; }
+#seccionApp .hor-grid > div:first-child { background: var(--sk-violeta); }

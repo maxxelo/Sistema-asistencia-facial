@@ -227,6 +227,8 @@ document.querySelectorAll('.tab-btn').forEach(b => { const t = b.querySelector('
 
 function mostrarTab(nombre) {
   document.body.classList.remove('sb-abierto')            // en celular, cerrar el menú al elegir
+  // Al salir de Asistencia se apaga la cámara (y el reconocimiento, para no marcar en segundo plano)
+  if (tabActual === 'asistencia' && nombre !== 'asistencia' && typeof detener === 'function') detener()
   document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('visible'))
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'))
   document.getElementById('sec-' + nombre).classList.add('visible')
@@ -1134,7 +1136,7 @@ async function editarProfesor(id) {
 }
 
 async function eliminarProfesor(id, nombre) {
-  if (!await sicafConfirmar(`¿Eliminar permanentemente al profesor ${nombre}?\n\nSe eliminarán también sus horarios asignados y TODOS los registros de asistencia de esas clases.\n(No se puede deshacer)`)) return
+  if (!await sicafConfirmar(`¿Eliminar permanentemente al profesor ${nombre}?\n\nSe eliminarán también sus horarios asignados. Si alguna de sus clases ya tiene asistencia registrada, el sistema no lo permitirá (primero reasigna esos horarios a otro profesor).\n(No se puede deshacer)`)) return
   const { ok, data } = await apiDelete(`${API1}/profesores/${id}`)
   document.getElementById('msg-profesores').innerHTML =
     ok ? `<span class="mensaje-ok">${data.mensaje}</span>`
@@ -1329,6 +1331,9 @@ async function cargarPanel() {
     const profConUser = new Set(usuarios.filter(u => u.id_profesor).map(u => u.id_profesor))
     const prSinUser = prActivos.filter(p => !profConUser.has(p.id))
     if (prSinUser.length) alertas.push({ tipo: 'warn', msg: `${prSinUser.length} profesor(es) sin cuenta de acceso`, tab: 'usuarios' })
+    const apSinAlumno = (Array.isArray(apoderados) ? apoderados : []).filter(ap => ap.activo && !(ap.alumnos || []).length)
+    if (apSinAlumno.length) alertas.push({ tipo: 'warn', msg: `${apSinAlumno.length} apoderado(s) sin alumno vinculado`,
+                                         onclick: `_apodFiltro='sin';mostrarTab('apoderados')` })
     const cuSinJefe = cuActivos.filter(c => !c.id_profesor_jefe)
     if (cuSinJefe.length) alertas.push({ tipo: 'info', msg: `${cuSinJefe.length} curso(s) sin profesor jefe`, tab: 'cursos' })
     const cuSinHorario = cuActivos.filter(c => !horarios.some(h => h.id_curso === c.id))
@@ -1437,136 +1442,337 @@ async function _cargarClasesDiaAdmin(resumen) {
 }
 
 /* ── TABLA: HORARIOS ──────────────────────────────────────────── */
-async function cargarTablaHorarios() {
-  const tbody = document.getElementById('tbodyHorarios')
-  tbody.innerHTML = '<tr><td colspan="7">Cargando...</td></tr>'
-  try {
-    const dia = document.getElementById('filtro-dia-horario')?.value || ''
-    const url = dia ? `${API1}/horarios?dia_semana=${dia}` : `${API1}/horarios`
-    const horarios = await apiGet(url)
-    tbody.innerHTML = ''
-    if (!horarios.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="color:gray">No hay bloques horarios</td></tr>'; return
+/* ══════════════════════════════════════════════════════════════════
+   MÓDULO: HORARIOS
+   - Vista calendario (principal): semana de UN curso, profesor o sala,
+     con bloques del alto proporcional a su duración. Clic en un espacio
+     vacío = nuevo bloque prellenado; clic en un bloque = editar.
+   - Vista tabla: todos los bloques agrupados por día, con filtros.
+   - Los choques (mismo profesor, curso o sala a la misma hora) se marcan en rojo.
+══════════════════════════════════════════════════════════════════ */
+const _hor = {
+  datos: [], cursos: [], profesores: [], aulas: [],
+  choques: new Map(),   // id_horario → [motivos]
+  pares: [],            // [{ a, b, motivo }] para el aviso
+  vista: 'cal',         // 'cal' | 'tabla'
+  ver: 'curso',         // 'curso' | 'profesor' | 'sala'
+  id: ''                // id del curso/profesor o código de sala que se está viendo
+}
+const HOR_PX_MIN = 1.15   // alto en px de cada minuto en el calendario
+const HOR_SNAP   = 15     // al hacer clic, se redondea a bloques de 15 min
+
+try {
+  const g = JSON.parse(localStorage.getItem('horarios_vista') || '{}')
+  if (g.vista) _hor.vista = g.vista
+  if (g.ver)   _hor.ver   = g.ver
+  if (g.id)    _hor.id    = g.id
+} catch {}
+function _horGuardarPref() {
+  try { localStorage.setItem('horarios_vista', JSON.stringify({ vista: _hor.vista, ver: _hor.ver, id: _hor.id })) } catch {}
+}
+
+const _horMin = t => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m }
+const _horHHMM = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
+
+// Color estable por asignatura (mismo ramo = mismo color en todas las vistas).
+// Paleta sin rojos ni rosados: el rojo queda reservado para marcar choques.
+const HOR_TONOS = [217, 158, 42, 262, 190, 130, 290, 200, 75, 240]
+function _horColor(txt) {
+  let h = 0
+  for (let i = 0; i < txt.length; i++) h = txt.charCodeAt(i) + ((h << 5) - h)
+  const hue = HOR_TONOS[Math.abs(h) % HOR_TONOS.length]
+  return { fondo: `hsl(${hue}, 70%, 94%)`, borde: `hsl(${hue}, 55%, 55%)`, texto: `hsl(${hue}, 60%, 22%)` }
+}
+
+// Busca todos los pares de bloques que se cruzan el mismo día
+function _horCalcularChoques() {
+  _hor.choques = new Map(); _hor.pares = []
+  const hs = _hor.datos
+  for (let i = 0; i < hs.length; i++) {
+    for (let j = i + 1; j < hs.length; j++) {
+      const a = hs[i], b = hs[j]
+      if (a.dia_semana !== b.dia_semana) continue
+      if (!(_horMin(a.hora_inicio) < _horMin(b.hora_fin) && _horMin(a.hora_fin) > _horMin(b.hora_inicio))) continue
+      const motivos = []
+      if (a.id_profesor === b.id_profesor) motivos.push(`profesor ${a.profesor}`)
+      if (a.id_curso    === b.id_curso)    motivos.push(`curso ${a.curso}`)
+      if (a.sala && a.sala === b.sala)     motivos.push(`sala ${a.sala}`)
+      if (!motivos.length) continue
+      const motivo = motivos.join(', ')
+      _hor.pares.push({ a, b, motivo })
+      ;[a, b].forEach(h => {
+        if (!_hor.choques.has(h.id)) _hor.choques.set(h.id, [])
+        _hor.choques.get(h.id).push(`Choca con ${(h === a ? b : a).asignatura} (${(h === a ? b : a).curso}) — mismo ${motivo}`)
+      })
     }
-    horarios.forEach(h => {
-      const tr = document.createElement('tr')
-      tr.innerHTML = `
-        <td><strong>${DIAS_SEMANA[h.dia_semana] || h.dia_semana}</strong></td>
-        <td>${h.hora_inicio.slice(0,5)} – ${h.hora_fin.slice(0,5)}</td>
-        <td>${h.curso}</td>
-        <td>${h.asignatura}</td>
-        <td>${h.profesor}</td>
-        <td>${h.sala || '—'}</td>
-        <td>
-          <button class="btn-sm btn-edit"   onclick="editarHorario(${h.id})"><i class="bi bi-pencil-fill"></i></button>
-          <button class="btn-sm btn-delete" onclick="eliminarHorario(${h.id})"><i class="bi bi-trash3-fill"></i></button>
-        </td>`
-      tbody.appendChild(tr)
-    })
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="7" class="mensaje-err">Error: ${err.message}</td></tr>`
   }
 }
 
+/* ── CARGA ─────────────────────────────────────────────────────── */
+async function cargarTablaHorarios() {
+  const cal = document.getElementById('hor-cal')
+  if (cal && !_hor.datos.length) cal.innerHTML = '<p style="color:gray;font-size:.9em"><i class="im im-espera" aria-hidden="true"></i> Cargando horarios...</p>'
+  try {
+    const [horarios, cursos, profesores, aulas] = await Promise.all([
+      apiGet(`${API1}/horarios`),
+      apiGet(`${API1}/cursos`),
+      apiGet(`${API1}/profesores`),
+      apiGet(`${API1}/aulas`)
+    ])
+    _hor.datos      = horarios
+    _hor.cursos     = cursos.filter(c => c.activo)
+    _hor.profesores = profesores.filter(p => p.activo)
+    _hor.aulas      = aulas
+    _horCalcularChoques()
+    _horRender()
+  } catch (err) {
+    if (cal) cal.innerHTML = `<p class="mensaje-err">Error al cargar horarios: ${_escHtml(err.message)}</p>`
+  }
+}
+
+function _horRender() {
+  document.querySelectorAll('#hor-vista-btns button').forEach(b =>
+    b.classList.toggle('activo', b.dataset.vista === _hor.vista))
+  document.getElementById('vista-cal-horarios').style.display   = _hor.vista === 'cal'   ? '' : 'none'
+  document.getElementById('vista-tabla-horarios').style.display = _hor.vista === 'tabla' ? '' : 'none'
+  _horRenderChoques()
+  if (_hor.vista === 'cal') _horRenderCalendario()
+  else                      _horRenderTabla()
+}
+
+function horCambiarVista(vista) { _hor.vista = vista; _horGuardarPref(); _horRender() }
+
+/* ── AVISO DE CHOQUES ──────────────────────────────────────────── */
+function _horRenderChoques() {
+  const cont = document.getElementById('hor-choques')
+  if (!_hor.pares.length) { cont.innerHTML = ''; return }
+  const linea = p => {
+    const fmt = h => `${_escHtml(h.asignatura)} ${_escHtml(h.curso)} ${h.hora_inicio.slice(0, 5)}–${h.hora_fin.slice(0, 5)}`
+    return `<li>${DIAS_SEMANA[p.a.dia_semana]}: <strong>${fmt(p.a)}</strong> y <strong>${fmt(p.b)}</strong>
+      — mismo ${_escHtml(p.motivo)}
+      <button class="hor-link" onclick="editarHorario(${p.b.id})">Editar</button></li>`
+  }
+  cont.innerHTML = `
+    <div class="hor-alerta">
+      <div><i class="bi bi-exclamation-triangle-fill"></i>
+        <strong>${_hor.pares.length} choque(s) de horario</strong> — se marcan en rojo en el calendario.
+        Corrígelos editando uno de los bloques.</div>
+      <ul>${_hor.pares.map(linea).join('')}</ul>
+    </div>`
+}
+
+/* ── VISTA CALENDARIO ──────────────────────────────────────────── */
+function _horOpcionesEntidad() {
+  const cuenta = fn => _hor.datos.filter(fn).length
+  if (_hor.ver === 'curso')
+    return _hor.cursos.map(c => ({ id: String(c.id), lbl: c.nombre, n: cuenta(h => h.id_curso === c.id) }))
+  if (_hor.ver === 'profesor')
+    return _hor.profesores.map(p => ({ id: String(p.id), lbl: `${p.nombre} ${p.apellido_paterno}`, n: cuenta(h => h.id_profesor === p.id) }))
+  return _hor.aulas.map(a => ({ id: a.codigo, lbl: a.codigo + (a.nombre ? ` — ${a.nombre}` : ''), n: cuenta(h => h.sala === a.codigo) }))
+}
+
+function horCambiarVer(ver) {
+  _hor.ver = ver; _hor.id = ''
+  _horGuardarPref(); _horRenderCalendario()
+}
+function horCambiarEntidad(id) { _hor.id = id; _horGuardarPref(); _horRenderCalendario() }
+
+function _horRenderCalendario() {
+  const cont = document.getElementById('hor-cal')
+  const opciones = _horOpcionesEntidad()
+  if (!opciones.some(o => o.id === _hor.id)) _hor.id = opciones[0]?.id || ''
+
+  const nombresVer = { curso: 'Curso', profesor: 'Profesor', sala: 'Sala' }
+  const toolbar = `
+    <div class="hor-toolbar">
+      <span class="hor-lbl">Ver horario de</span>
+      <div class="hor-seg">
+        ${['curso', 'profesor', 'sala'].map(v =>
+          `<button class="${_hor.ver === v ? 'activo' : ''}" onclick="horCambiarVer('${v}')">${nombresVer[v]}</button>`).join('')}
+      </div>
+      <select class="hor-select" onchange="horCambiarEntidad(this.value)">
+        ${opciones.map(o => `<option value="${_escHtml(o.id)}" ${o.id === _hor.id ? 'selected' : ''}>${_escHtml(o.lbl)} (${o.n} bloque${o.n === 1 ? '' : 's'})</option>`).join('')
+          || `<option value="">No hay ${nombresVer[_hor.ver].toLowerCase()}s registrados</option>`}
+      </select>
+      <span class="hor-tip"><i class="bi bi-hand-index"></i> Clic en un espacio libre para agregar un bloque</span>
+    </div>`
+
+  if (!_hor.id) { cont.innerHTML = toolbar; return }
+
+  const visibles = _hor.datos.filter(h =>
+    _hor.ver === 'curso'    ? String(h.id_curso)    === _hor.id :
+    _hor.ver === 'profesor' ? String(h.id_profesor) === _hor.id :
+                              h.sala === _hor.id)
+
+  // Rango de horas: el mismo para todas las entidades (para que no "salte" al cambiar)
+  let ini = 8 * 60, fin = 16 * 60
+  _hor.datos.forEach(h => { ini = Math.min(ini, _horMin(h.hora_inicio)); fin = Math.max(fin, _horMin(h.hora_fin)) })
+  ini = Math.floor(ini / 60) * 60; fin = Math.ceil(fin / 60) * 60
+  const alto = (fin - ini) * HOR_PX_MIN
+
+  // Lunes a viernes, más sábado/domingo solo si hay bloques esos días
+  const dias = [1, 2, 3, 4, 5, ...[6, 7].filter(d => _hor.datos.some(h => h.dia_semana === d))]
+
+  const horas = []
+  for (let m = ini; m <= fin; m += 60) horas.push(m)
+  const gutter = horas.map(m =>
+    `<div class="hor-hora" style="top:${(m - ini) * HOR_PX_MIN}px">${_horHHMM(m)}</div>`).join('')
+
+  const columna = d => {
+    const delDia = visibles.filter(h => h.dia_semana === d).sort((a, b) => _horMin(a.hora_inicio) - _horMin(b.hora_inicio))
+    // Si hay bloques que se cruzan (choque), se ponen lado a lado en "carriles"
+    const carriles = []
+    delDia.forEach(h => {
+      let c = carriles.findIndex(finCarril => finCarril <= _horMin(h.hora_inicio))
+      if (c === -1) { c = carriles.length; carriles.push(0) }
+      carriles[c] = _horMin(h.hora_fin); h._carril = c
+    })
+    const nCarriles = Math.max(1, carriles.length)
+
+    const bloques = delDia.map(h => {
+      const top = (_horMin(h.hora_inicio) - ini) * HOR_PX_MIN
+      const hgt = (_horMin(h.hora_fin) - _horMin(h.hora_inicio)) * HOR_PX_MIN
+      const col = _horColor(h.asignatura)
+      const choque = _hor.choques.get(h.id)
+      const detalle =
+        _hor.ver === 'curso'    ? [h.profesor, h.sala] :
+        _hor.ver === 'profesor' ? [h.curso, h.sala] :
+                                  [h.curso, h.profesor]
+      const titulo = `${h.asignatura} · ${h.hora_inicio.slice(0, 5)}–${h.hora_fin.slice(0, 5)}\n${h.curso} · ${h.profesor}${h.sala ? ' · Sala ' + h.sala : ''}` +
+        (choque ? '\n\nChoque de horario:\n· ' + choque.join('\n· ') : '')
+      return `
+        <div class="hor-bloque${choque ? ' choque' : ''}" title="${_escHtml(titulo)}"
+             onclick="event.stopPropagation(); editarHorario(${h.id})"
+             style="top:${top}px;height:${hgt}px;
+                    left:calc(${(h._carril / nCarriles) * 100}% + 3px);width:calc(${100 / nCarriles}% - 6px);
+                    background:${choque ? '#fee2e2' : col.fondo};border-left-color:${choque ? '#dc2626' : col.borde};
+                    color:${choque ? '#7f1d1d' : col.texto}">
+          <div class="hor-b-hora">${choque ? '<i class="bi bi-exclamation-triangle-fill"></i> ' : ''}${h.hora_inicio.slice(0, 5)}–${h.hora_fin.slice(0, 5)}</div>
+          <div class="hor-b-asig">${_escHtml(h.asignatura)}</div>
+          <div class="hor-b-det">${detalle.filter(Boolean).map(_escHtml).join(' · ')}</div>
+          <button class="hor-b-del" title="Eliminar bloque" onclick="event.stopPropagation(); eliminarHorario(${h.id})"><i class="bi bi-x-lg"></i></button>
+        </div>`
+    }).join('')
+
+    return `
+      <div class="hor-col" data-dia="${d}" style="height:${alto}px;background-size:100% ${60 * HOR_PX_MIN}px"
+           onclick="_horClicColumna(event, ${d}, ${ini})" onmousemove="_horHover(event, ${ini})" onmouseleave="_horHoverFuera(this)">
+        ${bloques}
+        <div class="hor-fantasma"></div>
+      </div>`
+  }
+
+  cont.innerHTML = toolbar + `
+    <div class="hor-cal-scroll">
+      <div class="hor-grid" style="grid-template-columns:56px repeat(${dias.length}, minmax(120px, 1fr))">
+        <div></div>
+        ${dias.map(d => `<div class="hor-dia">${DIAS_SEMANA[d]}</div>`).join('')}
+        <div class="hor-gutter" style="height:${alto}px">${gutter}</div>
+        ${dias.map(columna).join('')}
+      </div>
+    </div>
+    ${visibles.length ? '' : `<p class="hor-vacio">Sin bloques todavía. Haz clic en el calendario para agregar el primero.</p>`}`
+}
+
+// Minuto (redondeado a HOR_SNAP) según la posición vertical del mouse en la columna
+function _horMinutoEn(ev, ini) {
+  const col = ev.currentTarget
+  const y = ev.clientY - col.getBoundingClientRect().top
+  return ini + Math.round(y / HOR_PX_MIN / HOR_SNAP) * HOR_SNAP
+}
+
+function _horHover(ev, ini) {
+  const fant = ev.currentTarget.querySelector('.hor-fantasma')
+  if (ev.target.closest('.hor-bloque')) { fant.style.display = 'none'; return }
+  const m = _horMinutoEn(ev, ini)
+  fant.style.display = 'block'
+  fant.style.top = `${(m - ini) * HOR_PX_MIN}px`
+  fant.textContent = `+ ${_horHHMM(m)}`
+}
+function _horHoverFuera(col) { col.querySelector('.hor-fantasma').style.display = 'none' }
+
+// Clic en espacio libre → "Nuevo bloque" con día, hora y curso/sala ya puestos
+function _horClicColumna(ev, dia, ini) {
+  if (ev.target.closest('.hor-bloque')) return
+  const m = _horMinutoEn(ev, ini)
+  const pre = { dia_semana: dia, hora_inicio: _horHHMM(m), hora_fin: _horHHMM(Math.min(m + 90, 23 * 60 + 45)) }
+  if (_hor.ver === 'curso') pre.id_curso = parseInt(_hor.id)
+  if (_hor.ver === 'sala')  pre.sala     = _hor.id
+  abrirModal('horario', pre)   // sin "id" → se abre como bloque nuevo
+}
+
+/* ── VISTA TABLA ───────────────────────────────────────────────── */
+function _horRenderTabla() {
+  // Mantener lo elegido en los filtros al volver a pintar
+  const val = id => document.getElementById(id)?.value || ''
+  const f = { curso: val('hf-curso'), prof: val('hf-prof'), sala: val('hf-sala'), dia: val('hf-dia') }
+  const sel = (id, todos, ops, actual) => `
+    <select id="${id}" class="hor-select" onchange="_horRenderTabla()">
+      <option value="">${todos}</option>
+      ${ops.map(([v, l]) => `<option value="${_escHtml(v)}" ${String(v) === actual ? 'selected' : ''}>${_escHtml(l)}</option>`).join('')}
+    </select>`
+
+  document.getElementById('hor-filtros').innerHTML = `
+    ${sel('hf-curso', 'Todos los cursos',     _hor.cursos.map(c => [c.id, c.nombre]), f.curso)}
+    ${sel('hf-prof',  'Todos los profesores', _hor.profesores.map(p => [p.id, `${p.nombre} ${p.apellido_paterno}`]), f.prof)}
+    ${sel('hf-sala',  'Todas las salas',      _hor.aulas.map(a => [a.codigo, a.codigo]), f.sala)}
+    ${sel('hf-dia',   'Todos los días',       [1, 2, 3, 4, 5, 6, 7].map(d => [d, DIAS_SEMANA[d]]), f.dia)}`
+
+  const q = (document.getElementById('buscar-horarios')?.value || '').toLowerCase().trim()
+  const filas = _hor.datos.filter(h =>
+    (!f.curso || String(h.id_curso)    === f.curso) &&
+    (!f.prof  || String(h.id_profesor) === f.prof)  &&
+    (!f.sala  || h.sala                === f.sala)  &&
+    (!f.dia   || String(h.dia_semana)  === f.dia)   &&
+    (!q || `${h.curso} ${h.asignatura} ${h.profesor} ${h.sala || ''}`.toLowerCase().includes(q)))
+
+  const tbody = document.getElementById('tbodyHorarios')
+  document.getElementById('hor-contador').textContent =
+    `${filas.length} de ${_hor.datos.length} bloque${_hor.datos.length === 1 ? '' : 's'}`
+  if (!filas.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="color:gray">${_hor.datos.length ? 'Ningún bloque coincide con los filtros' : 'No hay bloques horarios'}</td></tr>`
+    return
+  }
+
+  let html = '', diaActual = null
+  filas.forEach(h => {   // ya vienen ordenados por día y hora desde la API
+    if (h.dia_semana !== diaActual) {
+      diaActual = h.dia_semana
+      const n = filas.filter(x => x.dia_semana === diaActual).length
+      html += `<tr class="hor-fila-dia"><td colspan="6">${DIAS_SEMANA[diaActual]} <span>${n} bloque${n === 1 ? '' : 's'}</span></td></tr>`
+    }
+    const choque = _hor.choques.get(h.id)
+    html += `
+      <tr class="${choque ? 'hor-fila-choque' : ''}" ${choque ? `title="${_escHtml(choque.join('\n'))}"` : ''}>
+        <td style="white-space:nowrap">${choque ? '<i class="bi bi-exclamation-triangle-fill" style="color:#dc2626"></i> ' : ''}${h.hora_inicio.slice(0, 5)} – ${h.hora_fin.slice(0, 5)}</td>
+        <td>${_escHtml(h.curso)}</td>
+        <td><span class="hor-chip" style="background:${_horColor(h.asignatura).fondo};color:${_horColor(h.asignatura).texto}">${_escHtml(h.asignatura)}</span></td>
+        <td>${_escHtml(h.profesor)}</td>
+        <td>${_escHtml(h.sala || '—')}</td>
+        <td style="white-space:nowrap">
+          <button class="btn-sm btn-edit"   title="Editar"   onclick="editarHorario(${h.id})"><i class="bi bi-pencil-fill"></i></button>
+          <button class="btn-sm btn-delete" title="Eliminar" onclick="eliminarHorario(${h.id})"><i class="bi bi-trash3-fill"></i></button>
+        </td>
+      </tr>`
+  })
+  tbody.innerHTML = html
+}
+
+/* ── ACCIONES ──────────────────────────────────────────────────── */
 async function editarHorario(id) {
-  // Obtener datos del horario desde la lista cargada en la tabla
-  const rows = document.querySelectorAll('#tbodyHorarios tr')
-  // Re-carga todos los horarios para buscar el ID
-  const horarios = await apiGet(`${API1}/horarios`)
-  const h = horarios.find(x => x.id === id)
+  const h = _hor.datos.find(x => x.id === id)
   if (h) await abrirModal('horario', h)
 }
 
 async function eliminarHorario(id) {
-  if (!await sicafConfirmar('¿Eliminar este bloque horario?\n\nSe eliminarán también los registros de asistencia asociados.')) return
+  const h = _hor.datos.find(x => x.id === id)
+  const desc = h ? `\n\n${h.asignatura} · ${h.curso}\n${DIAS_SEMANA[h.dia_semana]} ${h.hora_inicio.slice(0, 5)}–${h.hora_fin.slice(0, 5)}` : ''
+  if (!await sicafConfirmar(`¿Eliminar este bloque horario?${desc}\n\nSi la clase ya tiene asistencia registrada, el sistema no permitirá eliminarla.`)) return
   const { ok, data } = await apiDelete(`${API1}/horarios/${id}`)
   document.getElementById('msg-horarios').innerHTML =
     ok ? `<span class="mensaje-ok">${data.mensaje}</span>`
        : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaHorarios()
-  if (_vistaCalHorario) _renderCalendarioHorarios()
-}
-
-/* ── VISTA CALENDARIO SEMANAL DE HORARIOS ─────────────────────── */
-let _vistaCalHorario = false
-async function toggleVistaHorario() {
-  _vistaCalHorario = !_vistaCalHorario
-  const vTabla = document.getElementById('vista-tabla-horarios')
-  const vCal   = document.getElementById('vista-cal-horarios')
-  const btn    = document.getElementById('btn-vista-horario')
-  if (_vistaCalHorario) {
-    vTabla.style.display = 'none'; vCal.style.display = ''
-    btn.innerHTML = '<i class="bi bi-table"></i> Vista tabla'
-    await _renderCalendarioHorarios()
-  } else {
-    vTabla.style.display = ''; vCal.style.display = 'none'
-    btn.innerHTML = '<i class="bi bi-calendar-week"></i> Vista calendario'
-  }
-}
-
-async function _renderCalendarioHorarios() {
-  const cont = document.getElementById('vista-cal-horarios')
-  cont.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando calendario...</p>'
-  try {
-    const horarios = await apiGet(`${API1}/horarios`)
-    const DIAS = [1, 2, 3, 4, 5]
-    const DIAS_LBL = { 1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes' }
-
-    if (!horarios.length) {
-      cont.innerHTML = '<p style="color:#6b7280;font-size:.9em">No hay horarios configurados todavía.</p>'; return
-    }
-
-    // Bloques de hora únicos (ordenados por hora de inicio)
-    const bloquesMap = new Map()
-    horarios.forEach(h => {
-      const key = `${h.hora_inicio}|${h.hora_fin}`
-      if (!bloquesMap.has(key)) bloquesMap.set(key, { ini: h.hora_inicio, fin: h.hora_fin })
-    })
-    const bloques = Array.from(bloquesMap.values()).sort((a, b) => a.ini.localeCompare(b.ini))
-
-    // Color pastel estable por asignatura
-    const colorAsig = txt => {
-      let h = 0
-      for (let i = 0; i < txt.length; i++) h = txt.charCodeAt(i) + ((h << 5) - h)
-      return `hsl(${Math.abs(h) % 360}, 65%, 92%)`
-    }
-    const bordeAsig = txt => {
-      let h = 0
-      for (let i = 0; i < txt.length; i++) h = txt.charCodeAt(i) + ((h << 5) - h)
-      return `hsl(${Math.abs(h) % 360}, 55%, 70%)`
-    }
-
-    const celda = c => `
-      <div style="background:${colorAsig(c.asignatura)};border-left:3px solid ${bordeAsig(c.asignatura)};
-                  border-radius:6px;padding:5px 8px;margin-bottom:5px;font-size:.76em;line-height:1.3">
-        <div style="font-weight:700;color:#1f2937">${c.asignatura}</div>
-        <div style="color:#374151">${c.curso}${c.sala ? ' · ' + c.sala : ''}</div>
-        <div style="color:#6b7280">${c.profesor}</div>
-      </div>`
-
-    let html = `<table style="width:100%;border-collapse:separate;border-spacing:0;min-width:720px;font-size:.875em">
-      <thead><tr>
-        <th style="background:#1e1b4b;color:#c7d2fe;padding:10px;border-radius:8px 0 0 0;width:78px;font-size:.8em">Hora</th>
-        ${DIAS.map((d, i) => `<th style="background:#1e1b4b;color:#fff;padding:10px;font-size:.85em;${i === DIAS.length - 1 ? 'border-radius:0 8px 0 0' : ''}">${DIAS_LBL[d]}</th>`).join('')}
-      </tr></thead><tbody>`
-
-    bloques.forEach(b => {
-      html += `<tr>
-        <td style="background:#f5f3ff;color:#4c1d95;font-weight:600;text-align:center;padding:8px 4px;font-size:.78em;border:1px solid #ede9fe;white-space:nowrap">
-          ${b.ini.slice(0, 5)}<br>${b.fin.slice(0, 5)}</td>`
-      DIAS.forEach(d => {
-        const clases = horarios.filter(h =>
-          h.dia_semana === d && h.hora_inicio === b.ini && h.hora_fin === b.fin)
-        html += `<td style="vertical-align:top;padding:6px;border:1px solid #f1f1f4;min-width:130px;background:#fff">
-          ${clases.map(celda).join('') || '<span style="color:#d1d5db;font-size:.8em">—</span>'}</td>`
-      })
-      html += `</tr>`
-    })
-    html += `</tbody></table>`
-    cont.innerHTML = html
-  } catch (err) {
-    cont.innerHTML = `<p class="mensaje-err">Error al cargar calendario: ${err.message}</p>`
-  }
 }
 
 /* ── TABLA: USUARIOS ───────────────────────────────────────────── */
@@ -1793,6 +1999,7 @@ async function abrirModal(tipo, datos = null) {
   }
   if (tipo === 'apoderado') {
     listaAlumnos = (await apiGet(`${API1}/alumnos`)).filter(a => a.activo)
+    _apodAlumnosSel = (datos?.alumnos || []).map(a => ({ ...a }))
   }
 
   // Restaurar botones del modal (en caso de que estuvieran en modo "ver")
@@ -1801,6 +2008,7 @@ async function abrirModal(tipo, datos = null) {
     <button class="btn-primary"   onclick="guardarModal()">Guardar</button>`
 
   document.getElementById('modal-form-container').innerHTML = renderFormulario(tipo, datos)
+  if (tipo === 'apoderado') _renderAlumnosApod()
   aplicarRestriccionesInput()
   document.getElementById('modal-overlay').style.display = 'block'
 }
@@ -1973,9 +2181,10 @@ function renderFormulario(tipo, d) {
     // Detectar el curso del que este profesor es jefe (si está editando)
     const idProf = d ? d.id : null
     const cursoJefe = idProf ? listaCursos.find(c => c.id_profesor_jefe == idProf) : null
-    const opsCursosJefe = listaCursos.map(c =>
-      `<option value="${c.id}" ${cursoJefe && cursoJefe.id === c.id ? 'selected' : ''}>${c.nombre} (${c.anio})</option>`
-    ).join('')
+    const opsCursosJefe = listaCursos.map(c => {
+      const otroJefe = c.id_profesor_jefe && (!d || c.id_profesor_jefe != d.id) ? ` — jefe actual: ${c.profesor_jefe}` : ''
+      return `<option value="${c.id}" ${cursoJefe && cursoJefe.id === c.id ? 'selected' : ''}>${c.nombre} (${c.anio})${otroJefe}</option>`
+    }).join('')
 
     return `
       <div class="form-group">
@@ -2255,9 +2464,6 @@ function renderFormulario(tipo, d) {
 
   /* ── APODERADO ───────────────────────────────────────────── */
   if (tipo === 'apoderado') {
-    const opsAlumnos = listaAlumnos.map(a =>
-      `<option value="${a.id}" ${d&&d.id_alumno==a.id?'selected':''}>${a.nombre} ${a.apellido_paterno} — ${a.curso||'Sin curso'}</option>`
-    ).join('')
     return `
       <div class="form-group"><label>RUT * <small style="color:#888">Ej: 12345678-9</small></label>
         <input type="text" id="f-rut" value="${v('rut')}" maxlength="10" placeholder="12345678-9" autocomplete="off" /></div>
@@ -2276,8 +2482,15 @@ function renderFormulario(tipo, d) {
         <input type="text" id="f-email" value="${v('email')}" placeholder="maria@gmail.com" autocomplete="off" /></div>
       <div class="form-group"><label>Dirección</label>
         <input type="text" id="f-direccion" value="${v('direccion')}" placeholder="Calle Los Álamos 123" /></div>
-      <div class="form-group"><label>Vincular al alumno <small style="color:#888">Opcional</small></label>
-        <select id="f-id_alumno"><option value="">— Sin vincular por ahora —</option>${opsAlumnos}</select></div>`
+      <div class="form-group"><label>Alumno(s) a cargo <small style="color:#888">Busca por RUT o nombre</small></label>
+        <div id="apod-alumnos-sel" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"></div>
+        <div style="position:relative">
+          <input type="text" id="f-buscar-alumno" placeholder="Ej: 21234567-8 o Juan Pérez" autocomplete="off"
+                 oninput="_buscarAlumnoApod(this.value)" />
+          <div id="apod-alumnos-res" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:20;
+               background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.12);
+               max-height:220px;overflow-y:auto;margin-top:2px"></div>
+        </div></div>`
   }
 
   /* ── COMUNICADO ──────────────────────────────────────────── */
@@ -2750,7 +2963,7 @@ async function guardarModal() {
                telefono: leerCampo('f-telefono')||null,
                parentesco: leerCampo('f-parentesco')||null,
                direccion: leerCampo('f-direccion')||null,
-               id_alumno: leerCampo('f-id_alumno')||null }
+               id_alumnos: _apodAlumnosSel.map(a => a.id) }
     url    = modalId ? `${API1}/apoderados/${modalId}` : `${API1}/apoderados`
     method = modalId ? 'PUT' : 'POST'
   }
@@ -2789,7 +3002,12 @@ async function guardarModal() {
       }
       // Si eligió un curso nuevo distinto al anterior, asignarlo
       if (nuevoCursoId && String(nuevoCursoId) !== String(cursoAnterior?.id)) {
-        await apiPatch(`${API1}/cursos/${nuevoCursoId}/jefe`, { id_profesor_jefe: parseInt(profesorId) })
+        const rj = await apiPatch(`${API1}/cursos/${nuevoCursoId}/jefe`, { id_profesor_jefe: parseInt(profesorId) })
+        if (!rj.ok) {
+          msg.innerHTML = `<span class="mensaje-aviso">Profesor guardado, pero no se asignó la jefatura: ${rj.data.error}</span>`
+          cargarTablaProfesores()
+          return
+        }
       }
     }
 
@@ -3654,19 +3872,123 @@ async function guardarModalNotas() {
 /* ══════════════════════════════════════════════════════════════════
    MÓDULO: APODERADOS
 ══════════════════════════════════════════════════════════════════ */
+let _apodAlumnosSel = []        // alumnos elegidos en el modal de apoderado
+let _apodFiltro      = 'todos'   // 'todos' | 'sin' | 'con'
+
+// RUT sin puntos, guión ni espacios, en minúscula (para comparar "12.345.678-9" con "123456789")
+const _rutPlano = r => String(r || '').replace(/[^0-9kK]/g, '').toLowerCase()
+
+function _buscarAlumnoApod(texto) {
+  const res = document.getElementById('apod-alumnos-res')
+  const q = texto.trim().toLowerCase()
+  const qRut = _rutPlano(q)
+  if (q.length < 2) { res.style.display = 'none'; return }
+  const elegidos = new Set(_apodAlumnosSel.map(a => a.id))
+  const matches = listaAlumnos.filter(a => !elegidos.has(a.id) && (
+    (qRut.length >= 2 && _rutPlano(a.rut).includes(qRut)) ||
+    `${a.nombre} ${a.apellido_paterno} ${a.apellido_materno || ''}`.toLowerCase().includes(q)
+  )).slice(0, 8)
+  res.innerHTML = matches.length
+    ? matches.map(a => `
+        <div onclick="_agregarAlumnoApod(${a.id})" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9"
+             onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background=''">
+          <strong>${_escHtml(a.rut)}</strong> · ${_escHtml(a.nombre)} ${_escHtml(a.apellido_paterno)}
+          <span style="color:#888;font-size:.85em">— ${_escHtml(a.curso || 'Sin curso')}</span>
+        </div>`).join('')
+    : `<div style="padding:8px 12px;color:#888">${_apodAlumnosSel.length ? 'No hay más alumnos activos que coincidan (los ya agregados no se repiten)' : 'No se encontró ningún alumno activo'}</div>`
+  res.style.display = 'block'
+}
+
+function _agregarAlumnoApod(id) {
+  const a = listaAlumnos.find(x => x.id === id)
+  if (!a || _apodAlumnosSel.some(x => x.id === id)) return
+  _apodAlumnosSel.push({ id: a.id, rut: a.rut, nombre: `${a.nombre} ${a.apellido_paterno}`, curso: a.curso })
+  const input = document.getElementById('f-buscar-alumno')
+  input.value = ''
+  document.getElementById('apod-alumnos-res').style.display = 'none'
+  _renderAlumnosApod()
+  input.focus()
+}
+
+function _quitarAlumnoApod(id) {
+  _apodAlumnosSel = _apodAlumnosSel.filter(a => a.id !== id)
+  _renderAlumnosApod()
+}
+
+function _renderAlumnosApod() {
+  const cont = document.getElementById('apod-alumnos-sel')
+  if (!cont) return
+  cont.innerHTML = _apodAlumnosSel.length
+    ? _apodAlumnosSel.map(a => `
+        <span style="display:inline-flex;align-items:center;gap:6px;background:#ede9fe;color:#5b21b6;
+                     padding:4px 6px 4px 10px;border-radius:14px;font-size:.85em">
+          ${_escHtml(a.nombre)} <small style="opacity:.75">${_escHtml(a.rut)}${a.curso ? ' · ' + _escHtml(a.curso) : ''}</small>
+          <button type="button" onclick="_quitarAlumnoApod(${a.id})" title="Quitar"
+                  style="border:none;background:#ddd6fe;color:#5b21b6;border-radius:50%;width:18px;height:18px;
+                         line-height:18px;padding:0;cursor:pointer;font-size:.8em;display:inline-flex;align-items:center;justify-content:center" aria-label="Quitar alumno"><i class="im im-cerrar" aria-hidden="true"></i></button>
+        </span>`).join('')
+    : '<span style="color:#b45309;font-size:.85em"><i class="im im-alerta" aria-hidden="true"></i> Sin alumno vinculado</span>'
+}
+
+function _filtrarApoderados(filtro) {
+  if (filtro) _apodFiltro = filtro
+  const q = (document.getElementById('buscar-apoderados')?.value || '').toLowerCase().trim()
+  Array.from(document.getElementById('tbodyApoderados').rows).forEach(tr => {
+    const v = tr.dataset.vinculado
+    if (v === undefined) return   // filas de mensaje (cargando / vacío)
+    const okFiltro = _apodFiltro === 'todos' || (_apodFiltro === 'sin' ? v === '0' : v === '1')
+    tr.style.display = okFiltro && (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none'
+  })
+  document.querySelectorAll('#apod-filtros button').forEach(b => {
+    const activo = b.dataset.filtro === _apodFiltro
+    b.style.background = activo ? '#7c3aed' : '#fff'
+    b.style.color      = activo ? '#fff'    : '#374151'
+  })
+}
+
 async function cargarTablaApoderados() {
   const tbody = document.getElementById('tbodyApoderados')
+  const resumen = document.getElementById('apod-resumen')
   tbody.innerHTML = '<tr><td colspan="8">Cargando...</td></tr>'
   try {
-    const apods = await apiGet(`${API1}/apoderados`)
+    const [apods, alumnos] = await Promise.all([
+      apiGet(`${API1}/apoderados`),
+      apiGet(`${API1}/alumnos`).catch(() => [])
+    ])
+
+    // ── Resumen: apoderados sin alumno y alumnos sin apoderado ──
+    const sinVincular = apods.filter(ap => !ap.alumnos.length).length
+    const alConApod   = new Set(apods.filter(ap => ap.activo).flatMap(ap => ap.alumnos.map(a => a.id)))
+    const alSinApod   = alumnos.filter(a => a.activo && !alConApod.has(a.id))
+    if (resumen) {
+      const btn = (f, lbl) => `<button data-filtro="${f}" onclick="_filtrarApoderados('${f}')"
+        style="border:1px solid #d1d5db;border-radius:16px;padding:4px 12px;font-size:.85em;cursor:pointer">${lbl}</button>`
+      resumen.innerHTML = `
+        <div id="apod-filtros" style="display:flex;gap:6px;flex-wrap:wrap">
+          ${btn('todos', `Todos (${apods.length})`)}
+          ${btn('sin',   `<i class="im im-alerta" aria-hidden="true"></i> Sin alumno vinculado (${sinVincular})`)}
+          ${btn('con',   `Vinculados (${apods.length - sinVincular})`)}
+        </div>
+        ${alSinApod.length ? `
+          <div title="${_escHtml(alSinApod.map(a => `${a.nombre} ${a.apellido_paterno} (${a.rut})`).join('\n'))}"
+               style="font-size:.85em;color:#92400e;background:#fef3c7;border-radius:6px;padding:4px 10px;cursor:help">
+            ${alSinApod.length} alumno(s) activo(s) sin apoderado — no podrán dar consentimiento biométrico
+          </div>` : ''}`
+    }
+
     tbody.innerHTML = ''
     if (!apods.length) {
       tbody.innerHTML = '<tr><td colspan="8" style="color:gray">No hay apoderados registrados</td></tr>'; return
     }
     apods.forEach(ap => {
       const tr = document.createElement('tr')
+      tr.dataset.vinculado = ap.alumnos.length ? '1' : '0'
       const inactivo = !ap.activo
       if (inactivo) tr.style.cssText = 'background:#f9f0f0;color:#aaa'
+      else if (!ap.alumnos.length) tr.style.cssText = 'background:#fffbeb'
+      const celdaAlumnos = ap.alumnos.length
+        ? ap.alumnos.map(a => `${_escHtml(a.nombre)} <span style="color:#888">(${_escHtml(a.curso || 'Sin curso')})</span>`).join('<br>')
+        : '<span style="font-size:.85em;background:#fef3c7;color:#b45309;padding:2px 8px;border-radius:10px;white-space:nowrap"><i class="im im-alerta" aria-hidden="true"></i> Sin vincular</span>'
       tr.innerHTML = `
         <td>${ap.id}</td>
         <td>${ap.rut}</td>
@@ -3674,13 +3996,14 @@ async function cargarTablaApoderados() {
         <td>${ap.telefono||'—'}</td>
         <td>${ap.email||'—'}</td>
         <td>${ap.parentesco||'—'}</td>
-        <td style="font-size:.83em">${ap.alumnos_vinculados||'<span style="color:#aaa">Sin vincular</span>'}</td>
+        <td style="font-size:.83em">${celdaAlumnos}</td>
         <td>
           <button class="btn-sm btn-edit" onclick="editarApoderado(${ap.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
           <button class="btn-sm btn-delete" onclick="eliminarApoderado(${ap.id},'${ap.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
         </td>`
       tbody.appendChild(tr)
     })
+    _filtrarApoderados()
   } catch(err) {
     tbody.innerHTML = `<tr><td colspan="8" class="mensaje-err">Error: ${err.message}</td></tr>`
   }

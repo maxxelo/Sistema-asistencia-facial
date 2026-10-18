@@ -3,6 +3,25 @@ const router  = express.Router();
 const pool    = require('../db/connection');
 const { verificarToken, soloAdmin, adminOProfesor } = require('../middleware/auth');
 
+// Un profesor solo puede ser profesor jefe de UN curso activo, y debe estar activo.
+// Devuelve el mensaje de error o null si se puede asignar.
+async function validarProfesorJefe(idProfesor, idCursoExcluir = null) {
+  if (!idProfesor) return null;
+  const r = await pool.query(
+    `SELECT p.activo,
+            (SELECT c.nombre FROM cursos c
+              WHERE c.id_profesor_jefe = p.id AND c.activo = TRUE
+                AND c.id <> COALESCE($2::int, 0)
+              LIMIT 1) AS curso_jefe
+     FROM profesores p WHERE p.id = $1`,
+    [idProfesor, idCursoExcluir]
+  );
+  if (!r.rows.length)        return 'El profesor seleccionado no existe';
+  if (!r.rows[0].activo)     return 'El profesor seleccionado está desactivado';
+  if (r.rows[0].curso_jefe)  return `Ese profesor ya es profesor jefe del curso ${r.rows[0].curso_jefe}`;
+  return null;
+}
+
 // =====================================================
 // GET /cursos
 // Listar todos los cursos activos
@@ -98,6 +117,9 @@ router.post('/', verificarToken, soloAdmin, async (req, res) => {
       return res.status(409).json({ error: `Ya existe el curso "${nombre}" para el año ${anioFinal}` });
     }
 
+    const errJefe = await validarProfesorJefe(id_profesor_jefe);
+    if (errJefe) return res.status(409).json({ error: errJefe });
+
     const result = await pool.query(
       `INSERT INTO cursos (nombre, nivel, letra, anio, id_profesor_jefe)
        VALUES ($1, $2, $3, $4, $5)
@@ -139,6 +161,9 @@ router.put('/:id', verificarToken, soloAdmin, async (req, res) => {
       return res.status(409).json({ error: `Ya existe el curso "${nombreFinal}" para el año ${anioFinal}` });
     }
 
+    const errJefe = await validarProfesorJefe(id_profesor_jefe, id);
+    if (errJefe) return res.status(409).json({ error: errJefe });
+
     const result = await pool.query(
       `UPDATE cursos SET
         nombre           = COALESCE($1, nombre),
@@ -175,6 +200,9 @@ router.patch('/:id/jefe', verificarToken, soloAdmin, async (req, res) => {
   const id_profesor_jefe = req.body.id_profesor_jefe ?? null;
 
   try {
+    const errJefe = await validarProfesorJefe(id_profesor_jefe, id);
+    if (errJefe) return res.status(409).json({ error: errJefe });
+
     const result = await pool.query(
       'UPDATE cursos SET id_profesor_jefe = $1 WHERE id = $2 RETURNING id, nombre',
       [id_profesor_jefe, id]
