@@ -15,7 +15,7 @@ function cambiarModo(modo) {
 
 async function conectarIP() {
   const url = getUrlIP()
-  if (!url) return alert('Ingresa la URL de IP Webcam')
+  if (!url) return sicafAviso('Ingresa la URL de IP Webcam', 'aviso')
   if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
   iniciarPreviewIP(url)
 }
@@ -63,7 +63,7 @@ function iniciarPreviewIP(url) {
       const det = await faceapi.detectAllFaces(canvas, OPCIONES_DETECTOR).withFaceLandmarks()
       faceapi.draw.drawDetections(canvas, det)
       document.getElementById('estadoCamara').innerHTML =
-        det.length > 0 ? '✅ Rostro detectado' : '🔍 Buscando rostro...'
+        det.length > 0 ? '<i class="im im-ok" aria-hidden="true"></i> Rostro detectado' : '<i class="im im-lupa" aria-hidden="true"></i> Buscando rostro...'
     } catch (err) { console.warn(err.message) }
   }, 500)
 }
@@ -93,7 +93,7 @@ async function getFrame() {
 async function registrarRostro() {
   const idAlumno = document.getElementById('idAlumno').value
   const divReg   = document.getElementById('resultadoRegistro')
-  if (!idAlumno) { divReg.innerHTML = '⚠️ Ingresa el ID del alumno'; return }
+  if (!idAlumno) { divReg.innerHTML = '<i class="im im-alerta" aria-hidden="true"></i> Ingresa el ID del alumno'; return }
   divReg.innerHTML = 'Cargando modelos...'
   if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
   if (!modoIP) await activarWebcam()
@@ -101,10 +101,10 @@ async function registrarRostro() {
   const TOTAL_CAPTURAS = 3
   const descriptores = []
   for (let i = 0; i < TOTAL_CAPTURAS; i++) {
-    divReg.innerHTML = `📸 Captura ${i + 1} de ${TOTAL_CAPTURAS}... mira a la cámara`
+    divReg.innerHTML = `<i class="im im-camara" aria-hidden="true"></i> Captura ${i + 1} de ${TOTAL_CAPTURAS}... mira a la cámara`
     let elemento
     try { elemento = await getFrame() }
-    catch (err) { divReg.innerHTML = `❌ Error cámara: ${err.message}`; return }
+    catch (err) { divReg.innerHTML = `<i class="im im-error" aria-hidden="true"></i> Error cámara: ${err.message}`; return }
     const deteccion = await faceapi.detectSingleFace(elemento, OPCIONES_DETECTOR)
       .withFaceLandmarks().withFaceDescriptor()
     if (deteccion) descriptores.push(Array.from(deteccion.descriptor))
@@ -112,7 +112,7 @@ async function registrarRostro() {
   }
 
   if (!descriptores.length) {
-    divReg.innerHTML = '❌ No se detectó ningún rostro. Acércate a la cámara e intenta de nuevo.'
+    divReg.innerHTML = '<i class="im im-error" aria-hidden="true"></i> No se detectó ningún rostro. Acércate a la cámara e intenta de nuevo.'
     return
   }
 
@@ -123,8 +123,8 @@ async function registrarRostro() {
       body: JSON.stringify({ id_alumno: parseInt(idAlumno), descriptores })
     })
     const d = await r.json()
-    divReg.innerHTML = r.ok ? `<span class="mensaje-ok">✅ ${d.mensaje}</span>`
-                             : `<span class="mensaje-err">❌ ${d.error}</span>`
+    divReg.innerHTML = r.ok ? `<span class="mensaje-ok">${d.mensaje}</span>`
+                             : `<span class="mensaje-err">${d.error}</span>`
     if (r.ok) {
       _alumnoTieneRostro[parseInt(idAlumno)] = true
       await cargarSelectAlumnos()
@@ -132,7 +132,7 @@ async function registrarRostro() {
       if (sel) { sel.value = idAlumno; seleccionarAlumnoRostro(sel) }
       if (typeof tabActual !== 'undefined' && tabActual === 'alumnos') cargarTablaAlumnos()
     }
-  } catch (err) { divReg.innerHTML = `❌ Error de red: ${err.message}` }
+  } catch (err) { divReg.innerHTML = `<i class="im im-error" aria-hidden="true"></i> Error de red: ${err.message}` }
 }
 
 /* ── WEBSOCKET ─────────────────────────────────────────────────── */
@@ -144,7 +144,7 @@ function conectarWebSocket() {
   ws.onclose = (e) => {
     if (e.code === 4401) {
       document.getElementById('resultado').innerHTML =
-        '<span class="mensaje-err">❌ Sesión no autorizada. Vuelve a iniciar sesión.</span>'
+        '<span class="mensaje-err">Sesión no autorizada. Vuelve a iniciar sesión.</span>'
       detener()
     }
   }
@@ -153,14 +153,14 @@ function conectarWebSocket() {
     const div = document.getElementById('resultado')
     if (r.exito && r.alumno) {
       const conf = r.alumno.confianza ? ` — ${Math.round(r.alumno.confianza * 100)}%` : ''
-      div.innerHTML = `📸 <strong>${r.alumno.nombre} ${r.alumno.apellido}</strong>${conf}`
+      div.innerHTML = `<i class="im im-camara" aria-hidden="true"></i> <strong>${r.alumno.nombre} ${r.alumno.apellido}</strong>${conf}`
       if (!r.ya_enviado && typeof marcarPresente === 'function') {
         marcarPresente(r.alumno.id, 'facial')
       }
     } else {
       div.innerHTML = r.mensaje === 'Rostro no reconocido'
-        ? '🔍 Buscando...'
-        : `<span class="mensaje-err">⚠️ ${r.mensaje || 'Sin resultado'}</span>`
+        ? '<i class="im im-lupa" aria-hidden="true"></i> Buscando...'
+        : `<span class="mensaje-aviso">${r.mensaje || 'Sin resultado'}</span>`
     }
   }
 }
@@ -170,19 +170,19 @@ async function enviarFrame() {
   const id_horario = parseInt(document.getElementById('selectorHorario').value)
   const fecha      = document.getElementById('fechaClase').value
   if (!id_horario || !fecha) {
-    document.getElementById('resultado').innerHTML = '⚠️ Selecciona la clase activa'
+    document.getElementById('resultado').innerHTML = '<i class="im im-alerta" aria-hidden="true"></i> Selecciona la clase activa'
     return
   }
   try {
     const elemento  = await getFrame()
     const deteccion = await faceapi.detectSingleFace(elemento, OPCIONES_DETECTOR)
       .withFaceLandmarks().withFaceDescriptor()
-    if (!deteccion) { document.getElementById('resultado').innerHTML = '🔍 Buscando rostro...'; return }
+    if (!deteccion) { document.getElementById('resultado').innerHTML = '<i class="im im-lupa" aria-hidden="true"></i> Buscando rostro...'; return }
     const descriptor = Array.from(deteccion.descriptor)
     if (ws && ws.readyState === WebSocket.OPEN)
       ws.send(JSON.stringify({ descriptor, id_horario, fecha }))
   } catch (err) {
-    document.getElementById('resultado').innerHTML = `❌ Error cámara: ${err.message}`
+    document.getElementById('resultado').innerHTML = `<i class="im im-error" aria-hidden="true"></i> Error cámara: ${err.message}`
   }
 }
 
@@ -201,7 +201,7 @@ function detener() {
 async function iniciar() {
   const id_horario = document.getElementById('selectorHorario').value
   const fecha      = document.getElementById('fechaClase').value
-  if (!id_horario || !fecha) { alert('Selecciona la clase activa primero'); return }
+  if (!id_horario || !fecha) { sicafAviso('Selecciona la clase activa primero', 'aviso'); return }
   const res = document.getElementById('resultado')
   if (res) res.innerHTML = 'Cargando modelos...'
   if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()
@@ -209,7 +209,7 @@ async function iniciar() {
   conectarWebSocket()
   if (intervaloReconocimiento) clearInterval(intervaloReconocimiento)
   intervaloReconocimiento = setInterval(enviarFrame, 2000)
-  if (res) res.innerHTML = '🔍 Buscando rostros...'
+  if (res) res.innerHTML = '<i class="im im-lupa" aria-hidden="true"></i> Buscando rostros...'
   const btnIni = document.getElementById('btn-iniciar-rec')
   const btnDet = document.getElementById('btn-detener-rec')
   if (btnIni) btnIni.disabled = true

@@ -162,7 +162,24 @@
     .lv-frase h2 { margin: 0 0 6px; font-size: clamp(1.25em, 1.7vw, 1.55em); font-weight: 700; letter-spacing: -.01em; }
     .lv-frase p { margin: 0; color: rgba(255,255,255,.78); font-size: .92em; line-height: 1.5; }
 
-    /* ── Responsivo ── */
+    /* ── Responsivo ──
+       El panel ilustrativo se adapta a SU ancho (container queries), no al de la ventana:
+       así funciona igual con la ventana dividida en dos o en un monitor angosto. */
+    .lv-vitrina { container-type: inline-size; container-name: vitrina; }
+    @container vitrina (max-width: 620px) {
+      .lv-dash { grid-template-columns: 1fr; }
+      .lv-menu { display: none; }
+      .lv-fila.dos { grid-template-columns: 1fr; }
+      .lv-oculto-md { display: none; }
+      .lv-kpi { flex-direction: column; align-items: flex-start; gap: 6px; }
+      .lv-ley { display: none; }
+      .lv-reportes { grid-template-columns: 1fr; }
+    }
+    @container vitrina (max-width: 430px) {
+      .lv-fila.tres { grid-template-columns: repeat(2, 1fr); }
+      .lv-fila.tres .lv-card:last-child { display: none; }
+      .lv-frase p { display: none; }
+    }
     @media (max-width: 1100px) { .lv-fila.dos { grid-template-columns: 1fr; } .lv-oculto-md { display: none; } }
     @media (max-width: 900px) {
       .lv-vitrina { display: none; }
@@ -577,6 +594,8 @@
       .tab-section { left: 60px; padding: 18px 14px; }
     }
   </style>
+  <link rel="stylesheet" href="css/sicaf-iconos.css">
+  <link rel="stylesheet" href="css/sicaf-tema.css">
 </head>
 <body>
 
@@ -700,15 +719,19 @@
 <div id="seccionApp" style="display:none">
 
   <div class="app-header">
-    <div class="topbar-left">
-      <span class="topbar-brand">Sistema</span>
-      <span class="topbar-sep">/</span>
-      <span id="page-title" class="topbar-page">Panel</span>
+    <div class="hd-marca">
+      <button class="hd-menu" type="button" onclick="alternarMenu()" aria-label="Contraer o expandir el menú" aria-controls="navTabs">
+        <i class="bi bi-list" aria-hidden="true"></i>
+      </button>
+      <div class="hd-logo">
+        <img class="hd-ico" src="assets/brand/sicaf-icono-blanco-sm.png" alt="" width="34" height="40">
+        <img class="hd-texto" src="assets/brand/sicaf-texto-blanco.png" alt="SICAF" width="89" height="24">
+      </div>
     </div>
     <div class="usuario-info">
       <div class="notif-wrap">
         <button class="btn-notif" id="btn-notif" onclick="toggleNotificaciones(event)" title="Notificaciones">
-          <span style="font-size:1.05em;line-height:1">🔔</span><span class="notif-badge" id="notif-badge">0</span>
+          <i class="im im-campana" aria-hidden="true"></i><span class="notif-badge" id="notif-badge">0</span>
         </button>
         <div class="notif-panel" id="panel-notif">
           <div class="notif-head"><strong>Notificaciones</strong>
@@ -724,6 +747,16 @@
     </div>
   </div>
 
+  <!-- Encabezado de página: ícono + título + ruta (lo actualiza mostrarTab) -->
+  <div class="pg-titulo">
+    <div class="pg-ico" aria-hidden="true"><i id="page-icon" class="bi bi-speedometer2"></i></div>
+    <div>
+      <h1 id="page-title">Panel</h1>
+      <ol class="pg-ruta" id="page-ruta" aria-label="Ruta"><li>Inicio</li><li>Panel</li></ol>
+    </div>
+  </div>
+
+  <div class="sk-velo" onclick="alternarMenu()" aria-hidden="true"></div>
   <!-- Tabs de navegación -->
   <div class="nav-tabs" id="navTabs">
     <!-- Brand -->
@@ -765,12 +798,19 @@
   </div>
   <!-- ── TAB: PANEL ────────────────────────────────────────────── -->
   <div class="tab-section visible" id="sec-panel">
-    <div class="seccion">
-      <h2 style="margin-bottom:16px">👋 Bienvenido, <span id="panel-nombre-admin"></span></h2>
-      <div id="panel-stats"></div>
-      <div id="panel-clases-dia" style="margin:16px 0"></div>
-      <div id="panel-alertas" style="margin:16px 0"></div>
-      <div id="panel-guia"></div>
+    <section class="pn-hero" aria-label="Bienvenida">
+      <div class="pn-hero-ava"><img src="assets/brand/sicaf-icono.png" alt="" width="54" height="64"></div>
+      <div class="pn-hero-txt">
+        <h2>¡Hola, <span id="panel-nombre-admin"></span>! <i class="im im-mano" aria-hidden="true"></i></h2>
+        <p id="panel-hero-sub">Así va la asistencia de hoy.</p>
+      </div>
+      <div class="pn-hero-datos" id="panel-hero-datos"></div>
+    </section>
+    <div id="panel-aviso"></div>
+    <div id="panel-stats"></div>
+    <div class="pn-grid">
+      <div><div id="panel-clases-dia"></div></div>
+      <div><div id="panel-alertas"></div><div id="panel-guia"></div></div>
     </div>
   </div>
 
@@ -810,7 +850,7 @@
         <div style="font-size:.82em;margin-top:2px" id="alumno-rostro-sub">Se registrarán 3 capturas faciales automáticamente</div>
       </div>
       <div id="panel-consentimiento" style="display:none;border:1px solid #fecaca;background:#fef2f2;border-radius:8px;padding:12px 14px;margin-bottom:10px">
-        <div style="font-weight:600;color:#991b1b;margin-bottom:4px">🔒 Consentimiento para el tratamiento de datos biométricos</div>
+        <div style="font-weight:600;color:#991b1b;margin-bottom:4px"><i class="im im-candado" aria-hidden="true"></i> Consentimiento para el tratamiento de datos biométricos</div>
         <div style="font-size:.82em;color:#7f1d1d;line-height:1.45;margin-bottom:10px">
           El alumno es menor de edad. Para registrar su rostro, un apoderado debe autorizar el tratamiento de su dato
           biométrico (Leyes N° 19.628 y N° 21.719). Solo se guarda el descriptor numérico del rostro, nunca la fotografía.
@@ -818,7 +858,7 @@
         <div id="consent-form">
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <select id="selectApoderadoConsiente" style="flex:1;min-width:220px;padding:7px 10px;border:1.5px solid #fecaca;border-radius:8px;font-size:.88em"></select>
-            <button class="btn-primary" id="btn-otorgar-consent" onclick="otorgarConsentimiento()">✅ Registrar consentimiento</button>
+            <button class="btn-primary" id="btn-otorgar-consent" onclick="otorgarConsentimiento()"><i class="im im-ok" aria-hidden="true"></i> Registrar consentimiento</button>
           </div>
           <label style="display:flex;gap:8px;align-items:flex-start;margin-top:8px;font-size:.82em;color:#7f1d1d;cursor:pointer">
             <input type="checkbox" id="chk-consent-confirma" style="margin-top:2px">
@@ -831,13 +871,13 @@
         </div>
       </div>
       <div id="consent-ok" style="display:none;font-size:.8em;color:#166534;margin-bottom:8px">
-        ✅ <span id="consent-ok-texto">Consentimiento del apoderado registrado</span>
+        <i class="im im-ok" aria-hidden="true"></i> <span id="consent-ok-texto">Consentimiento del apoderado registrado</span>
         · <a href="#" onclick="revocarConsentimiento();return false" style="color:#be123c">Revocar</a>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="btn-primary" onclick="registrarRostro()" id="btn-registrar-rostro" disabled style="opacity:.5">📸 Capturar y Registrar</button>
-        <button class="btn-secondary" onclick="confirmarReregistro()" id="btn-reregistrar-rostro" style="display:none">🔄 Re-registrar</button>
-        <button onclick="eliminarRostroAlumno()" id="btn-eliminar-rostro" style="display:none;background:#fff1f2;color:#be123c;border:1px solid #fecdd3;border-radius:8px;padding:6px 12px;font-size:.85em;cursor:pointer">🗑️ Eliminar rostro</button>
+        <button class="btn-primary" onclick="registrarRostro()" id="btn-registrar-rostro" disabled style="opacity:.5"><i class="im im-camara" aria-hidden="true"></i> Capturar y Registrar</button>
+        <button class="btn-secondary" onclick="confirmarReregistro()" id="btn-reregistrar-rostro" style="display:none"><i class="im im-recargar" aria-hidden="true"></i> Re-registrar</button>
+        <button onclick="eliminarRostroAlumno()" id="btn-eliminar-rostro" style="display:none;background:#fff1f2;color:#be123c;border:1px solid #fecdd3;border-radius:8px;padding:6px 12px;font-size:.85em;cursor:pointer"><i class="im im-basurero" aria-hidden="true"></i> Eliminar rostro</button>
       </div>
       <div id="resultadoRegistro" style="margin-top:8px"></div>
     </div>
@@ -853,7 +893,7 @@
         </select>
       </label>
       &nbsp;
-      <button class="btn-primary" onclick="cargarHorarios()">🔄 Cargar</button>
+      <button class="btn-primary" onclick="cargarHorarios()"><i class="im im-recargar" aria-hidden="true"></i> Cargar</button>
       <div id="infoClase" style="color:gray; font-size:.88em; margin-top:6px"></div>
     </div>
 
@@ -879,10 +919,10 @@
 
       <!-- Controles: Iniciar / Detener / Guardar -->
       <div id="asis-controles" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center">
-        <button id="btn-iniciar-rec" class="btn-primary" onclick="iniciar()" disabled>▶ Iniciar Reconocimiento</button>
-        <button id="btn-detener-rec" class="btn-secondary" onclick="detener()" style="display:none">⏹ Detener</button>
-        <button id="btn-borrador-asis" class="btn-borrador-asis" onclick="guardarAsistencia(false)" style="display:none">💾 Guardar borrador</button>
-        <button id="btn-definitivo-asis" class="btn-guardar-asis" onclick="guardarAsistencia(true)" style="display:none">🔒 Registrar definitivamente</button>
+        <button id="btn-iniciar-rec" class="btn-primary" onclick="iniciar()" disabled><i class="im im-rostro" aria-hidden="true"></i> Iniciar Reconocimiento</button>
+        <button id="btn-detener-rec" class="btn-secondary" onclick="detener()" style="display:none"><i class="im im-detener" aria-hidden="true"></i> Detener</button>
+        <button id="btn-borrador-asis" class="btn-borrador-asis" onclick="guardarAsistencia(false)" style="display:none"><i class="im im-guardar" aria-hidden="true"></i> Guardar borrador</button>
+        <button id="btn-definitivo-asis" class="btn-guardar-asis" onclick="guardarAsistencia(true)" style="display:none"><i class="im im-candado" aria-hidden="true"></i> Registrar definitivamente</button>
       </div>
 
       <!-- Resultado del reconocimiento en vivo -->
@@ -895,16 +935,16 @@
     <div class="seccion">
       <!-- Sub-tabs de reportes -->
       <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
-        <button id="rtab-alumno"  class="btn-primary"   onclick="mostrarReporteTab('alumno')"  style="font-size:.88em">👤 Por alumno</button>
-        <button id="rtab-curso"   class="btn-secondary" onclick="mostrarReporteTab('curso')"   style="font-size:.88em">📚 Por curso</button>
-        <button id="rtab-dia"     class="btn-secondary" onclick="mostrarReporteTab('dia')"     style="font-size:.88em">📅 Resumen del día</button>
-        <button id="rtab-manual"  class="btn-secondary" onclick="mostrarReporteTab('manual')"  style="font-size:.88em">✋ Pasar lista manual</button>
-        <button id="rtab-riesgo"  class="btn-secondary solo-admin" onclick="mostrarReporteTab('riesgo')"  style="font-size:.88em;background:#dc2626;color:#fff;border-color:#dc2626">🔴 En riesgo</button>
+        <button id="rtab-alumno"  class="btn-primary"   onclick="mostrarReporteTab('alumno')"  style="font-size:.88em"><i class="im im-persona" aria-hidden="true"></i> Por alumno</button>
+        <button id="rtab-curso"   class="btn-secondary" onclick="mostrarReporteTab('curso')"   style="font-size:.88em"><i class="im im-libros" aria-hidden="true"></i> Por curso</button>
+        <button id="rtab-dia"     class="btn-secondary" onclick="mostrarReporteTab('dia')"     style="font-size:.88em"><i class="im im-calendario" aria-hidden="true"></i> Resumen del día</button>
+        <button id="rtab-manual"  class="btn-secondary" onclick="mostrarReporteTab('manual')"  style="font-size:.88em"><i class="im im-mano" aria-hidden="true"></i> Pasar lista manual</button>
+        <button id="rtab-riesgo"  class="btn-secondary solo-admin" onclick="mostrarReporteTab('riesgo')"  style="font-size:.88em;background:#dc2626;color:#fff;border-color:#dc2626"><i class="im im-punto" aria-hidden="true"></i> En riesgo</button>
       </div>
 
       <!-- Reporte: Por alumno -->
       <div id="rsec-alumno">
-        <h2 style="margin-bottom:12px">📊 Asistencia por alumno</h2>
+        <h2 style="margin-bottom:12px"><i class="im im-reportes" aria-hidden="true"></i> Asistencia por alumno</h2>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
           <input type="text" id="buscar-alumno-reporte" placeholder="Buscar por nombre o RUT..."
                  style="flex:1;min-width:200px;margin-bottom:0"
@@ -916,7 +956,7 @@
 
       <!-- Reporte: Por curso -->
       <div id="rsec-curso" style="display:none">
-        <h2 style="margin-bottom:12px">📚 Asistencia de un curso</h2>
+        <h2 style="margin-bottom:12px"><i class="im im-libros" aria-hidden="true"></i> Asistencia de un curso</h2>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end">
           <div>
             <label style="font-size:.85em;display:block;margin-bottom:4px">Curso</label>
@@ -935,23 +975,23 @@
 
       <!-- Reporte: Resumen del día -->
       <div id="rsec-dia" style="display:none">
-        <h2 style="margin-bottom:12px">📅 Resumen del día</h2>
+        <h2 style="margin-bottom:12px"><i class="im im-calendario" aria-hidden="true"></i> Resumen del día</h2>
         <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:12px">
           <div>
             <label style="font-size:.85em;display:block;margin-bottom:4px">Fecha</label>
             <input type="date" id="r-fecha-dia" onchange="cargarResumenDia()"
                    style="padding:7px;border-radius:6px;border:1px solid #ccc" />
           </div>
-          <button class="btn-primary" onclick="cargarResumenDia()" style="font-size:.88em">🔄 Cargar</button>
+          <button class="btn-primary" onclick="cargarResumenDia()" style="font-size:.88em"><i class="im im-recargar" aria-hidden="true"></i> Cargar</button>
         </div>
         <div id="resultado-reporte-dia"></div>
       </div>
 
       <!-- Lista manual -->
       <div id="rsec-manual" style="display:none">
-        <h2 style="margin-bottom:12px">✋ Pasar lista manualmente</h2>
+        <h2 style="margin-bottom:12px"><i class="im im-mano" aria-hidden="true"></i> Pasar lista manualmente</h2>
         <div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:10px 13px;margin-bottom:12px;font-size:.85em;color:#713f12">
-          ℹ️ Usa esto cuando la cámara no funcione o necesites corregir una asistencia ya registrada.
+          <i class="im im-info" aria-hidden="true"></i> Usa esto cuando la cámara no funcione o necesites corregir una asistencia ya registrada.
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end">
           <div>
@@ -977,7 +1017,7 @@
 
       <!-- Reporte: Alumnos en riesgo -->
       <div id="rsec-riesgo" style="display:none">
-        <h2 style="margin-bottom:4px;color:#dc2626">🔴 Alumnos en Riesgo de Reprobación</h2>
+        <h2 style="margin-bottom:4px;color:#dc2626"><i class="im im-punto" aria-hidden="true"></i> Alumnos en Riesgo de Reprobación</h2>
         <p style="font-size:.85em;color:#6b7280;margin:0 0 12px">Alumnos con asistencia por debajo del <strong>85%</strong> mínimo legal</p>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
           <label style="font-size:.85em">Umbral de riesgo:</label>
@@ -988,7 +1028,7 @@
             <option value="75">75%</option>
             <option value="70">70%</option>
           </select>
-          <button class="btn-primary" onclick="cargarAlumnosRiesgo()" style="font-size:.83em">🔄 Actualizar</button>
+          <button class="btn-primary" onclick="cargarAlumnosRiesgo()" style="font-size:.83em"><i class="im im-recargar" aria-hidden="true"></i> Actualizar</button>
         </div>
         <div id="resultado-riesgo"></div>
       </div>
@@ -1155,15 +1195,15 @@
     <div class="seccion">
       <!-- Sub-tabs de notas -->
       <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
-        <button id="ntab-periodos"     class="btn-primary solo-admin"   onclick="mostrarNotasTab('periodos')"   style="font-size:.88em">📅 Períodos</button>
-        <button id="ntab-evaluaciones" class="btn-secondary" onclick="mostrarNotasTab('evaluaciones')" style="font-size:.88em">📋 Evaluaciones</button>
-        <button id="ntab-calificaciones" class="btn-secondary" onclick="mostrarNotasTab('calificaciones')" style="font-size:.88em">📝 Ingresar Notas</button>
+        <button id="ntab-periodos"     class="btn-primary solo-admin"   onclick="mostrarNotasTab('periodos')"   style="font-size:.88em"><i class="im im-calendario" aria-hidden="true"></i> Períodos</button>
+        <button id="ntab-evaluaciones" class="btn-secondary" onclick="mostrarNotasTab('evaluaciones')" style="font-size:.88em"><i class="im im-portapapeles" aria-hidden="true"></i> Evaluaciones</button>
+        <button id="ntab-calificaciones" class="btn-secondary" onclick="mostrarNotasTab('calificaciones')" style="font-size:.88em"><i class="im im-nota" aria-hidden="true"></i> Ingresar Notas</button>
       </div>
 
       <!-- Períodos académicos -->
       <div id="nsec-periodos">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <h2 style="margin:0">📅 Períodos Académicos</h2>
+          <h2 style="margin:0"><i class="im im-calendario" aria-hidden="true"></i> Períodos Académicos</h2>
           <button class="btn-primary" onclick="abrirModalNotas('periodo')">+ Nuevo Período</button>
         </div>
         <div id="msg-periodos" style="margin-bottom:8px"></div>
@@ -1174,7 +1214,7 @@
       <!-- Evaluaciones -->
       <div id="nsec-evaluaciones" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-          <h2 style="margin:0">📋 Evaluaciones</h2>
+          <h2 style="margin:0"><i class="im im-portapapeles" aria-hidden="true"></i> Evaluaciones</h2>
           <div style="display:flex;gap:8px;align-items:center">
             <select id="filtro-periodo-eval" onchange="cargarEvaluaciones()" style="padding:6px;border-radius:6px;border:1px solid #ccc">
               <option value="">Todos los períodos</option>
@@ -1189,7 +1229,7 @@
 
       <!-- Ingresar notas -->
       <div id="nsec-calificaciones" style="display:none">
-        <h2 style="margin:0 0 12px">📝 Ingresar / Editar Notas</h2>
+        <h2 style="margin:0 0 12px"><i class="im im-nota" aria-hidden="true"></i> Ingresar / Editar Notas</h2>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end">
           <div>
             <label style="font-size:.85em;display:block;margin-bottom:4px">Evaluación</label>
@@ -1224,7 +1264,7 @@
   <div class="tab-section" id="sec-comunicados">
     <div class="seccion">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <h2 style="margin:0">📢 Comunicados del Colegio</h2>
+        <h2 style="margin:0"><i class="im im-comunicados" aria-hidden="true"></i> Comunicados del Colegio</h2>
         <span class="solo-admin">
           <button class="btn-primary" onclick="abrirModal('comunicado')">+ Nuevo Comunicado</button>
         </span>
@@ -1237,7 +1277,7 @@
   <!-- ── TAB: JUSTIFICACIONES ──────────────────────────────── -->
   <div class="tab-section solo-admin" id="sec-justificaciones">
     <div class="seccion">
-      <h2 style="margin-bottom:4px">📝 Justificaciones de Inasistencia</h2>
+      <h2 style="margin-bottom:4px"><i class="im im-nota" aria-hidden="true"></i> Justificaciones de Inasistencia</h2>
       <p style="font-size:.85em;color:#6b7280;margin:0 0 14px">Gestiona las ausencias justificadas por licencia médica, actividades o motivos familiares</p>
 
       <!-- Filtros -->
@@ -1247,12 +1287,12 @@
           <select id="filtro-estado-just" onchange="cargarJustificaciones()"
                   style="padding:6px 10px;border-radius:6px;border:1px solid #ccc;font-size:.88em">
             <option value="">Todos</option>
-            <option value="pendiente" selected>⏳ Pendientes</option>
-            <option value="aprobada">✅ Aprobadas</option>
-            <option value="rechazada">❌ Rechazadas</option>
+            <option value="pendiente" selected>Pendientes</option>
+            <option value="aprobada">Aprobadas</option>
+            <option value="rechazada">Rechazadas</option>
           </select>
         </div>
-        <button class="btn-primary" onclick="cargarJustificaciones()" style="font-size:.83em">🔄 Actualizar</button>
+        <button class="btn-primary" onclick="cargarJustificaciones()" style="font-size:.83em"><i class="im im-recargar" aria-hidden="true"></i> Actualizar</button>
       </div>
 
       <div id="msg-justificaciones" style="margin-bottom:8px"></div>
@@ -1263,14 +1303,14 @@
   <!-- ── TAB: CONFIGURACIÓN ────────────────────────────────── -->
   <div class="tab-section solo-admin" id="sec-configuracion">
     <div class="seccion">
-      <h2 style="margin-bottom:4px">⚙️ Configuración del Sistema</h2>
+      <h2 style="margin-bottom:4px"><i class="im im-ajustes" aria-hidden="true"></i> Configuración del Sistema</h2>
       <p style="font-size:.85em;color:#6b7280;margin:0 0 16px">Parámetros generales del establecimiento</p>
       <div id="msg-configuracion" style="margin-bottom:10px"></div>
       <div id="form-configuracion">
-        <p style="color:gray;font-size:.88em">⏳ Cargando...</p>
+        <p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando...</p>
       </div>
       <div style="margin-top:16px">
-        <button class="btn-primary" onclick="guardarConfiguracion()">💾 Guardar cambios</button>
+        <button class="btn-primary" onclick="guardarConfiguracion()"><i class="im im-guardar" aria-hidden="true"></i> Guardar cambios</button>
       </div>
     </div>
   </div>
@@ -1278,7 +1318,7 @@
   <!-- ── TAB: BITÁCORA ─────────────────────────────────────── -->
   <div class="tab-section solo-admin" id="sec-bitacora">
     <div class="seccion">
-      <h2 style="margin-bottom:4px">🗂️ Bitácora de Operaciones</h2>
+      <h2 style="margin-bottom:4px"><i class="im im-carpeta" aria-hidden="true"></i> Bitácora de Operaciones</h2>
       <p style="font-size:.85em;color:#6b7280;margin:0 0 12px">Registro de todas las acciones realizadas en el sistema</p>
 
       <!-- Filtros -->
@@ -1322,7 +1362,7 @@
         <button class="btn-primary" onclick="cargarBitacora()" style="font-size:.83em"><i class="bi bi-funnel-fill"></i> Filtrar</button>
       </div>
 
-      <div id="tabla-bitacora"><p style="color:gray;font-size:.88em">⏳ Cargando...</p></div>
+      <div id="tabla-bitacora"><p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando...</p></div>
     </div>
   </div>
 
@@ -1342,6 +1382,7 @@
 </div>
 
 <!-- ═══ SCRIPTS DE LA APLICACIÓN ════════════════════════════════════ -->
+<script src="js/sicaf-ui.js"></script>
 <script src="js/api.js"></script>
 <script src="js/app.js"></script>
 <script src="js/facial.js"></script>

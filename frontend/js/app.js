@@ -186,14 +186,53 @@ const _TAB_TITLES = {
   configuracion:'Configuración', bitacora:'Bitácora'
 }
 
+/* ── Encabezado de página: el ícono y la sección salen del propio menú ── */
+function _actualizarEncabezado(nombre) {
+  const titulo = _TAB_TITLES[nombre] || nombre
+  const pt = document.getElementById('page-title')
+  if (pt) pt.textContent = titulo
+  const btn = document.getElementById('tab-' + nombre)
+  const ico = document.getElementById('page-icon')
+  const icoMenu = btn && btn.querySelector('i')
+  if (ico && icoMenu) ico.className = icoMenu.className
+  // Sección del menú (General, Académico, Personas, Sistema): el rótulo visible anterior al botón
+  let grupo = '', el = btn ? btn.previousElementSibling : null
+  while (el) {
+    if (el.classList.contains('sidebar-label') && el.offsetParent !== null) { grupo = el.textContent.trim(); break }
+    el = el.previousElementSibling
+  }
+  const ruta = document.getElementById('page-ruta')
+  if (ruta) {
+    const partes = ['Inicio']
+    if (grupo && grupo !== 'General' && nombre !== 'panel') partes.push(grupo)   // "General" no aporta en la ruta
+    if (nombre !== 'panel' || !partes.includes(titulo)) partes.push(titulo)
+    ruta.innerHTML = partes.map(t => `<li>${t}</li>`).join('')
+  }
+  document.title = `${titulo} · SICAF`
+}
+
+/* ── Menú lateral contraíble (se recuerda en este navegador) ── */
+function alternarMenu() {
+  // En celular el menú es un panel que se abre encima; en pantallas grandes se contrae a íconos
+  if (window.matchMedia('(max-width: 600px)').matches) {
+    const abierto = document.body.classList.toggle('sb-abierto')
+    document.querySelector('.hd-menu')?.setAttribute('aria-expanded', abierto ? 'true' : 'false')
+    return
+  }
+  const colapsado = document.body.classList.toggle('sb-colapsado')
+  try { localStorage.setItem('menuColapsado', colapsado ? '1' : '0') } catch (e) { /* sin almacenamiento */ }
+}
+try { if (localStorage.getItem('menuColapsado') === '1') document.body.classList.add('sb-colapsado') } catch (e) { /* sin almacenamiento */ }
+document.querySelectorAll('.tab-btn').forEach(b => { const t = b.querySelector('span'); if (t && !b.title) b.title = t.textContent.trim() })
+
 function mostrarTab(nombre) {
+  document.body.classList.remove('sb-abierto')            // en celular, cerrar el menú al elegir
   document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('visible'))
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'))
   document.getElementById('sec-' + nombre).classList.add('visible')
   document.getElementById('tab-' + nombre).classList.add('activo')
   tabActual = nombre
-  const pt = document.getElementById('page-title')
-  if (pt) pt.textContent = _TAB_TITLES[nombre] || nombre
+  _actualizarEncabezado(nombre)
   if (nombre === 'panel')       cargarPanel()
   if (nombre === 'reportes')    cargarReportes()
   if (nombre === 'asistencia')  { _resetearFechaHoy(); cargarHorarios(); if (rolUsuario === 'admin') cargarSelectAlumnos() }
@@ -306,7 +345,7 @@ async function seleccionarAlumnoReporte(id, nombre) {
   document.getElementById('buscar-alumno-reporte').value = nombre
   document.getElementById('lista-alumnos-reporte').innerHTML = ''
   const el = document.getElementById('resultado-reporte-alumno')
-  el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+  el.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando...</p>'
   alumnoReporteActual = { id, nombre }
   try {
     const [resumen, historial] = await Promise.all([
@@ -324,7 +363,7 @@ function renderReporteAlumno(id, nombre, resumen, historial) {
   const totalPresentes = resumen.reduce((s,r)=>s+parseInt(r.clases_presentes),0)
   const pctTotal       = totalClases ? Math.round(100*totalPresentes/totalClases) : null
   const pctColor       = pctTotal===null?'#888' : pctTotal>=85?'#16a34a' : pctTotal>=70?'#d97706':'#dc2626'
-  const pctIcon        = pctTotal===null?'—'     : pctTotal>=85?'✅' : pctTotal>=70?'⚠️':'🔴'
+  const pctIcon        = pctTotal===null?'—'     : pctTotal>=85?'<i class="im im-ok" aria-hidden="true"></i>' : pctTotal>=70?'<i class="im im-alerta" aria-hidden="true"></i>':'<i class="im im-punto" aria-hidden="true"></i>'
   const nombreSafe     = nombre.replace(/\s+/g,'-').replace(/[^a-zA-Z0-9-]/g,'')
 
   let html = `<div style="background:#f8fafc;border-radius:8px;padding:16px;border:1px solid #e2e8f0;margin-bottom:12px">
@@ -367,7 +406,7 @@ function renderReporteAlumno(id, nombre, resumen, historial) {
 
   if (pctTotal !== null && pctTotal < 85) {
     html += `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:8px 12px;font-size:.85em;color:#7f1d1d">
-      ⚠️ Asistencia por debajo del <strong>85%</strong> mínimo requerido. Riesgo de reprobación por inasistencia.
+      <i class="im im-alerta" aria-hidden="true"></i> Asistencia por debajo del <strong>85%</strong> mínimo requerido. Riesgo de reprobación por inasistencia.
     </div>`
   }
   html += '</div>'
@@ -388,15 +427,15 @@ function renderReporteAlumno(id, nombre, resumen, historial) {
     historial.slice(0,30).forEach((h,i) => {
       const bg      = i%2===0?'#f9f9f9':'#fff'
       const justEstado = h.estado_justificacion
-      const justBadge = justEstado === 'aprobada'   ? '<span style="font-size:.75em;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:10px;margin-left:4px">✅ Justificada</span>'
-                      : justEstado === 'pendiente'  ? '<span style="font-size:.75em;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:10px;margin-left:4px">⏳ Pendiente</span>'
-                      : justEstado === 'rechazada'  ? '<span style="font-size:.75em;background:#fee2e2;color:#7f1d1d;padding:1px 6px;border-radius:10px;margin-left:4px">❌ Rechazada</span>'
+      const justBadge = justEstado === 'aprobada'   ? '<span style="font-size:.75em;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:10px;margin-left:4px"><i class="im im-ok" aria-hidden="true"></i> Justificada</span>'
+                      : justEstado === 'pendiente'  ? '<span style="font-size:.75em;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:10px;margin-left:4px"><i class="im im-espera" aria-hidden="true"></i> Pendiente</span>'
+                      : justEstado === 'rechazada'  ? '<span style="font-size:.75em;background:#fee2e2;color:#7f1d1d;padding:1px 6px;border-radius:10px;margin-left:4px"><i class="im im-error" aria-hidden="true"></i> Rechazada</span>'
                       : ''
       const estado  = h.presente
-        ? `<span style="color:#16a34a;font-weight:600">✅ Presente</span>`
-        : `<span style="color:#dc2626;font-weight:600">❌ Ausente</span>${justBadge}`
-      const justifTexto = h.justificacion ? `<br><span style="font-size:.78em;color:#d97706">📝 ${h.justificacion}</span>` : ''
-      const tipo    = h.tipo_asistencia === 'facial' ? '🤖 Facial' : h.tipo_asistencia === 'manual' ? '✋ Manual' : h.tipo_asistencia||'—'
+        ? `<span style="color:#16a34a;font-weight:600"><i class="im im-ok" aria-hidden="true"></i> Presente</span>`
+        : `<span style="color:#dc2626;font-weight:600"><i class="im im-error" aria-hidden="true"></i> Ausente</span>${justBadge}`
+      const justifTexto = h.justificacion ? `<br><span style="font-size:.78em;color:#d97706"><i class="im im-nota" aria-hidden="true"></i> ${h.justificacion}</span>` : ''
+      const tipo    = h.tipo_asistencia === 'facial' ? '<i class="im im-rostro" aria-hidden="true"></i> Facial' : h.tipo_asistencia === 'manual' ? '<i class="im im-mano" aria-hidden="true"></i> Manual' : h.tipo_asistencia||'—'
       const btnJust = (!h.presente && !justEstado)
         ? `<button class="btn-sm" style="background:#d97706;color:#fff;font-size:.75em"
              onclick="abrirJustificar(${h.id_detalle||h.id},'${(nombre).replace(/'/g,"\\'")}','${new Date(h.fecha).toLocaleDateString('es-CL')}','${h.asignatura}')"><i class="bi bi-chat-square-text-fill"></i> Justificar</button>`
@@ -433,7 +472,7 @@ async function cargarReporteCurso() {
   const fecha   = document.getElementById('r-fecha-curso')?.value
   const el      = document.getElementById('resultado-reporte-curso')
   if (!idCurso || !fecha) return
-  el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+  el.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando...</p>'
   try {
     const data = await apiGet(`${API2}/asistencia/curso/${idCurso}?fecha=${fecha}`)
     if (!data.length) {
@@ -451,10 +490,10 @@ async function cargarReporteCurso() {
     let html = `<div style="text-align:right;margin-bottom:8px;display:flex;gap:6px;justify-content:flex-end">
       <button onclick="descargarArchivo('${API4}/reportes/pdf/curso/${idCurso}','asistencia-${encodeURIComponent(nombreCurso)}-${fecha}.pdf')"
         style="background:#dc2626;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.83em">
-        📄 PDF del curso</button>
+        <i class="im im-pdf" aria-hidden="true"></i> PDF del curso</button>
       <button onclick="descargarArchivo('${API4}/reportes/csv/curso/${idCurso}','asistencia-${encodeURIComponent(nombreCurso)}-${fecha}.csv')"
         style="background:#0891b2;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.83em">
-        📥 CSV del curso</button>
+        <i class="im im-descargar" aria-hidden="true"></i> CSV del curso</button>
     </div>`
     Object.values(byHorario).forEach(bloque => {
       const presentes = bloque.alumnos.filter(a=>a.presente).length
@@ -476,7 +515,7 @@ async function cargarReporteCurso() {
       bloque.alumnos.forEach(a => {
         const bg    = a.presente ? '#dcfce7' : '#fee2e2'
         const borde = a.presente ? '#86efac' : '#fca5a5'
-        const icon  = a.presente ? '✅' : '❌'
+        const icon  = a.presente ? '<i class="im im-ok" aria-hidden="true"></i>' : '<i class="im im-error" aria-hidden="true"></i>'
         html += `<div style="background:${bg};border:1px solid ${borde};border-radius:6px;padding:6px 10px;font-size:.83em">
           ${icon} ${a.nombre} ${a.apellido_paterno}
           ${a.hora_marcada ? `<span style="color:#6b7280;font-size:.85em"> (${a.hora_marcada.slice(0,5)})</span>` : ''}
@@ -495,7 +534,7 @@ async function cargarResumenDia() {
   const fecha = document.getElementById('r-fecha-dia')?.value
   const el    = document.getElementById('resultado-reporte-dia')
   if (!fecha) return
-  el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+  el.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando...</p>'
   try {
     const data = await apiGet(`${API2}/asistencia/fecha?fecha=${fecha}`)
     if (!data.length) {
@@ -513,10 +552,10 @@ async function cargarResumenDia() {
       html += `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px;box-shadow:0 1px 3px #0001">
         <div style="font-weight:700;color:#1e40af;margin-bottom:4px">${d.asignatura}</div>
         <div style="font-size:.85em;color:#374151;margin-bottom:8px">
-          📚 ${d.curso} &nbsp;|&nbsp; 🕐 ${d.hora_inicio?.slice(0,5)||''}–${d.hora_fin?.slice(0,5)||''}
-          ${d.sala?`&nbsp;|&nbsp; 🏫 ${d.sala}`:''}
+          <i class="im im-libros" aria-hidden="true"></i> ${d.curso} &nbsp;|&nbsp; <i class="im im-reloj" aria-hidden="true"></i> ${d.hora_inicio?.slice(0,5)||''}–${d.hora_fin?.slice(0,5)||''}
+          ${d.sala?`&nbsp;|&nbsp; <i class="im im-aulas" aria-hidden="true"></i> ${d.sala}`:''}
         </div>
-        ${d.profesor_nombre?`<div style="font-size:.82em;color:#6b7280;margin-bottom:8px">👨‍🏫 ${d.profesor_nombre} ${d.profesor_apellido}</div>`:''}
+        ${d.profesor_nombre?`<div style="font-size:.82em;color:#6b7280;margin-bottom:8px"><i class="im im-profesores" aria-hidden="true"></i> ${d.profesor_nombre} ${d.profesor_apellido}</div>`:''}
         <div style="background:${bg};border-radius:6px;padding:8px;text-align:center">
           <span style="font-size:1.4em;font-weight:700;color:${color}">${pct}%</span>
           <span style="font-size:.8em;color:#6b7280;display:block">${pres} presentes / ${aus} ausentes</span>
@@ -534,17 +573,17 @@ async function cargarResumenDia() {
 async function cargarAlumnosRiesgo() {
   const el     = document.getElementById('resultado-riesgo')
   const umbral = document.getElementById('r-umbral-riesgo')?.value || 85
-  el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+  el.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando...</p>'
   try {
     const resp   = await apiGet(`${API4}/reportes/asistencia/riesgo?umbral=${umbral}`)
     const alumnos = resp.alumnos || []
     if (!alumnos.length) {
       el.innerHTML = `<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:20px;text-align:center;color:#166534">
-        ✅ <strong>¡Ningún alumno en riesgo!</strong> Todos superan el ${umbral}% de asistencia.</div>`
+        <i class="im im-ok" aria-hidden="true"></i> <strong>¡Ningún alumno en riesgo!</strong> Todos superan el ${umbral}% de asistencia.</div>`
       return
     }
     let html = `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:12px;color:#7f1d1d;font-size:.88em">
-      ⚠️ <strong>${alumnos.length} alumno${alumnos.length>1?'s':''}</strong> con asistencia por debajo del <strong>${umbral}%</strong>
+      <i class="im im-alerta" aria-hidden="true"></i> <strong>${alumnos.length} alumno${alumnos.length>1?'s':''}</strong> con asistencia por debajo del <strong>${umbral}%</strong>
     </div>
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85em">
       <thead><tr style="background:#7f1d1d;color:#fff">
@@ -575,7 +614,7 @@ async function cargarAlumnosRiesgo() {
     html += '</tbody></table></div>'
     el.innerHTML = html
   } catch(err) {
-    el.innerHTML = `<p class="mensaje-err">❌ Error: ${err.message}</p>`
+    el.innerHTML = `<p class="mensaje-err">Error: ${err.message}</p>`
   }
 }
 
@@ -629,7 +668,7 @@ async function cargarListaManual() {
   const idHorario = selHorario?.value
   if (!idHorario || !fecha) { el.innerHTML=''; return }
 
-  el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando alumnos...</p>'
+  el.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando alumnos...</p>'
   try {
     const alumnos = await apiGet(`${API2}/asistencia/curso/${idCurso}?fecha=${fecha}&id_horario=${idHorario}`)
     if (!alumnos.length) {
@@ -641,7 +680,7 @@ async function cargarListaManual() {
     if (yaGuardada) {
       // Solo lectura: asistencia ya finalizada, no se puede modificar
       let html = `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin-bottom:12px;font-size:.85em;color:#92400e;font-weight:600">
-        ⚠️ La asistencia de esta clase ya fue registrada y no puede modificarse desde aquí.
+        <i class="im im-alerta" aria-hidden="true"></i> La asistencia de esta clase ya fue registrada y no puede modificarse desde aquí.
       </div>
       <div style="max-height:350px;overflow-y:auto;border-radius:6px;border:1px solid #e5e7eb;margin-bottom:12px">
       <table style="width:100%;border-collapse:collapse;font-size:.88em">
@@ -652,8 +691,8 @@ async function cargarListaManual() {
       alumnos.forEach((a, i) => {
         const bg = i % 2 === 0 ? '#f9fafb' : '#fff'
         const estado = a.presente
-          ? `<span style="color:#16a34a;font-weight:600">${a.tipo_asistencia === 'facial' ? '📸' : '✋'} Presente</span>`
-          : `<span style="color:#9ca3af">❌ Ausente</span>`
+          ? `<span style="color:#16a34a;font-weight:600">${a.tipo_asistencia === 'facial' ? '<i class="im im-camara" aria-hidden="true"></i>' : '<i class="im im-mano" aria-hidden="true"></i>'} Presente</span>`
+          : `<span style="color:#9ca3af"><i class="im im-error" aria-hidden="true"></i> Ausente</span>`
         html += `<tr style="background:${bg}">
           <td style="padding:8px 12px">${a.nombre} ${a.apellido_paterno} ${a.apellido_materno||''}</td>
           <td style="padding:8px;text-align:center">${estado}</td>
@@ -666,7 +705,7 @@ async function cargarListaManual() {
 
     // Asistencia no guardada → modo edición normal
     let html = `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;padding:12px;margin-bottom:12px;font-size:.85em;color:#0369a1">
-      📋 <strong>${alumnos.length}</strong> alumno(s) — Marca los presentes y guarda.
+      <i class="im im-portapapeles" aria-hidden="true"></i> <strong>${alumnos.length}</strong> alumno(s) — Marca los presentes y guarda.
     </div>
     <div style="max-height:350px;overflow-y:auto;border-radius:6px;border:1px solid #e5e7eb;margin-bottom:12px">
     <table style="width:100%;border-collapse:collapse;font-size:.88em">
@@ -710,7 +749,7 @@ function marcarTodos(presente) {
 
 async function guardarListaManual(idCurso, idHorario, fecha, definitivo = false) {
   if (definitivo) {
-    const ok = confirm('¿Registrar definitivamente la asistencia?\nEsta acción no podrá modificarse.')
+    const ok = await sicafConfirmar('¿Registrar definitivamente la asistencia?\nEsta acción no podrá modificarse.')
     if (!ok) return
   }
   const checkboxes = document.querySelectorAll('#tbody-lista-manual input[type=checkbox]')
@@ -720,20 +759,20 @@ async function guardarListaManual(idCurso, idHorario, fecha, definitivo = false)
     tipo_asistencia: 'manual'
   }))
   const msg = document.getElementById('msg-lista-manual')
-  msg.innerHTML = '<span style="color:gray;font-size:.85em">⏳ Guardando...</span>'
+  msg.innerHTML = '<span style="color:gray;font-size:.85em"><i class="im im-espera" aria-hidden="true"></i> Guardando...</span>'
   const { ok, data } = await apiPost(`${API2}/asistencia/marcar`, {
     id_curso: parseInt(idCurso), id_horario: parseInt(idHorario), fecha, definitivo, alumnos
   })
   if (ok) {
     msg.innerHTML = definitivo
       ? '<span class="mensaje-ok"><i class="bi bi-lock-fill"></i> Asistencia registrada definitivamente</span>'
-      : '<span class="mensaje-ok">💾 Borrador guardado — puedes seguir editando</span>'
+      : '<span class="mensaje-ok">Borrador guardado — puedes seguir editando</span>'
     if (definitivo) {
       // Recargar la vista en modo solo lectura
       setTimeout(() => cargarListaManual(), 800)
     }
   } else {
-    msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    msg.innerHTML = `<span class="mensaje-err">${data.error}</span>`
   }
 }
 
@@ -781,8 +820,8 @@ async function cargarTablaAlumnos() {
                   <button class="btn-sm" style="background:#059669;color:#fff" onclick="verFichaMedica(${a.id},'${a.nombre} ${a.apellido_paterno}')" title="Ficha médica"><i class="bi bi-file-medical-fill"></i></button>
                   <button class="btn-sm" style="${a.tiene_rostro ? 'background:#16a34a;color:#fff' : 'background:#f0fdf4;color:#166534;border:1px solid #bbf7d0'}"
                     onclick="irARegistrarRostro(${a.id},'${a.nombre} ${a.apellido_paterno}')"
-                    title="${a.tiene_rostro ? '✅ Rostro registrado — click para gestionar' : 'Registrar rostro'}">
-                    ${a.tiene_rostro ? '✅' : '📸'}</button>
+                    title="${a.tiene_rostro ? 'Rostro registrado: clic para gestionar' : 'Registrar rostro'}">
+                    ${a.tiene_rostro ? '<i class="im im-ok" aria-hidden="true"></i>' : '<i class="im im-camara" aria-hidden="true"></i>'}</button>
                   <button class="btn-sm btn-edit"   onclick="editarAlumno(${a.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
                   <button class="btn-sm btn-delete" onclick="eliminarAlumno(${a.id},'${a.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`
             : '<span style="color:#bbb">Solo lectura</span>'}
@@ -795,11 +834,11 @@ async function cargarTablaAlumnos() {
 }
 
 async function reactivarAlumno(id, nombre) {
-  if (!confirm(`¿Reactivar al alumno ${nombre}?`)) return
+  if (!await sicafConfirmar(`¿Reactivar al alumno ${nombre}?`)) return
   const { ok, data } = await apiPatch(`${API1}/alumnos/${id}/reactivar`, {})
   document.getElementById('msg-alumnos').innerHTML =
-    ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-       : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ok ? `<span class="mensaje-ok">${data.mensaje}</span>`
+       : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaAlumnos()
 }
 
@@ -833,7 +872,7 @@ function seleccionarAlumnoRostro(sel) {
   }
 
   const yaRegistrado = !!_alumnoTieneRostro[id]
-  nomEl.textContent = sel.options[sel.selectedIndex]?.text.replace(' ✅', '') || ''
+  nomEl.textContent = sel.options[sel.selectedIndex]?.text.replace(' · rostro registrado', '') || ''
 
   // R.40: sin el consentimiento del apoderado no se puede capturar el rostro
   const consiente = !!_alumnoConsentimiento[id]
@@ -841,7 +880,7 @@ function seleccionarAlumnoRostro(sel) {
   if (!consiente) {
     info.style.cssText = 'display:block;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:10px'
     nomEl.style.color = '#991b1b'
-    subEl.textContent = '🔒 Falta el consentimiento del apoderado para registrar el rostro'
+    subEl.innerHTML = '<i class="im im-candado" aria-hidden="true"></i> Falta el consentimiento del apoderado para registrar el rostro'
     subEl.style.color = '#b91c1c'
     btnReg.style.display = 'none'
     btnReReg.style.display = 'none'
@@ -852,7 +891,7 @@ function seleccionarAlumnoRostro(sel) {
   if (yaRegistrado) {
     info.style.cssText = 'display:block;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin-bottom:10px'
     nomEl.style.color = '#92400e'
-    subEl.textContent = '⚠️ Este alumno ya tiene rostro registrado'
+    subEl.innerHTML = '<i class="im im-alerta" aria-hidden="true"></i> Este alumno ya tiene rostro registrado'
     subEl.style.color = '#b45309'
     btnReg.style.display = 'none'
     btnReReg.style.display = ''
@@ -863,19 +902,19 @@ function seleccionarAlumnoRostro(sel) {
     subEl.textContent = 'Se registrarán 3 capturas faciales automáticamente'
     subEl.style.color = '#6b7280'
     btnReg.style.display = ''; btnReg.disabled = false; btnReg.style.opacity = '1'
-    btnReg.textContent = '📸 Capturar y Registrar'
+    btnReg.innerHTML = '<i class="im im-camara" aria-hidden="true"></i> Capturar y registrar'
     btnReReg.style.display = 'none'
     btnElim.style.display = 'none'
   }
 }
 
-function confirmarReregistro() {
+async function confirmarReregistro() {
   const nombre = document.getElementById('alumno-rostro-nombre').textContent
-  if (!confirm(`¿Actualizar el rostro de ${nombre}?\n\nSe capturarán 3 nuevas fotos y reemplazarán el registro anterior.`)) return
+  if (!await sicafConfirmar(`¿Actualizar el rostro de ${nombre}?\n\nSe capturarán 3 nuevas fotos y reemplazarán el registro anterior.`)) return
   // Habilitar el botón original para que registrarRostro() lo use
   const btnReg = document.getElementById('btn-registrar-rostro')
   btnReg.style.display = ''; btnReg.disabled = false; btnReg.style.opacity = '1'
-  btnReg.textContent = '📸 Capturar y Re-registrar'
+  btnReg.innerHTML = '<i class="im im-camara" aria-hidden="true"></i> Capturar y volver a registrar'
   document.getElementById('btn-reregistrar-rostro').style.display = 'none'
   document.getElementById('btn-eliminar-rostro').style.display = 'none'
   registrarRostro()
@@ -885,13 +924,13 @@ async function eliminarRostroAlumno() {
   const id     = document.getElementById('idAlumno').value
   const nombre = document.getElementById('alumno-rostro-nombre').textContent
   if (!id) return
-  if (!confirm(`¿Eliminar el rostro registrado de ${nombre}?\n\nEl alumno no podrá ser reconocido automáticamente hasta que se vuelva a registrar.`)) return
+  if (!await sicafConfirmar(`¿Eliminar el rostro registrado de ${nombre}?\n\nEl alumno no podrá ser reconocido automáticamente hasta que se vuelva a registrar.`)) return
   const divRes = document.getElementById('resultadoRegistro')
   try {
     const r = await fetch(`${API3}/rostros/${id}`, { method: 'DELETE', headers: authHeaders() })
     const d = await r.json()
     if (r.ok) {
-      divRes.innerHTML = `<span class="mensaje-ok">✅ ${d.mensaje}</span>`
+      divRes.innerHTML = `<span class="mensaje-ok">${d.mensaje}</span>`
       _alumnoTieneRostro[id] = false
       await cargarSelectAlumnos()
       const sel = document.getElementById('selectAlumnoRostro')
@@ -899,10 +938,10 @@ async function eliminarRostroAlumno() {
       // Refrescar tabla de alumnos si está visible
       if (tabActual === 'alumnos') cargarTablaAlumnos()
     } else {
-      divRes.innerHTML = `<span class="mensaje-err">❌ ${d.error}</span>`
+      divRes.innerHTML = `<span class="mensaje-err">${d.error}</span>`
     }
   } catch (err) {
-    divRes.innerHTML = `<span class="mensaje-err">❌ Error de red: ${err.message}</span>`
+    divRes.innerHTML = `<span class="mensaje-err">Error de red: ${err.message}</span>`
   }
 }
 
@@ -922,7 +961,7 @@ async function cargarSelectAlumnos(preSelectId = null) {
       _alumnoTieneRostro[a.id] = !!a.tiene_rostro
       _alumnoConsentimiento[a.id] = !!a.consentimiento_biometrico
       sel.add(new Option(
-        `${a.nombre} ${a.apellido_paterno} (${a.rut})${a.tiene_rostro ? ' ✅' : ''}`,
+        `${a.nombre} ${a.apellido_paterno} (${a.rut})${a.tiene_rostro ? ' · rostro registrado' : ''}`,
         a.id
       ))
     })
@@ -936,11 +975,11 @@ async function editarAlumno(id) {
 }
 
 async function eliminarAlumno(id, nombre) {
-  if (!confirm(`⚠️ ¿Eliminar permanentemente al alumno ${nombre}?\n\nEsta acción borrará también su rostro registrado y sus asistencias. No se puede deshacer.`)) return
+  if (!await sicafConfirmar(`¿Eliminar permanentemente al alumno ${nombre}?\n\nEsta acción borrará también su rostro registrado y sus asistencias. No se puede deshacer.`)) return
   const { ok, data } = await apiDelete(`${API1}/alumnos/${id}`)
   document.getElementById('msg-alumnos').innerHTML =
-    ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-       : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ok ? `<span class="mensaje-ok">${data.mensaje}</span>`
+       : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaAlumnos()
 }
 
@@ -989,11 +1028,11 @@ async function cargarTablaCursos() {
 }
 
 async function reactivarCurso(id, nombre) {
-  if (!confirm(`¿Reactivar el curso ${nombre}?`)) return
+  if (!await sicafConfirmar(`¿Reactivar el curso ${nombre}?`)) return
   const { ok, data } = await apiPatch(`${API1}/cursos/${id}/reactivar`, {})
   document.getElementById('msg-cursos').innerHTML =
-    ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-       : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ok ? `<span class="mensaje-ok">${data.mensaje}</span>`
+       : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaCursos()
 }
 
@@ -1003,11 +1042,11 @@ async function editarCurso(id) {
 }
 
 async function eliminarCurso(id, nombre) {
-  if (!confirm(`⚠️ ¿Eliminar permanentemente el curso ${nombre}?\n\nSe eliminarán también sus horarios y registros de asistencia.\n(No se puede deshacer)`)) return
+  if (!await sicafConfirmar(`¿Eliminar permanentemente el curso ${nombre}?\n\nSe eliminarán también sus horarios y registros de asistencia.\n(No se puede deshacer)`)) return
   const { ok, data } = await apiDelete(`${API1}/cursos/${id}`)
   document.getElementById('msg-cursos').innerHTML =
-    ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-       : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ok ? `<span class="mensaje-ok">${data.mensaje}</span>`
+       : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaCursos()
 }
 
@@ -1032,7 +1071,7 @@ async function verAlumnosCurso(id, nombre) {
     html += '</tbody></table></div>'
   }
   // Mostrar modal en modo "solo ver"
-  document.getElementById('modal-titulo').textContent = `👥 ${nombre} — Alumnos`
+  document.getElementById('modal-titulo').textContent = `${nombre} — Alumnos`
   document.getElementById('modal-form-container').innerHTML = html
   document.getElementById('modal-msg').innerHTML = ''
   document.querySelector('#modal-box .form-actions').innerHTML =
@@ -1081,11 +1120,11 @@ async function cargarTablaProfesores() {
 }
 
 async function reactivarProfesor(id, nombre) {
-  if (!confirm(`¿Reactivar al profesor ${nombre}?`)) return
+  if (!await sicafConfirmar(`¿Reactivar al profesor ${nombre}?`)) return
   const { ok, data } = await apiPatch(`${API1}/profesores/${id}/reactivar`, {})
   document.getElementById('msg-profesores').innerHTML =
-    ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-       : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ok ? `<span class="mensaje-ok">${data.mensaje}</span>`
+       : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaProfesores()
 }
 
@@ -1095,11 +1134,11 @@ async function editarProfesor(id) {
 }
 
 async function eliminarProfesor(id, nombre) {
-  if (!confirm(`⚠️ ¿Eliminar permanentemente al profesor ${nombre}?\n\nSe eliminarán también sus horarios asignados y TODOS los registros de asistencia de esas clases.\n(No se puede deshacer)`)) return
+  if (!await sicafConfirmar(`¿Eliminar permanentemente al profesor ${nombre}?\n\nSe eliminarán también sus horarios asignados y TODOS los registros de asistencia de esas clases.\n(No se puede deshacer)`)) return
   const { ok, data } = await apiDelete(`${API1}/profesores/${id}`)
   document.getElementById('msg-profesores').innerHTML =
-    ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-       : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ok ? `<span class="mensaje-ok">${data.mensaje}</span>`
+       : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaProfesores()
 }
 
@@ -1109,78 +1148,79 @@ async function cargarPanelProfesor() {
   const alertEl = document.getElementById('panel-alertas')
   const guiaEl  = document.getElementById('panel-guia')
   const claseEl = document.getElementById('panel-clases-dia')
+  const avisoEl = document.getElementById('panel-aviso')
+  const heroEl  = document.getElementById('panel-hero-datos')
   if (alertEl) alertEl.style.display = 'none'
   if (guiaEl)  guiaEl.style.display  = 'none'
   if (claseEl) claseEl.innerHTML = ''
+  if (avisoEl) avisoEl.innerHTML = ''
   if (!statsEl) return
 
   const payload    = decodificarToken(token)
   const idProfesor = payload?.id_profesor
   const hoy        = new Date()
   const diaSemana  = hoy.getDay() === 0 ? 7 : hoy.getDay()
+  const fechaFmt   = hoy.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
+  const sub        = document.getElementById('panel-hero-sub')
 
-  statsEl.innerHTML = '<p style="color:gray;font-size:.9em">⏳ Cargando clases de hoy...</p>'
+  statsEl.innerHTML = '<p class="pn-vacio"><i class="im im-espera" aria-hidden="true"></i> Cargando tus clases de hoy…</p>'
   try {
     const horarios = await apiGet(`${API1}/horarios?dia_semana=${diaSemana}&id_profesor=${idProfesor}`)
+    const tarjeta = (cuerpo, extra = '') => `<div class="pn-card">
+        <div class="pn-card-head"><h3><i class="im im-calendario-ok" aria-hidden="true"></i> Mis clases de hoy</h3>${extra}</div>${cuerpo}</div>`
 
     if (!horarios.length) {
-      statsEl.innerHTML = '<p style="color:#6b7280;font-size:.95em;margin-top:8px">📅 No tienes clases programadas para hoy.</p>'
+      if (sub) sub.textContent = `Hoy, ${fechaFmt}, no tienes clases programadas.`
+      if (heroEl) heroEl.innerHTML = ''
+      statsEl.innerHTML = tarjeta(`<div class="pn-vacio">
+          <i class="im im-libros" aria-hidden="true" style="font-size:2.4em;color:#b7a6e8;display:block;margin:0 auto 8px"></i>
+          No tienes clases programadas para hoy. Puedes revisar reportes o ingresar notas desde el menú.</div>`)
       return
     }
 
-    const estados = await Promise.all(
-      horarios.map(h =>
-        apiGet(`${API2}/asistencia/estado?fecha=${fechaHoy()}&id_horario=${h.id}`)
-          .catch(() => ({ estado: 'nueva', presentes: 0, total: 0 }))
-      )
-    )
+    const estados = await Promise.all(horarios.map(h =>
+      apiGet(`${API2}/asistencia/estado?fecha=${fechaHoy()}&id_horario=${h.id}`)
+        .catch(() => ({ estado: 'nueva', presentes: 0, total: 0 }))))
 
-    const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
-    const fechaFmt = hoy.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })
+    const listas     = estados.filter(e => e.estado === 'definitivo').length
+    const borradores = estados.filter(e => e.estado === 'borrador').length
+    const faltan     = horarios.length - listas
+    if (sub) sub.textContent = faltan
+      ? `Hoy, ${fechaFmt}, te ${faltan === 1 ? 'falta 1 clase' : `faltan ${faltan} clases`} por registrar.`
+      : `Hoy, ${fechaFmt}: ya registraste todas tus clases.`
+    const dato = (ic, lbl, n) => `<div class="pn-hero-dato"><span class="ic" aria-hidden="true"><i class="im im-${ic}"></i></span>
+        <span><small>${lbl}</small><b>${n}</b></span></div>`
+    if (heroEl) heroEl.innerHTML = dato('calendario', 'Clases hoy', horarios.length) + dato('ok', 'Registradas', listas) + dato('espera', 'Por registrar', faltan)
 
-    const badge = {
-      definitivo: `<span style="background:#dcfce7;color:#166534;padding:3px 10px;border-radius:12px;font-size:.8em;font-weight:700"><i class="bi bi-lock-fill"></i> Definitivo</span>`,
-      borrador:   `<span style="background:#fef9c3;color:#854d0e;padding:3px 10px;border-radius:12px;font-size:.8em;font-weight:700"><i class="bi bi-floppy-fill"></i> Borrador</span>`,
-      nueva:      `<span style="background:#f3f4f6;color:#6b7280;padding:3px 10px;border-radius:12px;font-size:.8em;font-weight:700">⬜ Sin registro</span>`,
+    const pill = {
+      definitivo: '<span class="pn-pill ok"><i class="im im-candado" aria-hidden="true"></i> Registrada</span>',
+      borrador:   '<span class="pn-pill borrador"><i class="im im-guardar" aria-hidden="true"></i> Borrador</span>',
+      nueva:      '<span class="pn-pill pendiente"><i class="im im-reloj" aria-hidden="true"></i> Sin registro</span>',
     }
-    const btnTexto = {
-      definitivo: '📋 Ver detalle',
-      borrador:   '<i class="bi bi-pencil-fill"></i> Continuar',
-      nueva:      '▶ Pasar asistencia',
+    const boton = {
+      definitivo: ['Ver detalle', 'portapapeles', 'sec'],
+      borrador:   ['Continuar', 'lapiz', 'pri'],
+      nueva:      ['Pasar asistencia', 'asistencia', 'pri'],
     }
-    const btnColor = {
-      definitivo: '#2563eb',
-      borrador:   '#d97706',
-      nueva:      '#7c3aed',
-    }
-
-    const cards = horarios.map((h, i) => {
-      const est  = estados[i]
-      const info = est.estado !== 'nueva'
-        ? `<span style="font-size:.82em;color:#6b7280;margin-left:6px">${est.presentes}/${est.total} presentes</span>` : ''
-      return `
-        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:15px 18px;
-                    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-          <div>
-            <div style="font-size:.78em;color:#9ca3af;margin-bottom:3px">${h.hora_inicio?.slice(0,5)} – ${h.hora_fin?.slice(0,5)}${h.sala ? ' · Sala '+h.sala : ''}</div>
-            <div style="font-weight:700;font-size:1.02em">${h.asignatura}</div>
-            <div style="font-size:.88em;color:#4b5563">${h.curso}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            ${badge[est.estado] || badge.nueva}${info}
-            <button class="btn-sm"
-              style="background:${btnColor[est.estado]||btnColor.nueva};color:#fff;padding:5px 12px"
-              onclick="_irAClase(${h.id})">${btnTexto[est.estado] || btnTexto.nueva}</button>
-          </div>
+    const filas = horarios.map((h, i) => {
+      const est = estados[i]
+      const [txt, ic, tipo] = boton[est.estado] || boton.nueva
+      return `<div class="pn-clase">
+          <div class="pn-hora">${h.hora_inicio?.slice(0, 5)}–${h.hora_fin?.slice(0, 5)}</div>
+          <div class="pn-clase-info"><b>${h.asignatura} · ${h.curso}</b>
+            <span>${h.sala ? 'Sala ' + h.sala : 'Sin sala asignada'}${est.estado !== 'nueva' ? ` · ${est.presentes}/${est.total} presentes` : ''}</span></div>
+          ${pill[est.estado] || pill.nueva}
+          <button type="button" class="sk-btn ${tipo}" style="min-height:38px;padding:0 14px" onclick="_irAClase(${h.id})">
+            <i class="im im-${ic}" aria-hidden="true"></i> ${txt}</button>
         </div>`
     }).join('')
-
-    statsEl.innerHTML = `
-      <h2 style="margin:0 0 4px">Mis clases de hoy</h2>
-      <p style="font-size:.85em;color:#6b7280;margin:0 0 14px">${DIAS[diaSemana]}, ${fechaFmt}</p>
-      <div style="display:flex;flex-direction:column;gap:10px">${cards}</div>`
+    const resumen = `<div class="pn-resumen">
+        <span class="pn-pill pendiente">${faltan - borradores} sin registro</span>
+        <span class="pn-pill borrador">${borradores} borrador${borradores !== 1 ? 'es' : ''}</span>
+        <span class="pn-pill ok">${listas} registrada${listas !== 1 ? 's' : ''}</span></div>`
+    statsEl.innerHTML = tarjeta(`<div class="pn-card-body">${filas}</div>`, resumen)
   } catch (err) {
-    statsEl.innerHTML = `<p class="mensaje-err">Error al cargar clases: ${err.message}</p>`
+    statsEl.innerHTML = `<p class="mensaje-err">Error al cargar tus clases: ${err.message}</p>`
   }
 }
 
@@ -1193,14 +1233,20 @@ function _irAClase(idHorario) {
 async function cargarPanel() {
   if (rolUsuario === 'profesor') return cargarPanelProfesor()
 
-  const statsEl  = document.getElementById('panel-stats')
-  const alertEl  = document.getElementById('panel-alertas')
-  const guiaEl   = document.getElementById('panel-guia')
+  const statsEl = document.getElementById('panel-stats')
+  const alertEl = document.getElementById('panel-alertas')
+  const guiaEl  = document.getElementById('panel-guia')
+  const avisoEl = document.getElementById('panel-aviso')
+  const heroEl  = document.getElementById('panel-hero-datos')
   if (!statsEl) return
-  statsEl.innerHTML = '<p style="color:gray;font-size:.9em">⏳ Cargando estadísticas...</p>'
+  statsEl.innerHTML = '<p class="pn-vacio">Cargando indicadores…</p>'
+
+  const hoy = new Date()
+  const sub = document.getElementById('panel-hero-sub')
+  if (sub) sub.textContent = `Así va la asistencia hoy, ${hoy.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}.`
 
   try {
-    const [alumnos, cursos, profesores, horarios, usuarios, asignaturas, aulas, riesgoResp] = await Promise.all([
+    const [alumnos, cursos, profesores, horarios, usuarios, asignaturas, aulas, riesgoResp, resumenDia, apoderados] = await Promise.all([
       apiGet(`${API1}/alumnos`),
       apiGet(`${API1}/cursos`),
       apiGet(`${API1}/profesores`),
@@ -1208,206 +1254,185 @@ async function cargarPanel() {
       apiGet(`${API1}/usuarios`),
       apiGet(`${API1}/asignaturas`),
       apiGet(`${API1}/aulas`),
-      apiGet(`${API4}/reportes/asistencia/riesgo`).catch(() => ({ total_en_riesgo: '?' }))
+      apiGet(`${API4}/reportes/asistencia/riesgo`).catch(() => ({ total_en_riesgo: null })),
+      apiGet(`${API2}/asistencia/resumen-dia?fecha=${fechaHoy()}`).catch(() => null),
+      apiGet(`${API1}/apoderados`).catch(() => [])
     ])
-    const enRiesgo = riesgoResp.total_en_riesgo ?? riesgoResp.alumnos?.length ?? '?'
+    const alActivos = alumnos.filter(a => a.activo)
+    const cuActivos = cursos.filter(c => c.activo)
+    const prActivos = profesores.filter(p => p.activo)
+    const asActivas = asignaturas.filter(a => a.activo)
+    const usActivos = usuarios.filter(u => u.activo)
+    const enRiesgo  = riesgoResp.total_en_riesgo ?? riesgoResp.alumnos?.length ?? null
+    const pct = (n, t) => t ? Math.round(100 * n / t) : 0
 
-    const alActivos  = alumnos.filter(a => a.activo)
-    const cuActivos  = cursos.filter(c => c.activo)
-    const prActivos  = profesores.filter(p => p.activo)
-    const asActivas  = asignaturas.filter(a => a.activo)
-    const usActivos  = usuarios.filter(u => u.activo)
+    // ── Datos rápidos de la bienvenida ──
+    const dato = (ic, lbl, n, tab) => `
+      <button class="pn-hero-dato" type="button" onclick="mostrarTab('${tab}')">
+        <span class="ic" aria-hidden="true"><i class="bi ${ic}"></i></span>
+        <span><small>${lbl}</small><b>${n}</b></span>
+      </button>`
+    if (heroEl) heroEl.innerHTML =
+      dato('bi-people-fill', 'Alumnos', alActivos.length, 'alumnos') +
+      dato('bi-book-fill', 'Cursos', cuActivos.length, 'cursos') +
+      dato('bi-person-badge-fill', 'Profesores', prActivos.length, 'profesores')
 
-    // ── Tarjetas de estadísticas ────────────────────────────────
-    const tarjetas = [
-      { n: alActivos.length,  lbl:'Alumnos',      icon:'👤', color:'#2563eb', tab:'alumnos' },
-      { n: cuActivos.length,  lbl:'Cursos',        icon:'📚', color:'#7c3aed', tab:'cursos' },
-      { n: prActivos.length,  lbl:'Profesores',    icon:'👨‍🏫', color:'#059669', tab:'profesores' },
-      { n: horarios.length,   lbl:'Horarios',      icon:'📅', color:'#d97706', tab:'horarios' },
+    // ── Indicadores principales (todos calculados con datos reales) ──
+    const conRostro   = alActivos.filter(a => a.tiene_rostro).length
+    const conConsent  = alActivos.filter(a => a.consentimiento_biometrico).length
+    const clasesTot   = resumenDia?.clases?.length || 0
+    const clasesListas = resumenDia?.definitivos || 0
+    const dona = (p, texto) => `
+      <div class="pn-dona" aria-hidden="true"><svg viewBox="0 0 66 66">
+        <circle class="p" cx="33" cy="33" r="28"/>
+        <circle class="v" cx="33" cy="33" r="28" stroke-dasharray="${(176 * p / 100).toFixed(1)} 176"/></svg>
+        <b>${texto}</b></div>`
+    const kpi = (clase, num, lbl, subt, p, accion) => `
+      <button class="pn-kpi ${clase}" type="button" onclick="${accion}">
+        <div><div class="pn-kpi-num">${num}</div><div class="pn-kpi-lbl">${lbl}</div>
+          <div class="pn-kpi-sub">${subt}</div>
+          <div class="pn-kpi-barra" aria-hidden="true"><i style="width:${p}%"></i></div></div>
+        ${dona(p, p + '%')}
+      </button>`
+    const riesgoTxt = enRiesgo === null ? '—' : enRiesgo
+    const kpis = [
+      kpi('c1', alActivos.length, 'Alumnos activos', `${conRostro} con rostro registrado`, pct(conRostro, alActivos.length), "mostrarTab('alumnos')"),
+      kpi('c2', conConsent, 'Con consentimiento', 'biométrico del apoderado', pct(conConsent, alActivos.length), "mostrarTab('asistencia')"),
+      kpi('c3', `${clasesListas}/${clasesTot}`, 'Clases registradas hoy',
+          resumenDia?.feriado ? `Feriado: ${resumenDia.feriado}` : (clasesTot ? `${resumenDia.pendientes} pendiente${resumenDia.pendientes !== 1 ? 's' : ''}` : 'Sin clases hoy'),
+          pct(clasesListas, clasesTot), "document.getElementById('panel-clases-dia').scrollIntoView({behavior:'smooth'})"),
+      kpi(enRiesgo > 0 ? 'alerta' : 'c4', riesgoTxt, 'En riesgo', 'bajo el 85 % de asistencia',
+          enRiesgo ? pct(enRiesgo, alActivos.length) : 0, "mostrarTab('reportes');mostrarReporteTab('riesgo')"),
     ]
-    const tarjetasPeq = [
-      { n: usActivos.length,  lbl:'Usuarios',      icon:'🔑', color:'#0891b2', tab:'usuarios' },
-      { n: asActivas.length,  lbl:'Asignaturas',   icon:'📖', color:'#7c3aed', tab:'asignaturas' },
-      { n: aulas.length,      lbl:'Aulas',         icon:'🏫', color:'#374151', tab:'aulas' },
-    ]
-
-    const card = (t, big) => `
-      <div onclick="${t.onclick||`mostrarTab('${t.tab}')`}"
-           style="background:${t.color};color:#fff;padding:${big?'18px':'13px'};border-radius:8px;
-                  text-align:center;cursor:pointer;user-select:none"
-           onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
-        <div style="font-size:${big?'1.6em':'1.3em'}">${t.icon}</div>
-        <div style="font-size:${big?'2em':'1.5em'};font-weight:700;line-height:1.1">${t.n}</div>
-        <div style="font-size:.8em;opacity:.9;margin-top:2px">${t.lbl}</div>
-      </div>`
-
-    const riesgoCard = `
-      <div onclick="mostrarTab('reportes');mostrarReporteTab('riesgo')"
-           style="background:${enRiesgo>0?'#dc2626':'#16a34a'};color:#fff;padding:18px;border-radius:8px;
-                  text-align:center;cursor:pointer;user-select:none;grid-column:span 1"
-           onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
-        <div style="font-size:1.6em">${enRiesgo>0?'🔴':'✅'}</div>
-        <div style="font-size:2em;font-weight:700;line-height:1.1">${enRiesgo}</div>
-        <div style="font-size:.8em;opacity:.9;margin-top:2px">En Riesgo <85%</div>
-      </div>`
-
+    const mini = (ic, lbl, n, tab, t, f, t2) => `
+      <button type="button" onclick="mostrarTab('${tab}')" style="--t:${t};--f:${f};--t2:${t2}">
+        <span class="ic" aria-hidden="true"><i class="bi ${ic}"></i></span><small>${lbl}</small><b>${n}</b>
+      </button>`
     statsEl.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:8px">
-        ${tarjetas.map(t => card(t,true)).join('')}
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:0">
-        ${tarjetasPeq.map(t => card(t,false)).join('')}${riesgoCard}
+      <div class="pn-kpis">${kpis.join('')}</div>
+      <div class="pn-mini">
+        ${mini('bi-journals', 'Asignaturas', asActivas.length, 'asignaturas', '#d8ccfb', '#efe9fd', '#5a2fc4')}
+        ${mini('bi-calendar3', 'Horarios', horarios.length, 'horarios', '#bfe3d5', '#e3f6ee', '#166534')}
+        ${mini('bi-building', 'Aulas', aulas.length, 'aulas', '#fcd9b6', '#fff1e3', '#9a3412')}
+        ${mini('bi-shield-lock', 'Usuarios', usActivos.length, 'usuarios', '#c7d7fb', '#e8efff', '#1d4ed8')}
+        ${mini('bi-person-lines-fill', 'Apoderados', Array.isArray(apoderados) ? apoderados.filter(a => a.activo).length : '—', 'apoderados', '#f5c2d8', '#fdebf3', '#9d174d')}
       </div>`
 
-    // Dashboard de clases del día (carga en paralelo)
-    _cargarClasesDiaAdmin()
+    _cargarClasesDiaAdmin(resumenDia)
 
-    // ── Alertas pendientes ──────────────────────────────────────
+    // ── Estado del sistema ──
     const alertas = []
     const alSinCurso = alActivos.filter(a => !a.id_curso)
-    if (alSinCurso.length)
-      alertas.push({ tipo:'warn', msg:`${alSinCurso.length} alumno(s) activo(s) sin curso asignado`, tab:'alumnos' })
-
+    if (alSinCurso.length) alertas.push({ tipo: 'warn', msg: `${alSinCurso.length} alumno(s) activo(s) sin curso asignado`, tab: 'alumnos' })
+    const sinConsent = alActivos.filter(a => a.tiene_rostro && !a.consentimiento_biometrico).length
+    if (sinConsent) alertas.push({ tipo: 'warn', msg: `${sinConsent} alumno(s) con rostro registrado pero sin consentimiento: no serán reconocidos`, tab: 'asistencia' })
     const profConUser = new Set(usuarios.filter(u => u.id_profesor).map(u => u.id_profesor))
-    const prSinUser   = prActivos.filter(p => !profConUser.has(p.id))
-    if (prSinUser.length)
-      alertas.push({ tipo:'warn', msg:`${prSinUser.length} profesor(es) sin cuenta de acceso al sistema`, tab:'usuarios' })
-
+    const prSinUser = prActivos.filter(p => !profConUser.has(p.id))
+    if (prSinUser.length) alertas.push({ tipo: 'warn', msg: `${prSinUser.length} profesor(es) sin cuenta de acceso`, tab: 'usuarios' })
     const cuSinJefe = cuActivos.filter(c => !c.id_profesor_jefe)
-    if (cuSinJefe.length)
-      alertas.push({ tipo:'info', msg:`${cuSinJefe.length} curso(s) sin profesor jefe asignado`, tab:'cursos' })
-
+    if (cuSinJefe.length) alertas.push({ tipo: 'info', msg: `${cuSinJefe.length} curso(s) sin profesor jefe`, tab: 'cursos' })
     const cuSinHorario = cuActivos.filter(c => !horarios.some(h => h.id_curso === c.id))
-    if (cuSinHorario.length)
-      alertas.push({ tipo:'info', msg:`${cuSinHorario.length} curso(s) sin horario configurado`, tab:'horarios' })
+    if (cuSinHorario.length) alertas.push({ tipo: 'info', msg: `${cuSinHorario.length} curso(s) sin horario`, tab: 'horarios' })
+    if (enRiesgo > 0) alertas.push({ tipo: 'warn', msg: `${enRiesgo} alumno(s) bajo el 85 % de asistencia`, onclick: `mostrarTab('reportes');mostrarReporteTab('riesgo')` })
+    if (!alertas.length) alertas.push({ tipo: 'ok', msg: 'Todo está configurado correctamente' })
 
-    if (enRiesgo > 0)
-      alertas.push({ tipo:'warn', msg:`${enRiesgo} alumno(s) con asistencia por debajo del 85% mínimo legal`,
-                     onclick:`mostrarTab('reportes');mostrarReporteTab('riesgo')` })
-
-    if (!alertas.length)
-      alertas.push({ tipo:'ok', msg:'Todo está configurado correctamente 🎉' })
-
-    const colorAlerta = { warn:'#fef3c7', info:'#dbeafe', ok:'#dcfce7' }
-    const bordeAlerta = { warn:'#f59e0b', info:'#2563eb', ok:'#16a34a' }
-    const textoAlerta = { warn:'#92400e', info:'#1e40af', ok:'#166534' }
-    const iconAlerta  = { warn:'⚠️', info:'ℹ️', ok:'✅' }
-
-    alertEl.innerHTML = `<h3 style="margin:0 0 8px;font-size:.95em;color:#374151">Estado del sistema</h3>` +
-      alertas.map(a => {
-        const accion = a.onclick || (a.tab ? `mostrarTab('${a.tab}')` : '')
-        return `
-        <div onclick="${accion}"
-             style="padding:9px 13px;border-radius:6px;margin-bottom:5px;cursor:${accion?'pointer':'default'};
-                    background:${colorAlerta[a.tipo]};border-left:4px solid ${bordeAlerta[a.tipo]};
-                    color:${textoAlerta[a.tipo]};display:flex;justify-content:space-between;align-items:center">
-          <span>${iconAlerta[a.tipo]} ${a.msg}</span>
-          ${accion?`<span style="font-size:.8em;opacity:.7">ir →</span>`:''}
-        </div>`}).join('')
-
-    // ── Guía de pasos ───────────────────────────────────────────
-    const pasos = [
-      { lbl:'Crear asignaturas (Matemáticas, Historia…)',          hecho: asActivas.length > 0,            tab:'asignaturas' },
-      { lbl:'Registrar aulas y salas',                             hecho: aulas.length > 0,                tab:'aulas' },
-      { lbl:'Registrar profesores con su especialidad',            hecho: prActivos.length > 0,            tab:'profesores' },
-      { lbl:'Crear cursos (3°A, 1° Medio B…) y asignar jefe',     hecho: cuActivos.length > 0,            tab:'cursos' },
-      { lbl:'Registrar alumnos y asignarlos a un curso',           hecho: alActivos.length > 0,            tab:'alumnos' },
-      { lbl:'Configurar horarios de clases',                       hecho: horarios.length > 0,             tab:'horarios' },
-      { lbl:'Crear cuentas de acceso para profesores',             hecho: usuarios.some(u=>u.tipo_persona==='profesor'&&u.activo), tab:'usuarios' },
-    ]
-    const done = pasos.filter(p => p.hecho).length
-    const pct  = Math.round(done / pasos.length * 100)
-
-    guiaEl.innerHTML = `
-      <div style="background:#f0f4ff;border-radius:8px;padding:16px;border:1px solid #c7d2fe">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <h3 style="margin:0;color:#1e40af;font-size:.95em">📋 Guía de configuración inicial</h3>
-          <span style="font-size:.85em;color:#3730a3;font-weight:600">${done}/${pasos.length} — ${pct}%</span>
+    alertEl.innerHTML = `
+      <div class="pn-card">
+        <div class="pn-card-head"><h3><i class="bi bi-activity" aria-hidden="true"></i> Estado del sistema</h3></div>
+        <div class="pn-card-body">
+          ${alertas.map(a => {
+            const accion = a.onclick || (a.tab ? `mostrarTab('${a.tab}')` : '')
+            return `<button class="pn-alerta" type="button" ${accion ? `onclick="${accion}"` : 'disabled'}>
+              <span class="punto ${a.tipo}" aria-hidden="true"></span><span class="txt">${a.msg}</span>
+              ${accion ? '<span class="ir" aria-hidden="true">›</span>' : ''}</button>`
+          }).join('')}
         </div>
-        <div style="background:#e0e7ff;height:7px;border-radius:4px;margin-bottom:12px">
-          <div style="background:#2563eb;height:100%;width:${pct}%;border-radius:4px;transition:width .5s"></div>
-        </div>
-        ${pasos.map((p,i) => `
-          <div onclick="mostrarTab('${p.tab}')"
-               style="display:flex;align-items:center;gap:10px;padding:7px 10px;margin-bottom:4px;
-                      border-radius:6px;cursor:pointer;
-                      background:${p.hecho?'#dcfce7':'#fff'};border:1px solid ${p.hecho?'#86efac':'#e5e7eb'}">
-            <div style="width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;
-                        justify-content:center;font-size:.8em;font-weight:700;
-                        background:${p.hecho?'#16a34a':'#9ca3af'};color:#fff">
-              ${p.hecho?'✓':i+1}
-            </div>
-            <span style="color:${p.hecho?'#166534':'#374151'};font-size:.9em;
-                         ${p.hecho?'text-decoration:line-through;opacity:.65':''}">${p.lbl}</span>
-            ${!p.hecho?'<span style="margin-left:auto;font-size:.75em;color:#6b7280">→</span>':''}
-          </div>`).join('')}
       </div>`
 
+    // ── Aviso destacado: lo más urgente del día ──
+    const urgente = alertas.find(a => a.tipo === 'warn')
+    if (avisoEl) {
+      if (resumenDia && resumenDia.pendientes > 0 && !resumenDia.feriado) {
+        avisoEl.innerHTML = `<button class="pn-aviso" type="button" onclick="document.getElementById('panel-clases-dia').scrollIntoView({behavior:'smooth'})">
+          <span><i class="im im-nota" aria-hidden="true"></i> Hoy hay ${resumenDia.pendientes} clase(s) sin asistencia registrada.</span><em>Ver clases ›</em></button>`
+      } else if (urgente) {
+        const accion = urgente.onclick || `mostrarTab('${urgente.tab}')`
+        avisoEl.innerHTML = `<button class="pn-aviso" type="button" onclick="${accion}"><span><i class="im im-alerta" aria-hidden="true"></i> ${urgente.msg}.</span><em>Revisar ›</em></button>`
+      } else {
+        avisoEl.innerHTML = `<div class="pn-aviso ok"><span><i class="im im-ok" aria-hidden="true"></i> Todo al día: la asistencia y la configuración están en orden.</span></div>`
+      }
+    }
+
+    // ── Guía de configuración inicial ──
+    const pasos = [
+      { lbl: 'Crear asignaturas',                      hecho: asActivas.length > 0, tab: 'asignaturas' },
+      { lbl: 'Registrar aulas y salas',                hecho: aulas.length > 0,     tab: 'aulas' },
+      { lbl: 'Registrar profesores',                   hecho: prActivos.length > 0, tab: 'profesores' },
+      { lbl: 'Crear cursos y asignar profesor jefe',   hecho: cuActivos.length > 0, tab: 'cursos' },
+      { lbl: 'Registrar alumnos en un curso',          hecho: alActivos.length > 0, tab: 'alumnos' },
+      { lbl: 'Configurar horarios de clases',          hecho: horarios.length > 0,  tab: 'horarios' },
+      { lbl: 'Crear cuentas para profesores',          hecho: usuarios.some(u => u.tipo_persona === 'profesor' && u.activo), tab: 'usuarios' },
+    ]
+    const listos = pasos.filter(x => x.hecho).length
+    const pctGuia = pct(listos, pasos.length)
+    guiaEl.innerHTML = `
+      <div class="pn-card">
+        <div class="pn-card-head"><h3><i class="bi bi-list-check" aria-hidden="true"></i> Configuración inicial</h3>
+          <span class="pn-pill ${pctGuia === 100 ? 'ok' : 'borrador'}">${listos}/${pasos.length}</span></div>
+        <div class="pn-card-body">
+          <div class="pn-guia-barra" role="progressbar" aria-valuenow="${pctGuia}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de la configuración"><i style="width:${pctGuia}%"></i></div>
+          ${pctGuia === 100
+            ? '<div class="pn-completo"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Configuración completa: el sistema está listo para usarse.</div>'
+            : pasos.map((x, i) => `<button class="pn-paso ${x.hecho ? 'hecho' : ''}" type="button" onclick="mostrarTab('${x.tab}')">
+                <span class="n" aria-hidden="true">${x.hecho ? '<i class="im im-check" aria-hidden="true"></i>' : i + 1}</span><span>${x.lbl}</span>
+                <span class="solo-lector">${x.hecho ? '(listo)' : '(pendiente)'}</span></button>`).join('')}
+        </div>
+      </div>`
   } catch (err) {
     statsEl.innerHTML = `<p class="mensaje-err">Error al cargar el panel: ${err.message}</p>`
   }
 }
 
 /* ── DASHBOARD: clases del día (admin) ────────────────────────── */
-async function _cargarClasesDiaAdmin() {
+async function _cargarClasesDiaAdmin(resumen) {
   const el = document.getElementById('panel-clases-dia')
   if (!el) return
-  el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando clases de hoy...</p>'
+  const tarjeta = (cabecera, cuerpo) => `<div class="pn-card">
+      <div class="pn-card-head">${cabecera}</div>${cuerpo}</div>`
   try {
-    const r = await apiGet(`${API2}/asistencia/resumen-dia?fecha=${fechaHoy()}`)
+    const r = resumen || await apiGet(`${API2}/asistencia/resumen-dia?fecha=${fechaHoy()}`)
     const hoy = new Date()
-    const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
-    const diaSemana = hoy.getDay() === 0 ? 7 : hoy.getDay()
-    const fechaFmt  = hoy.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })
+    const fechaFmt = hoy.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
+    const titulo = `<h3><i class="bi bi-calendar-check" aria-hidden="true"></i> Clases de hoy</h3>`
 
     if (r.feriado) {
-      el.innerHTML = `
-        <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:14px 18px;color:#92400e">
-          <strong><i class="bi bi-calendar-x-fill"></i> ${DIAS[diaSemana]} ${fechaFmt} — Feriado: ${r.feriado}</strong>
-          <div style="font-size:.85em;margin-top:2px">No hay clases programadas (día no lectivo).</div>
-        </div>`
+      el.innerHTML = tarjeta(titulo, `<div class="pn-vacio"><i class="im im-destello" aria-hidden="true"></i> ${fechaFmt}: feriado (${r.feriado}). No hay clases.</div>`)
       return
     }
     if (!r.clases || !r.clases.length) {
-      el.innerHTML = `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:14px 18px;color:#6b7280;font-size:.9em">
-        <i class="bi bi-calendar3"></i> No hay clases programadas para hoy (${DIAS[diaSemana]}).</div>`
+      el.innerHTML = tarjeta(titulo, `<div class="pn-vacio">No hay clases programadas para hoy, ${fechaFmt}.</div>`)
       return
     }
-
-    const badge = {
-      definitivo: `<span style="background:#dcfce7;color:#166534;padding:2px 9px;border-radius:11px;font-size:.76em;font-weight:700"><i class="bi bi-lock-fill"></i> Registrada</span>`,
-      borrador:   `<span style="background:#fef9c3;color:#854d0e;padding:2px 9px;border-radius:11px;font-size:.76em;font-weight:700"><i class="bi bi-floppy-fill"></i> Borrador</span>`,
-      pendiente:  `<span style="background:#fee2e2;color:#b91c1c;padding:2px 9px;border-radius:11px;font-size:.76em;font-weight:700"><i class="bi bi-exclamation-circle-fill"></i> Pendiente</span>`,
+    const pill = {
+      definitivo: '<span class="pn-pill ok"><i class="bi bi-lock-fill" aria-hidden="true"></i> Registrada</span>',
+      borrador:   '<span class="pn-pill borrador"><i class="bi bi-floppy-fill" aria-hidden="true"></i> Borrador</span>',
+      pendiente:  '<span class="pn-pill pendiente"><i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i> Pendiente</span>',
     }
-    const filas = r.clases.map(c => {
-      const info = c.estado !== 'pendiente'
-        ? `<span style="font-size:.8em;color:#6b7280">${c.presentes}/${c.marcados || c.total_alumnos}</span>` : ''
-      return `
-        <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-bottom:1px solid #f3f4f6">
-          <div style="font-size:.82em;color:#6b7280;width:95px;flex-shrink:0">${(c.hora_inicio||'').slice(0,5)}–${(c.hora_fin||'').slice(0,5)}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:.9em">${c.asignatura} <span style="color:#9ca3af;font-weight:400">· ${c.curso}</span></div>
-            <div style="font-size:.8em;color:#6b7280">${c.profesor}${c.sala ? ' · Sala '+c.sala : ''}</div>
-          </div>
-          ${info}
-          ${badge[c.estado] || ''}
-        </div>`
-    }).join('')
-
-    el.innerHTML = `
-      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#f8fafc;border-bottom:1px solid #e5e7eb;flex-wrap:wrap;gap:8px">
-          <h3 style="margin:0;font-size:.95em;color:#374151"><i class="bi bi-calendar-check"></i> Clases de hoy — ${DIAS[diaSemana]} ${fechaFmt}</h3>
-          <div style="display:flex;gap:8px;font-size:.78em">
-            <span style="color:#b91c1c;font-weight:700">${r.pendientes} pendiente${r.pendientes!==1?'s':''}</span>
-            <span style="color:#854d0e;font-weight:700">${r.borradores} borrador${r.borradores!==1?'es':''}</span>
-            <span style="color:#166534;font-weight:700">${r.definitivos} registrada${r.definitivos!==1?'s':''}</span>
-          </div>
-        </div>
-        ${filas}
-      </div>`
+    const filas = r.clases.map(c => `
+      <div class="pn-clase">
+        <div class="pn-hora">${(c.hora_inicio || '').slice(0, 5)}–${(c.hora_fin || '').slice(0, 5)}</div>
+        <div class="pn-clase-info"><b>${c.asignatura} · ${c.curso}</b>
+          <span>${c.profesor}${c.sala ? ' · Sala ' + c.sala : ''}</span></div>
+        ${c.estado !== 'pendiente' ? `<span class="pn-clase-cifra">${c.presentes}/${c.marcados || c.total_alumnos}</span>` : ''}
+        ${pill[c.estado] || ''}
+      </div>`).join('')
+    const resumenPills = `<div class="pn-resumen">
+        <span class="pn-pill pendiente">${r.pendientes} pendiente${r.pendientes !== 1 ? 's' : ''}</span>
+        <span class="pn-pill borrador">${r.borradores} borrador${r.borradores !== 1 ? 'es' : ''}</span>
+        <span class="pn-pill ok">${r.definitivos} registrada${r.definitivos !== 1 ? 's' : ''}</span></div>`
+    el.innerHTML = tarjeta(titulo + resumenPills, `<div class="pn-card-body">${filas}</div>`)
   } catch (err) {
-    el.innerHTML = `<p class="mensaje-err" style="font-size:.85em">Error al cargar clases del día: ${err.message}</p>`
+    el.innerHTML = `<p class="mensaje-err" style="font-size:.85em">Error al cargar las clases de hoy: ${err.message}</p>`
   }
 }
 
@@ -1453,11 +1478,11 @@ async function editarHorario(id) {
 }
 
 async function eliminarHorario(id) {
-  if (!confirm('⚠️ ¿Eliminar este bloque horario?\n\nSe eliminarán también los registros de asistencia asociados.')) return
+  if (!await sicafConfirmar('¿Eliminar este bloque horario?\n\nSe eliminarán también los registros de asistencia asociados.')) return
   const { ok, data } = await apiDelete(`${API1}/horarios/${id}`)
   document.getElementById('msg-horarios').innerHTML =
-    ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-       : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ok ? `<span class="mensaje-ok">${data.mensaje}</span>`
+       : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaHorarios()
   if (_vistaCalHorario) _renderCalendarioHorarios()
 }
@@ -1481,7 +1506,7 @@ async function toggleVistaHorario() {
 
 async function _renderCalendarioHorarios() {
   const cont = document.getElementById('vista-cal-horarios')
-  cont.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando calendario...</p>'
+  cont.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando calendario...</p>'
   try {
     const horarios = await apiGet(`${API1}/horarios`)
     const DIAS = [1, 2, 3, 4, 5]
@@ -1566,14 +1591,14 @@ async function cargarTablaUsuarios() {
         : 'Nunca'
       const tipoColor  = u.tipo_persona === 'admin' ? '#1e40af' : '#166534'
       const tipoBg     = u.tipo_persona === 'admin' ? '#dbeafe'  : '#dcfce7'
-      const tipoIcon   = u.tipo_persona === 'admin' ? '🔐'       : '👨‍🏫'
+      const tipoIcon   = u.tipo_persona === 'admin' ? '<i class="im im-usuarios" aria-hidden="true"></i>'       : '<i class="im im-profesores" aria-hidden="true"></i>'
       const tipoLabel  = u.tipo_persona === 'admin' ? 'Admin'    : 'Profesor'
       tr.innerHTML = `
         <td>${u.id}</td>
         <td><strong>${u.nombre_usuario}</strong>${badge}</td>
         <td><span style="background:${tipoBg};color:${tipoColor};padding:3px 9px;border-radius:10px;font-size:.8em;font-weight:600">${tipoIcon} ${tipoLabel}</span></td>
         <td style="font-size:.88em">${u.nombre_profesor
-          ? `<span title="Profesor vinculado">👤 ${u.nombre_profesor}</span>`
+          ? `<span title="Profesor vinculado"><i class="im im-persona" aria-hidden="true"></i> ${u.nombre_profesor}</span>`
           : `<span style="color:#aaa">Sin vinculación</span>`}</td>
         <td style="font-size:.82em;color:#666">${ultimoAcceso}</td>
         <td>
@@ -1597,11 +1622,11 @@ async function editarUsuario(id) {
 
 async function toggleUsuario(id, nombre, activo) {
   const accion = activo ? 'desactivar' : 'activar'
-  if (!confirm(`¿${accion.charAt(0).toUpperCase()+accion.slice(1)} al usuario "${nombre}"?`)) return
+  if (!await sicafConfirmar(`¿${accion.charAt(0).toUpperCase()+accion.slice(1)} al usuario "${nombre}"?`)) return
   const { ok, data } = await apiPatch(`${API1}/usuarios/${id}/toggle`, {})
   document.getElementById('msg-usuarios').innerHTML =
-    ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-       : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ok ? `<span class="mensaje-ok">${data.mensaje}</span>`
+       : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaUsuarios()
 }
 
@@ -1610,11 +1635,11 @@ async function resetPasswordUsuario(id, nombre) {
 }
 
 async function eliminarUsuario(id, nombre) {
-  if (!confirm(`⚠️ ¿Eliminar permanentemente al usuario "${nombre}"?\n\nEsta acción no se puede deshacer.`)) return
+  if (!await sicafConfirmar(`¿Eliminar permanentemente al usuario "${nombre}"?\n\nEsta acción no se puede deshacer.`)) return
   const { ok, data } = await apiDelete(`${API1}/usuarios/${id}`)
   document.getElementById('msg-usuarios').innerHTML =
-    ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-       : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ok ? `<span class="mensaje-ok">${data.mensaje}</span>`
+       : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaUsuarios()
 }
 
@@ -1638,7 +1663,7 @@ async function cargarTablaAsignaturas() {
         <td><strong>${a.nombre}</strong></td>
         <td>${a.codigo || '—'}</td>
         <td>${a.horas_semanales} hrs</td>
-        <td>${a.activo ? '✅ Activa' : '🔴 Inactiva'}</td>
+        <td>${a.activo ? '<i class="im im-ok" aria-hidden="true"></i> Activa' : '<i class="im im-punto" aria-hidden="true"></i> Inactiva'}</td>
         <td>
           <button class="btn-sm btn-edit"   onclick="editarAsignatura(${a.id})"><i class="bi bi-pencil-fill"></i></button>
           <button class="btn-sm btn-delete" onclick="eliminarAsignatura(${a.id},'${a.nombre.replace(/'/g,"\\'")}')"><i class="bi bi-trash3-fill"></i></button>
@@ -1657,11 +1682,11 @@ async function editarAsignatura(id) {
 }
 
 async function eliminarAsignatura(id, nombre) {
-  if (!confirm(`⚠️ ¿Eliminar la asignatura "${nombre}"?\n\nSe eliminarán también sus horarios y TODOS los registros de asistencia asociados. (No se puede deshacer)`)) return
+  if (!await sicafConfirmar(`¿Eliminar la asignatura "${nombre}"?\n\nSe eliminarán también sus horarios y TODOS los registros de asistencia asociados. (No se puede deshacer)`)) return
   const { ok, data } = await apiDelete(`${API1}/asignaturas/${id}`)
   document.getElementById('msg-asignaturas').innerHTML =
-    ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-       : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ok ? `<span class="mensaje-ok">${data.mensaje}</span>`
+       : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaAsignaturas()
 }
 
@@ -1701,11 +1726,11 @@ async function editarAula(id) {
 }
 
 async function eliminarAula(id, codigo) {
-  if (!confirm(`⚠️ ¿Eliminar el aula ${codigo}?`)) return
+  if (!await sicafConfirmar(`¿Eliminar el aula ${codigo}?`)) return
   const { ok, data } = await apiDelete(`${API1}/aulas/${id}`)
   document.getElementById('msg-aulas').innerHTML =
-    ok ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-       : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ok ? `<span class="mensaje-ok">${data.mensaje}</span>`
+       : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaAulas()
 }
 
@@ -2066,7 +2091,7 @@ function renderFormulario(tipo, d) {
             ${p.nombre} ${p.apellido_paterno} — ${p.especialidad || 'Sin especialidad'}
           </option>`
         ).join('')
-      : `<option value="" disabled>⚠️ Todos los profesores ya tienen cuenta activa</option>`
+      : `<option value="" disabled>Todos los profesores ya tienen cuenta activa</option>`
 
     return `
       <!-- PASO 1: Tipo de cuenta -->
@@ -2074,8 +2099,8 @@ function renderFormulario(tipo, d) {
         <label>¿Qué tipo de cuenta es? *</label>
         <select id="f-tipo_persona" onchange="toggleCampoProfesor()">
           <option value="">— Selecciona —</option>
-          <option value="admin"    ${v('tipo_persona')==='admin'   ?'selected':''}>🔐 Administrador — acceso total al sistema</option>
-          <option value="profesor" ${v('tipo_persona')==='profesor'?'selected':''}>👨‍🏫 Profesor — solo ve su horario y toma asistencia</option>
+          <option value="admin"    ${v('tipo_persona')==='admin'   ?'selected':''}>Administrador — acceso total al sistema</option>
+          <option value="profesor" ${v('tipo_persona')==='profesor'?'selected':''}>Profesor — solo ve su horario y toma asistencia</option>
         </select>
       </div>
 
@@ -2083,7 +2108,7 @@ function renderFormulario(tipo, d) {
       <div id="campo-id-profesor" style="${v('tipo_persona')==='profesor'?'':'display:none'}">
         <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;padding:12px;margin-bottom:12px">
           <p style="margin:0 0 8px;font-size:.88em;color:#0369a1;font-weight:600">
-            👤 ¿A qué profesor corresponde esta cuenta?
+            <i class="im im-persona" aria-hidden="true"></i> ¿A qué profesor corresponde esta cuenta?
           </p>
           <p style="margin:0 0 8px;font-size:.82em;color:#555">
             Vincula la cuenta al registro del profesor para que pueda ver su horario y registrar asistencia.
@@ -2094,7 +2119,7 @@ function renderFormulario(tipo, d) {
             ${opsProfs}
           </select>
           ${!modalId ? `<p style="margin:6px 0 0;font-size:.78em;color:#0369a1">
-            💡 Al seleccionar el profesor se sugerirá un nombre de usuario automáticamente.
+            <i class="im im-idea" aria-hidden="true"></i> Al seleccionar el profesor se sugerirá un nombre de usuario automáticamente.
           </p>` : ''}
         </div>
       </div>
@@ -2121,12 +2146,12 @@ function renderFormulario(tipo, d) {
           <button type="button" onclick="generarPasswordSegura()"
                   title="Generar contraseña segura automáticamente"
                   style="background:#7c3aed;color:#fff;border:none;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:.82em;white-space:nowrap">
-            🎲 Generar
+            <i class="im im-dado" aria-hidden="true"></i> Generar
           </button>
           <button type="button" onclick="toggleVerPassword('f-password')"
                   title="Mostrar/ocultar contraseña"
                   style="background:#e5e7eb;border:none;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:.82em">
-            👁️
+            <i class="im im-ojo" aria-hidden="true"></i>
           </button>
         </div>
         <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
@@ -2145,7 +2170,7 @@ function renderFormulario(tipo, d) {
         </div>
       </div>`
       : `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:.85em;color:#713f12">
-          🔑 Para cambiar la contraseña usa el botón <strong>🔑</strong> en la tabla de usuarios.
+          <i class="im im-llave" aria-hidden="true"></i> Para cambiar la contraseña usa el botón <strong><i class="im im-llave" aria-hidden="true"></i></strong> en la tabla de usuarios.
          </div>`}
     `
   }
@@ -2161,11 +2186,11 @@ function renderFormulario(tipo, d) {
                  autocomplete="new-password" style="flex:1" oninput="verificarFortalezaPassword()" />
           <button type="button" onclick="generarPasswordSegura()"
                   style="background:#7c3aed;color:#fff;border:none;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:.82em;white-space:nowrap">
-            🎲 Generar
+            <i class="im im-dado" aria-hidden="true"></i> Generar
           </button>
           <button type="button" onclick="toggleVerPassword('f-nueva_password')"
                   style="background:#e5e7eb;border:none;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:.82em">
-            👁️
+            <i class="im im-ojo" aria-hidden="true"></i>
           </button>
         </div>
         <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
@@ -2338,14 +2363,14 @@ function filtrarProfesoresPorAsignatura() {
 
   if (profsFiltrados.length === 0) {
     selectProf.innerHTML = `<option value="">— Sin profesores con especialidad "${asig.nombre}" —</option>`
-    if (infoEl) infoEl.innerHTML = `<small style="color:#ef4444">⚠️ No hay profesores con especialidad "${asig.nombre}". Agrega uno en la pestaña Profesores.</small>`
+    if (infoEl) infoEl.innerHTML = `<small style="color:#ef4444"><i class="im im-alerta" aria-hidden="true"></i> No hay profesores con especialidad "${asig.nombre}". Agrega uno en la pestaña Profesores.</small>`
   } else {
     selectProf.innerHTML = `<option value="">— Selecciona —</option>` +
       profsFiltrados.map(p =>
         `<option value="${p.id}" ${p.id == currentVal ? 'selected' : ''}>`+
         `${p.nombre} ${p.apellido_paterno} — ${p.especialidad}</option>`
       ).join('')
-    if (infoEl) infoEl.innerHTML = `<small style="color:#16a34a">✅ ${profsFiltrados.length} profesor(es) disponible(s) para "${asig.nombre}".</small>`
+    if (infoEl) infoEl.innerHTML = `<small style="color:#16a34a"><i class="im im-ok" aria-hidden="true"></i> ${profsFiltrados.length} profesor(es) disponible(s) para "${asig.nombre}".</small>`
   }
 }
 
@@ -2401,7 +2426,7 @@ function verificarFortalezaPassword() {
   reqs.forEach(r => {
     const el = document.getElementById(r.id)
     if (el) {
-      el.textContent = (r.ok ? '✅ ' : '○ ') + r.txt
+      el.innerHTML = (r.ok ? '<i class="im im-check" aria-hidden="true"></i> ' : '<span aria-hidden="true">○</span> ') + r.txt
       el.style.color = r.ok ? '#16a34a' : '#6b7280'
     }
   })
@@ -2467,42 +2492,42 @@ async function guardarModal() {
 
     // Campos obligatorios
     if (!rut || !nombre || !ap) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ RUT, Nombre y Apellido Paterno son obligatorios</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">RUT, Nombre y Apellido Paterno son obligatorios</span>'; return
     }
     // RUT chileno
     if (!validarRut(rut)) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ RUT inválido — formato esperado: 12345678-9</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">RUT inválido — formato esperado: 12345678-9</span>'; return
     }
     // Nombres sin números
     if (tieneNumeros(nombre)) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ El nombre no puede contener números</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">El nombre no puede contener números</span>'; return
     }
     if (tieneNumeros(ap)) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ El apellido paterno no puede contener números</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">El apellido paterno no puede contener números</span>'; return
     }
     if (am && tieneNumeros(am)) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ El apellido materno no puede contener números</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">El apellido materno no puede contener números</span>'; return
     }
     // Curso obligatorio
     if (!id_curso) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ Debes seleccionar un curso</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">Debes seleccionar un curso</span>'; return
     }
     // Email obligatorio y con formato real
     if (!email) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ El email es obligatorio</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">El email es obligatorio</span>'; return
     }
     if (!validarEmail(email)) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ Email inválido — debe ser formato real: alumno@colegio.cl</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">Email inválido — debe ser formato real: alumno@colegio.cl</span>'; return
     }
     // Fecha de nacimiento obligatoria con rango de edad válido
     const fechaNac = leerCampo('f-fecha_nacimiento')
     if (!fechaNac) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ La fecha de nacimiento es obligatoria</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">La fecha de nacimiento es obligatoria</span>'; return
     }
     const hoy       = new Date()
     const nacimiento = new Date(fechaNac + 'T12:00:00')
     if (nacimiento > hoy) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ La fecha de nacimiento no puede ser una fecha futura</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">La fecha de nacimiento no puede ser una fecha futura</span>'; return
     }
     // Calcular edad exacta
     let edad = hoy.getFullYear() - nacimiento.getFullYear()
@@ -2511,10 +2536,10 @@ async function guardarModal() {
       edad--
     }
     if (edad < 4) {
-      msg.innerHTML = `<span class="mensaje-err">⚠️ Edad calculada: ${edad} año(s). Un alumno debe tener al menos 4 años</span>`; return
+      msg.innerHTML = `<span class="mensaje-aviso">Edad calculada: ${edad} año(s). Un alumno debe tener al menos 4 años</span>`; return
     }
     if (edad > 25) {
-      msg.innerHTML = `<span class="mensaje-err">⚠️ Edad calculada: ${edad} años. Verifica la fecha de nacimiento</span>`; return
+      msg.innerHTML = `<span class="mensaje-aviso">Edad calculada: ${edad} años. Verifica la fecha de nacimiento</span>`; return
     }
 
     body = {
@@ -2537,16 +2562,16 @@ async function guardarModal() {
     const anio   = parseInt(leerCampo('f-anio'))
 
     if (!nivel) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ Selecciona el nivel del curso (Básico o Medio)</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">Selecciona el nivel del curso (Básico o Medio)</span>'; return
     }
     if (!letra) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ Ingresa la letra/sección (A, B, C…)</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">Ingresa la letra/sección (A, B, C…)</span>'; return
     }
     if (!nombre) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ El nombre del curso es obligatorio</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">El nombre del curso es obligatorio</span>'; return
     }
     if (!anio || anio < 2020 || anio > 2035) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ El año debe estar entre 2020 y 2035</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">El año debe estar entre 2020 y 2035</span>'; return
     }
 
     body = { nombre, nivel, letra, anio }
@@ -2563,31 +2588,31 @@ async function guardarModal() {
     const email = leerCampo('f-email')
 
     if (!rut || !nombre || !ap) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ RUT, Nombre y Apellido Paterno son obligatorios</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">RUT, Nombre y Apellido Paterno son obligatorios</span>'; return
     }
     if (!validarRut(rut)) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ RUT inválido — formato esperado: 12345678-9</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">RUT inválido — formato esperado: 12345678-9</span>'; return
     }
     if (tieneNumeros(nombre)) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ El nombre no puede contener números</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">El nombre no puede contener números</span>'; return
     }
     if (tieneNumeros(ap)) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ El apellido paterno no puede contener números</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">El apellido paterno no puede contener números</span>'; return
     }
     if (am && tieneNumeros(am)) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ El apellido materno no puede contener números</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">El apellido materno no puede contener números</span>'; return
     }
     // Email obligatorio con formato real
     if (!email) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ El email es obligatorio</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">El email es obligatorio</span>'; return
     }
     if (!validarEmail(email)) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ Email inválido — debe ser formato real: profesor@colegio.cl</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">Email inválido — debe ser formato real: profesor@colegio.cl</span>'; return
     }
 
     const especialidad = leerCampo('f-especialidad')
     if (!especialidad) {
-      msg.innerHTML = '<span class="mensaje-err">⚠️ Selecciona la especialidad del profesor</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">Selecciona la especialidad del profesor</span>'; return
     }
 
     body = {
@@ -2611,13 +2636,13 @@ async function guardarModal() {
     const hora_fin      = leerCampo('f-hora_fin')
     const sala          = leerCampo('f-sala')
 
-    if (!id_curso)      { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona el curso</span>'; return }
-    if (!id_asignatura) { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona la asignatura</span>'; return }
-    if (!id_profesor)   { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona el profesor</span>'; return }
-    if (!dia_semana)    { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona el día</span>'; return }
-    if (!hora_inicio)   { msg.innerHTML='<span class="mensaje-err">⚠️ Ingresa la hora de inicio</span>'; return }
-    if (!hora_fin)      { msg.innerHTML='<span class="mensaje-err">⚠️ Ingresa la hora de fin</span>'; return }
-    if (hora_inicio >= hora_fin) { msg.innerHTML='<span class="mensaje-err">⚠️ La hora de fin debe ser mayor a la de inicio</span>'; return }
+    if (!id_curso)      { msg.innerHTML='<span class="mensaje-aviso">Selecciona el curso</span>'; return }
+    if (!id_asignatura) { msg.innerHTML='<span class="mensaje-aviso">Selecciona la asignatura</span>'; return }
+    if (!id_profesor)   { msg.innerHTML='<span class="mensaje-aviso">Selecciona el profesor</span>'; return }
+    if (!dia_semana)    { msg.innerHTML='<span class="mensaje-aviso">Selecciona el día</span>'; return }
+    if (!hora_inicio)   { msg.innerHTML='<span class="mensaje-aviso">Ingresa la hora de inicio</span>'; return }
+    if (!hora_fin)      { msg.innerHTML='<span class="mensaje-aviso">Ingresa la hora de fin</span>'; return }
+    if (hora_inicio >= hora_fin) { msg.innerHTML='<span class="mensaje-aviso">La hora de fin debe ser mayor a la de inicio</span>'; return }
 
     body   = { id_curso: parseInt(id_curso), id_asignatura: parseInt(id_asignatura),
                id_profesor: parseInt(id_profesor), dia_semana: parseInt(dia_semana),
@@ -2633,30 +2658,30 @@ async function guardarModal() {
     const password       = leerCampo('f-password')
     const id_profesor    = leerCampo('f-id_profesor')
 
-    if (!nombre_usuario) { msg.innerHTML='<span class="mensaje-err">⚠️ El nombre de usuario es obligatorio</span>'; return }
+    if (!nombre_usuario) { msg.innerHTML='<span class="mensaje-aviso">El nombre de usuario es obligatorio</span>'; return }
     if (!/^[a-zA-Z0-9_.-]{3,50}$/.test(nombre_usuario)) {
-      msg.innerHTML='<span class="mensaje-err">⚠️ Usuario: solo letras, números, punto, guión o guión bajo (3-50 caracteres)</span>'; return
+      msg.innerHTML='<span class="mensaje-aviso">Usuario: solo letras, números, punto, guión o guión bajo (3-50 caracteres)</span>'; return
     }
-    if (!tipo_persona) { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona el tipo de acceso</span>'; return }
+    if (!tipo_persona) { msg.innerHTML='<span class="mensaje-aviso">Selecciona el tipo de acceso</span>'; return }
     if (!modalId) {
       if (!password || password.length < 8) {
-        msg.innerHTML='<span class="mensaje-err">⚠️ La contraseña debe tener al menos 8 caracteres</span>'; return
+        msg.innerHTML='<span class="mensaje-aviso">La contraseña debe tener al menos 8 caracteres</span>'; return
       }
       if (!/[A-Z]/.test(password)) {
-        msg.innerHTML='<span class="mensaje-err">⚠️ La contraseña debe contener al menos una mayúscula</span>'; return
+        msg.innerHTML='<span class="mensaje-aviso">La contraseña debe contener al menos una mayúscula</span>'; return
       }
       if (!/[0-9]/.test(password)) {
-        msg.innerHTML='<span class="mensaje-err">⚠️ La contraseña debe contener al menos un número</span>'; return
+        msg.innerHTML='<span class="mensaje-aviso">La contraseña debe contener al menos un número</span>'; return
       }
       if (!/[^a-zA-Z0-9]/.test(password)) {
-        msg.innerHTML='<span class="mensaje-err">⚠️ La contraseña debe contener al menos un símbolo (!@#$...)</span>'; return
+        msg.innerHTML='<span class="mensaje-aviso">La contraseña debe contener al menos un símbolo (!@#$...)</span>'; return
       }
       if (nombre_usuario && password.toLowerCase().includes(nombre_usuario.toLowerCase())) {
-        msg.innerHTML='<span class="mensaje-err">⚠️ La contraseña no puede contener el nombre de usuario</span>'; return
+        msg.innerHTML='<span class="mensaje-aviso">La contraseña no puede contener el nombre de usuario</span>'; return
       }
     }
     if (tipo_persona === 'profesor' && !id_profesor) {
-      msg.innerHTML='<span class="mensaje-err">⚠️ Debes vincular a un profesor cuando el tipo es "Profesor"</span>'; return
+      msg.innerHTML='<span class="mensaje-aviso">Debes vincular a un profesor cuando el tipo es "Profesor"</span>'; return
     }
 
     body   = { nombre_usuario, tipo_persona,
@@ -2670,16 +2695,16 @@ async function guardarModal() {
   if (modalTipo === 'usuario-password') {
     const pass1 = leerCampo('f-nueva_password')
     const pass2 = leerCampo('f-nueva_password2')
-    if (!pass1 || pass1.length < 8)     { msg.innerHTML='<span class="mensaje-err">⚠️ La contraseña debe tener al menos 8 caracteres</span>'; return }
-    if (!/[A-Z]/.test(pass1))            { msg.innerHTML='<span class="mensaje-err">⚠️ Debe contener al menos una mayúscula</span>'; return }
-    if (!/[0-9]/.test(pass1))            { msg.innerHTML='<span class="mensaje-err">⚠️ Debe contener al menos un número</span>'; return }
-    if (!/[^a-zA-Z0-9]/.test(pass1))     { msg.innerHTML='<span class="mensaje-err">⚠️ Debe contener al menos un símbolo (!@#$...)</span>'; return }
-    if (pass1 !== pass2) { msg.innerHTML='<span class="mensaje-err">⚠️ Las contraseñas no coinciden</span>'; return }
+    if (!pass1 || pass1.length < 8)     { msg.innerHTML='<span class="mensaje-aviso">La contraseña debe tener al menos 8 caracteres</span>'; return }
+    if (!/[A-Z]/.test(pass1))            { msg.innerHTML='<span class="mensaje-aviso">Debe contener al menos una mayúscula</span>'; return }
+    if (!/[0-9]/.test(pass1))            { msg.innerHTML='<span class="mensaje-aviso">Debe contener al menos un número</span>'; return }
+    if (!/[^a-zA-Z0-9]/.test(pass1))     { msg.innerHTML='<span class="mensaje-aviso">Debe contener al menos un símbolo (!@#$...)</span>'; return }
+    if (pass1 !== pass2) { msg.innerHTML='<span class="mensaje-aviso">Las contraseñas no coinciden</span>'; return }
 
     const { ok, data } = await apiPatch(`${API1}/usuarios/${modalId}/password`, { nueva_password: pass1 })
     msg.innerHTML = ok
-      ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-      : `<span class="mensaje-err">❌ ${data.error}</span>`
+      ? `<span class="mensaje-ok">${data.mensaje}</span>`
+      : `<span class="mensaje-err">${data.error}</span>`
     if (ok) setTimeout(() => cerrarModal(), 1200)
     return
   }
@@ -2689,12 +2714,12 @@ async function guardarModal() {
     const nombre = leerCampo('f-nombre')
     const codigo = leerCampo('f-codigo')
     const horas  = parseInt(leerCampo('f-horas_semanales'))
-    if (!nombre) { msg.innerHTML='<span class="mensaje-err">⚠️ El nombre es obligatorio</span>'; return }
-    if (/\d/.test(nombre)) { msg.innerHTML='<span class="mensaje-err">⚠️ El nombre no puede contener números</span>'; return }
+    if (!nombre) { msg.innerHTML='<span class="mensaje-aviso">El nombre es obligatorio</span>'; return }
+    if (/\d/.test(nombre)) { msg.innerHTML='<span class="mensaje-aviso">El nombre no puede contener números</span>'; return }
     if (codigo && /[^a-zA-Z]/.test(codigo)) {
-      msg.innerHTML='<span class="mensaje-err">⚠️ El código solo puede contener letras (Ej: MAT, HIS)</span>'; return
+      msg.innerHTML='<span class="mensaje-aviso">El código solo puede contener letras (Ej: MAT, HIS)</span>'; return
     }
-    if (isNaN(horas) || horas < 1) { msg.innerHTML='<span class="mensaje-err">⚠️ Las horas semanales deben ser al menos 1</span>'; return }
+    if (isNaN(horas) || horas < 1) { msg.innerHTML='<span class="mensaje-aviso">Las horas semanales deben ser al menos 1</span>'; return }
     body   = { nombre, codigo: codigo ? codigo.toUpperCase() : null, horas_semanales: horas }
     url    = modalId ? `${API1}/asignaturas/${modalId}` : `${API1}/asignaturas`
     method = modalId ? 'PUT' : 'POST'
@@ -2705,9 +2730,9 @@ async function guardarModal() {
     const codigo    = leerCampo('f-codigo')
     const nombre    = leerCampo('f-nombre')
     const capacidad = parseInt(leerCampo('f-capacidad'))
-    if (!codigo) { msg.innerHTML='<span class="mensaje-err">⚠️ El código del aula es obligatorio</span>'; return }
-    if (/[^a-zA-Z0-9]/.test(codigo)) { msg.innerHTML='<span class="mensaje-err">⚠️ El código solo puede contener letras y números (Ej: A1, LAB2, GIM)</span>'; return }
-    if (isNaN(capacidad) || capacidad < 1) { msg.innerHTML='<span class="mensaje-err">⚠️ La capacidad debe ser al menos 1</span>'; return }
+    if (!codigo) { msg.innerHTML='<span class="mensaje-aviso">El código del aula es obligatorio</span>'; return }
+    if (/[^a-zA-Z0-9]/.test(codigo)) { msg.innerHTML='<span class="mensaje-aviso">El código solo puede contener letras y números (Ej: A1, LAB2, GIM)</span>'; return }
+    if (isNaN(capacidad) || capacidad < 1) { msg.innerHTML='<span class="mensaje-aviso">La capacidad debe ser al menos 1</span>'; return }
     body   = { codigo: codigo.toUpperCase(), nombre: nombre || null, capacidad }
     url    = modalId ? `${API1}/aulas/${modalId}` : `${API1}/aulas`
     method = modalId ? 'PUT' : 'POST'
@@ -2718,9 +2743,9 @@ async function guardarModal() {
     const rut      = leerCampo('f-rut')
     const nombre   = leerCampo('f-nombre')
     const email    = leerCampo('f-email')
-    if (!rut)    { msg.innerHTML='<span class="mensaje-err">⚠️ El RUT es obligatorio</span>'; return }
-    if (!nombre) { msg.innerHTML='<span class="mensaje-err">⚠️ El nombre es obligatorio</span>'; return }
-    if (email && !validarEmail(email)) { msg.innerHTML='<span class="mensaje-err">⚠️ Email inválido</span>'; return }
+    if (!rut)    { msg.innerHTML='<span class="mensaje-aviso">El RUT es obligatorio</span>'; return }
+    if (!nombre) { msg.innerHTML='<span class="mensaje-aviso">El nombre es obligatorio</span>'; return }
+    if (email && !validarEmail(email)) { msg.innerHTML='<span class="mensaje-aviso">Email inválido</span>'; return }
     body   = { rut, nombre, email: email||null,
                telefono: leerCampo('f-telefono')||null,
                parentesco: leerCampo('f-parentesco')||null,
@@ -2734,8 +2759,8 @@ async function guardarModal() {
   if (modalTipo === 'comunicado') {
     const titulo    = leerCampo('f-titulo')
     const contenido = document.getElementById('f-contenido')?.value.trim()
-    if (!titulo)    { msg.innerHTML='<span class="mensaje-err">⚠️ El título es obligatorio</span>'; return }
-    if (!contenido) { msg.innerHTML='<span class="mensaje-err">⚠️ El contenido es obligatorio</span>'; return }
+    if (!titulo)    { msg.innerHTML='<span class="mensaje-aviso">El título es obligatorio</span>'; return }
+    if (!contenido) { msg.innerHTML='<span class="mensaje-aviso">El contenido es obligatorio</span>'; return }
     body   = { titulo, contenido }
     url    = modalId ? `${API1}/comunicados/${modalId}` : `${API1}/comunicados`
     method = modalId ? 'PUT' : 'POST'
@@ -2748,7 +2773,7 @@ async function guardarModal() {
   const { ok, data } = await fn(url, body)
 
   if (ok) {
-    msg.innerHTML = `<span class="mensaje-ok">✅ ${data.mensaje || 'Guardado correctamente'}</span>`
+    msg.innerHTML = `<span class="mensaje-ok">${data.mensaje || 'Guardado correctamente'}</span>`
     const tipoGuardado = modalTipo
 
     // ── Asignar / quitar jefe de curso al guardar un profesor ──
@@ -2781,7 +2806,7 @@ async function guardarModal() {
       if (tipoGuardado === 'comunicado')  cargarComunicados()
     }, 800)
   } else {
-    msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    msg.innerHTML = `<span class="mensaje-err">${data.error}</span>`
   }
 }
 
@@ -2825,7 +2850,7 @@ async function cargarHorarios() {
       op.dataset.horaFin    = h.hora_fin.slice(0, 5)
       const hora = `${h.hora_inicio.slice(0,5)}–${h.hora_fin.slice(0,5)}`
       op.textContent = `${hora} · ${h.asignatura} (${h.curso})`
-      if (idActivo === h.id) op.textContent += ' ✅ AHORA'
+      if (idActivo === h.id) op.textContent += ' · ahora'
       selector.appendChild(op)
     })
 
@@ -2858,7 +2883,7 @@ async function cargarHorarios() {
       }
     } else if (idActivo) {
       selector.value = idActivo
-      infoClase.textContent = '✅ Clase activa seleccionada automáticamente'
+      infoClase.innerHTML = '<i class="im im-ok" aria-hidden="true"></i> Clase activa seleccionada automáticamente'
       infoClase.style.color = '#16a34a'
       if (rolUsuario !== 'admin') cargarListaAsistencia()
     } else {
@@ -2903,9 +2928,9 @@ function _renderBadgeVidas(id_alumno, presente) {
   if (v === null) return ''
   // Para presentes: solo mostrar si está en zona de riesgo (≤ 2 faltas)
   if (presente && v > 2) return ''
-  if (v <= 0) return `<span class="vida-badge vida-cero">💀 Sin margen</span>`
-  if (v === 1) return `<span class="vida-badge vida-baja">❤️ 1 falta libre</span>`
-  if (v <= 3) return `<span class="vida-badge vida-media">⚠️ ${v} faltas libres</span>`
+  if (v <= 0) return `<span class="vida-badge vida-cero"><i class="im im-alerta" aria-hidden="true"></i> Sin margen</span>`
+  if (v === 1) return `<span class="vida-badge vida-baja"><i class="im im-corazon" aria-hidden="true"></i> 1 falta libre</span>`
+  if (v <= 3) return `<span class="vida-badge vida-media"><i class="im im-alerta" aria-hidden="true"></i> ${v} faltas libres</span>`
   return `<span class="vida-badge vida-ok">${v} faltas libres</span>`
 }
 
@@ -2928,7 +2953,7 @@ function evaluarVentanaHoraria(opt, fecha) {
 
   const hoy = fechaHoy()
   if (fecha !== hoy) {
-    return { bloquear: true, mensaje: '❌ Solo se puede pasar asistencia el día que corresponde a la clase' }
+    return { bloquear: true, mensaje: '<i class="im im-error" aria-hidden="true"></i> Solo se puede pasar asistencia el día que corresponde a la clase' }
   }
   if (!horaInicio || !horaFin) return { bloquear: false, mensaje: '' }
 
@@ -2943,14 +2968,14 @@ function evaluarVentanaHoraria(opt, fecha) {
     const faltan = ventanaIni - minActual
     return {
       bloquear: true,
-      mensaje: `⏳ La clase comienza a las ${horaInicio}. Podrás iniciar ${ANTES_MIN} min antes (${String(Math.floor(ventanaIni/60)).padStart(2,'0')}:${String(ventanaIni%60).padStart(2,'0')}).`
+      mensaje: `<i class="im im-espera" aria-hidden="true"></i> La clase comienza a las ${horaInicio}. Podrás iniciar ${ANTES_MIN} min antes (${String(Math.floor(ventanaIni/60)).padStart(2,'0')}:${String(ventanaIni%60).padStart(2,'0')}).`
     }
   }
   if (minActual < minInicio) {
     const faltan = minInicio - minActual
     return {
       bloquear: false,
-      mensaje: `⏳ La clase comienza en ${faltan} minuto${faltan !== 1 ? 's' : ''}. Puedes iniciar anticipadamente.`
+      mensaje: `<i class="im im-espera" aria-hidden="true"></i> La clase comienza en ${faltan} minuto${faltan !== 1 ? 's' : ''}. Puedes iniciar anticipadamente.`
     }
   }
   if (minActual <= minFin) {
@@ -2960,14 +2985,14 @@ function evaluarVentanaHoraria(opt, fecha) {
     const pasaron = minActual - minFin
     return {
       bloquear: false,
-      mensaje: `⚠️ La clase terminó hace ${pasaron} minuto${pasaron !== 1 ? 's' : ''}. Puedes guardar la asistencia hasta las ${String(Math.floor(ventanaFin/60)).padStart(2,'0')}:${String(ventanaFin%60).padStart(2,'0')}.`
+      mensaje: `<i class="im im-alerta" aria-hidden="true"></i> La clase terminó hace ${pasaron} minuto${pasaron !== 1 ? 's' : ''}. Puedes guardar la asistencia hasta las ${String(Math.floor(ventanaFin/60)).padStart(2,'0')}:${String(ventanaFin%60).padStart(2,'0')}.`
     }
   }
   // fuera de ventana
   const finVentana = `${String(Math.floor(ventanaFin/60)).padStart(2,'0')}:${String(ventanaFin%60).padStart(2,'0')}`
   return {
     bloquear: true,
-    mensaje: `❌ Fuera del rango permitido. La asistencia de esta clase debía registrarse antes de las ${finVentana}. Contacta al administrador si necesitas registrarla.`
+    mensaje: `<i class="im im-error" aria-hidden="true"></i> Fuera del rango permitido. La asistencia de esta clase debía registrarse antes de las ${finVentana}. Contacta al administrador si necesitas registrarla.`
   }
 }
 
@@ -2986,7 +3011,7 @@ async function cargarListaAsistencia() {
     if (btnDefinitivo) btnDefinitivo.style.display = mostrar ? 'inline-block' : 'none'
   }
   function habilitarBotonesGuardar(habilitar) {
-    if (btnBorrador)   { btnBorrador.disabled = !habilitar;   btnBorrador.textContent   = '💾 Guardar borrador' }
+    if (btnBorrador)   { btnBorrador.disabled = !habilitar;   btnBorrador.innerHTML   = '<i class="im im-guardar" aria-hidden="true"></i> Guardar borrador' }
     if (btnDefinitivo) { btnDefinitivo.disabled = !habilitar; btnDefinitivo.innerHTML = '<i class="bi bi-lock-fill"></i> Registrar definitivamente' }
   }
 
@@ -3012,7 +3037,7 @@ async function cargarListaAsistencia() {
   _asistenciaFecha     = fecha
   _asistenciaGuardada  = false
 
-  if (listaDiv) listaDiv.innerHTML = '<div class="lista-asis-placeholder">⏳ Cargando lista...</div>'
+  if (listaDiv) listaDiv.innerHTML = '<div class="lista-asis-placeholder"><i class="im im-espera" aria-hidden="true"></i> Cargando lista...</div>'
   if (header) header.style.display = 'none'
   if (banner) banner.style.display = 'none'
 
@@ -3059,7 +3084,7 @@ async function cargarListaAsistencia() {
         presente: a.presente,
         tipo:     a.tipo_asistencia || 'normal'
       }))
-      if (banner) { banner.className = 'asis-banner'; banner.style.display = 'block'; banner.innerHTML = '💾 Borrador guardado — puedes seguir modificando y reconociendo caras' }
+      if (banner) { banner.className = 'asis-banner'; banner.style.display = 'block'; banner.innerHTML = '<i class="im im-guardar" aria-hidden="true"></i> Borrador guardado — puedes seguir modificando y reconociendo caras' }
       if (btnIni) btnIni.disabled = false
       mostrarBotonesGuardar(true); habilitarBotonesGuardar(true)
 
@@ -3093,7 +3118,7 @@ async function cargarListaAsistencia() {
     if (header) {
       header.style.display = 'flex'
       const infoEl = document.getElementById('asis-clase-info')
-      if (infoEl) infoEl.textContent = (opt.textContent || '').replace(' ✅ AHORA', '')
+      if (infoEl) infoEl.textContent = (opt.textContent || '').replace(' · ahora', '')
     }
 
     renderizarListaAsistencia()
@@ -3123,8 +3148,8 @@ function renderizarListaAsistencia() {
     <div class="asistencia-row ${a.presente ? 'presente' : 'ausente'}" id="row-asis-${a.id}">
       <div class="asis-estado">
         ${a.presente
-          ? `<span class="badge-asis-presente">${a.tipo === 'facial' ? '📸' : '✋'} Presente</span>`
-          : '<span class="badge-asis-ausente">⬜ Ausente</span>'}
+          ? `<span class="badge-asis-presente">${a.tipo === 'facial' ? '<i class="im im-camara" aria-hidden="true"></i>' : '<i class="im im-mano" aria-hidden="true"></i>'} Presente</span>`
+          : '<span class="badge-asis-ausente"><i class="im im-error" aria-hidden="true"></i> Ausente</span>'}
       </div>
       <div class="asis-nombre">
         <strong>${a.nombre} ${a.apellido}</strong>
@@ -3150,7 +3175,7 @@ function marcarPresente(id_alumno, tipo) {
   if (row) {
     row.className = 'asistencia-row presente'
     row.querySelector('.asis-estado').innerHTML =
-      `<span class="badge-asis-presente">📸 Presente</span>`
+      `<span class="badge-asis-presente"><i class="im im-camara" aria-hidden="true"></i> Presente</span>`
     const btn = row.querySelector('.btn-toggle-asis')
     if (btn) btn.textContent = 'Marcar ausente'
   }
@@ -3175,7 +3200,7 @@ function toggleAsistencia(id_alumno) {
     if (row) {
       row.className = 'asistencia-row ausente'
       row.querySelector('.asis-estado').innerHTML =
-        '<span class="badge-asis-ausente">⬜ Ausente</span>'
+        '<span class="badge-asis-ausente"><i class="im im-error" aria-hidden="true"></i> Ausente</span>'
       const btn = row.querySelector('.btn-toggle-asis')
       if (btn) btn.textContent = 'Marcar presente'
     }
@@ -3194,15 +3219,15 @@ function toggleAsistencia(id_alumno) {
 
 async function guardarAsistencia(definitivo = false) {
   if (!_asistenciaIdHorario || !_asistenciaFecha || !_asistenciaIdCurso) {
-    return alert('Selecciona una clase primero')
+    return sicafAviso('Selecciona una clase primero', 'aviso')
   }
-  if (!_listaAsistencia.length) return alert('No hay alumnos en este curso')
+  if (!_listaAsistencia.length) return sicafAviso('No hay alumnos en este curso', 'aviso')
 
   const presentes = _listaAsistencia.filter(a => a.presente).length
   const ausentes  = _listaAsistencia.length - presentes
 
   if (definitivo) {
-    const ok = confirm(`¿Registrar definitivamente la asistencia?\n\n✅ Presentes: ${presentes}\n❌ Ausentes: ${ausentes}\n\nEsta acción no podrá modificarse.`)
+    const ok = await sicafConfirmar(`¿Registrar definitivamente la asistencia?\n\nPresentes: ${presentes}\nAusentes: ${ausentes}\n\nEsta acción no podrá modificarse.`)
     if (!ok) return
   }
 
@@ -3247,17 +3272,17 @@ async function guardarAsistencia(definitivo = false) {
       if (banner) { banner.className = 'asis-banner'; banner.style.display = 'block'; banner.innerHTML = `<i class="bi bi-lock-fill"></i> Asistencia registrada definitivamente — ${presentes} presente${presentes !== 1 ? 's' : ''} · ${ausentes} ausente${ausentes !== 1 ? 's' : ''}` }
       if (res) res.innerHTML = '<span class="mensaje-ok"><i class="bi bi-lock-fill"></i> Asistencia registrada definitivamente</span>'
     } else {
-      if (btnBorrador)   { btnBorrador.disabled = false;   btnBorrador.textContent = '💾 Guardar borrador' }
+      if (btnBorrador)   { btnBorrador.disabled = false;   btnBorrador.innerHTML = '<i class="im im-guardar" aria-hidden="true"></i> Guardar borrador' }
       if (btnDefinitivo) { btnDefinitivo.disabled = false; btnDefinitivo.innerHTML = '<i class="bi bi-lock-fill"></i> Registrar definitivamente' }
-      if (banner) { banner.className = 'asis-banner'; banner.style.display = 'block'; banner.innerHTML = `💾 Borrador guardado — ${presentes} presente${presentes !== 1 ? 's' : ''} · ${ausentes} ausente${ausentes !== 1 ? 's' : ''} — <em>puedes seguir modificando</em>` }
-      if (res) res.innerHTML = '<span class="mensaje-ok">💾 Borrador guardado correctamente</span>'
+      if (banner) { banner.className = 'asis-banner'; banner.style.display = 'block'; banner.innerHTML = `<i class="im im-guardar" aria-hidden="true"></i> Borrador guardado — ${presentes} presente${presentes !== 1 ? 's' : ''} · ${ausentes} ausente${ausentes !== 1 ? 's' : ''} — <em>puedes seguir modificando</em>` }
+      if (res) res.innerHTML = '<span class="mensaje-ok">Borrador guardado correctamente</span>'
     }
 
   } catch (e) {
-    if (btnBorrador)   { btnBorrador.disabled = false;   btnBorrador.textContent = '💾 Guardar borrador' }
+    if (btnBorrador)   { btnBorrador.disabled = false;   btnBorrador.innerHTML = '<i class="im im-guardar" aria-hidden="true"></i> Guardar borrador' }
     if (btnDefinitivo) { btnDefinitivo.disabled = false; btnDefinitivo.innerHTML = '<i class="bi bi-lock-fill"></i> Registrar definitivamente' }
     const res = document.getElementById('resultado')
-    if (res) res.innerHTML = `<span class="mensaje-err">❌ ${e.message}</span>`
+    if (res) res.innerHTML = `<span class="mensaje-err">${e.message}</span>`
   }
 }
 
@@ -3334,11 +3359,11 @@ async function editarPeriodo(id) {
 }
 
 async function eliminarPeriodo(id, nombre) {
-  if (!confirm(`⚠️ ¿Eliminar el período "${nombre}"?\n\nSe eliminarán también todas sus evaluaciones y las notas ingresadas. (No se puede deshacer)`)) return
+  if (!await sicafConfirmar(`¿Eliminar el período "${nombre}"?\n\nSe eliminarán también todas sus evaluaciones y las notas ingresadas. (No se puede deshacer)`)) return
   const { ok, data } = await apiDelete(`${API1}/periodos/${id}`)
   document.getElementById('msg-periodos').innerHTML = ok
-    ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-    : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ? `<span class="mensaje-ok">${data.mensaje}</span>`
+    : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaPeriodos()
 }
 
@@ -3399,11 +3424,11 @@ async function editarEvaluacion(id) {
 }
 
 async function eliminarEvaluacion(id, nombre) {
-  if (!confirm(`¿Eliminar la evaluación "${nombre}"?\nSe eliminarán también las notas ingresadas.`)) return
+  if (!await sicafConfirmar(`¿Eliminar la evaluación "${nombre}"?\nSe eliminarán también las notas ingresadas.`)) return
   const { ok, data } = await apiDelete(`${API1}/evaluaciones/${id}`)
   document.getElementById('msg-evaluaciones').innerHTML = ok
-    ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-    : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ? `<span class="mensaje-ok">${data.mensaje}</span>`
+    : `<span class="mensaje-err">${data.error}</span>`
   cargarEvaluaciones()
 }
 
@@ -3433,7 +3458,7 @@ async function cargarCalificaciones() {
   const idEval = document.getElementById('cal-id-evaluacion')?.value
   const el     = document.getElementById('resultado-calificaciones')
   if (!idEval) { el.innerHTML=''; return }
-  el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando alumnos...</p>'
+  el.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando alumnos...</p>'
   try {
     const data = await apiGet(`${API1}/evaluaciones/${idEval}/calificaciones`)
     if (!data.calificaciones?.length) {
@@ -3441,7 +3466,7 @@ async function cargarCalificaciones() {
     }
     const ev = data.evaluacion
     let html = `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;padding:10px 14px;margin-bottom:12px;font-size:.85em;color:#0369a1">
-      📋 <strong>${ev.asignatura}</strong> — ${ev.nombre} (${ev.tipo_evaluacion||'—'})
+      <i class="im im-portapapeles" aria-hidden="true"></i> <strong>${ev.asignatura}</strong> — ${ev.nombre} (${ev.tipo_evaluacion||'—'})
       ${ev.porcentaje?` — Ponderación: ${ev.porcentaje}%`:''} — ${new Date(ev.fecha).toLocaleDateString('es-CL')}
     </div>
     <div style="max-height:420px;overflow-y:auto;border-radius:6px;border:1px solid #e5e7eb;margin-bottom:12px">
@@ -3495,8 +3520,8 @@ async function guardarCalificaciones(idEval) {
   }))
   const { ok, data } = await apiPost(`${API1}/evaluaciones/${idEval}/calificaciones`, { calificaciones })
   document.getElementById('msg-calificaciones').innerHTML = ok
-    ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-    : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ? `<span class="mensaje-ok">${data.mensaje}</span>`
+    : `<span class="mensaje-err">${data.error}</span>`
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -3564,7 +3589,7 @@ async function abrirModalNotas(tipo, d = null) {
 
   box.innerHTML = `
     <div class="modal-header"><h3>${titulo}</h3>
-      <button onclick="cerrarModal()" style="background:none;border:none;font-size:1.4em;cursor:pointer;color:#999">✕</button>
+      <button onclick="cerrarModal()" style="background:none;border:none;font-size:1.4em;cursor:pointer;color:#999"><i class="im im-cerrar" aria-hidden="true"></i></button>
     </div>
     <div class="modal-body">${formHtml}</div>
     <div class="modal-footer">
@@ -3586,8 +3611,8 @@ async function guardarModalNotas() {
     const fi     = document.getElementById('fn-fecha_inicio')?.value
     const ff     = document.getElementById('fn-fecha_fin')?.value
     const activo = document.getElementById('fn-activo')?.checked
-    if (!nombre) { msg.innerHTML='<span class="mensaje-err">⚠️ El nombre es obligatorio</span>'; return }
-    if (!fi || !ff) { msg.innerHTML='<span class="mensaje-err">⚠️ Las fechas son obligatorias</span>'; return }
+    if (!nombre) { msg.innerHTML='<span class="mensaje-aviso">El nombre es obligatorio</span>'; return }
+    if (!fi || !ff) { msg.innerHTML='<span class="mensaje-aviso">Las fechas son obligatorias</span>'; return }
     body = { nombre, fecha_inicio: fi, fecha_fin: ff, activo }
     url  = notasModalId ? `${API1}/periodos/${notasModalId}` : `${API1}/periodos`
     method = notasModalId ? 'PUT' : 'POST'
@@ -3600,29 +3625,29 @@ async function guardarModalNotas() {
     const asig   = document.getElementById('fn-id_asignatura')?.value
     const per    = document.getElementById('fn-id_periodo')?.value
     const pct    = document.getElementById('fn-porcentaje')?.value
-    if (!nombre) { msg.innerHTML='<span class="mensaje-err">⚠️ El nombre es obligatorio</span>'; return }
-    if (!asig)   { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona la asignatura</span>'; return }
-    if (!per)    { msg.innerHTML='<span class="mensaje-err">⚠️ Selecciona el período</span>'; return }
-    if (!fecha)  { msg.innerHTML='<span class="mensaje-err">⚠️ La fecha es obligatoria</span>'; return }
+    if (!nombre) { msg.innerHTML='<span class="mensaje-aviso">El nombre es obligatorio</span>'; return }
+    if (!asig)   { msg.innerHTML='<span class="mensaje-aviso">Selecciona la asignatura</span>'; return }
+    if (!per)    { msg.innerHTML='<span class="mensaje-aviso">Selecciona el período</span>'; return }
+    if (!fecha)  { msg.innerHTML='<span class="mensaje-aviso">La fecha es obligatoria</span>'; return }
     body = { nombre, fecha, id_asignatura: parseInt(asig), id_periodo: parseInt(per),
              tipo_evaluacion: tipo||null, porcentaje: pct ? parseFloat(pct) : null }
     url  = notasModalId ? `${API1}/evaluaciones/${notasModalId}` : `${API1}/evaluaciones`
     method = notasModalId ? 'PUT' : 'POST'
   }
 
-  msg.innerHTML = '<span style="color:gray;font-size:.85em">⏳ Guardando...</span>'
+  msg.innerHTML = '<span style="color:gray;font-size:.85em"><i class="im im-espera" aria-hidden="true"></i> Guardando...</span>'
   const { ok, data } = method === 'PUT'
     ? await apiPut(url, body)
     : await apiPost(url, body)
   if (ok) {
-    msg.innerHTML = '<span class="mensaje-ok">✅ Guardado</span>'
+    msg.innerHTML = '<span class="mensaje-ok">Guardado</span>'
     setTimeout(() => {
       cerrarModal()
       if (notasModalTipo === 'periodo')     cargarTablaPeriodos()
       if (notasModalTipo === 'evaluacion')  cargarEvaluaciones()
     }, 700)
   } else {
-    msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    msg.innerHTML = `<span class="mensaje-err">${data.error}</span>`
   }
 }
 
@@ -3668,11 +3693,11 @@ async function editarApoderado(id) {
 }
 
 async function eliminarApoderado(id, nombre) {
-  if (!confirm(`¿Eliminar al apoderado "${nombre}"?`)) return
+  if (!await sicafConfirmar(`¿Eliminar al apoderado "${nombre}"?`)) return
   const { ok, data } = await apiDelete(`${API1}/apoderados/${id}`)
   document.getElementById('msg-apoderados').innerHTML = ok
-    ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-    : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ? `<span class="mensaje-ok">${data.mensaje}</span>`
+    : `<span class="mensaje-err">${data.error}</span>`
   cargarTablaApoderados()
 }
 
@@ -3681,7 +3706,7 @@ async function eliminarApoderado(id, nombre) {
 ══════════════════════════════════════════════════════════════════ */
 async function cargarComunicados() {
   const el = document.getElementById('lista-comunicados')
-  el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+  el.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando...</p>'
   try {
     const coms = await apiGet(`${API1}/comunicados`)
     if (!coms.length) {
@@ -3696,7 +3721,7 @@ async function cargarComunicados() {
           </div>
           <div style="text-align:right;flex-shrink:0">
             <div style="font-size:.78em;color:#9ca3af">${new Date(c.fecha_publicacion).toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'numeric'})}</div>
-            <div style="font-size:.78em;color:#9ca3af">${c.autor_usuario?'👤 '+c.autor_usuario:''}</div>
+            <div style="font-size:.78em;color:#9ca3af">${c.autor_usuario?'<i class="im im-persona" aria-hidden="true"></i> '+c.autor_usuario:''}</div>
             ${rolUsuario==='admin'?`<div style="margin-top:6px;display:flex;gap:4px;justify-content:flex-end">
               <button class="btn-sm btn-edit" onclick="editarComunicado(${c.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
               <button class="btn-sm btn-delete" onclick="eliminarComunicado(${c.id})" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
@@ -3716,11 +3741,11 @@ async function editarComunicado(id) {
 }
 
 async function eliminarComunicado(id) {
-  if (!confirm('¿Eliminar este comunicado?')) return
+  if (!await sicafConfirmar('¿Eliminar este comunicado?')) return
   const { ok, data } = await apiDelete(`${API1}/comunicados/${id}`)
   document.getElementById('msg-comunicados').innerHTML = ok
-    ? `<span class="mensaje-ok">✅ ${data.mensaje}</span>`
-    : `<span class="mensaje-err">❌ ${data.error}</span>`
+    ? `<span class="mensaje-ok">${data.mensaje}</span>`
+    : `<span class="mensaje-err">${data.error}</span>`
   cargarComunicados()
 }
 
@@ -3737,9 +3762,9 @@ async function verFichaMedica(idAlumno, nombreAlumno) {
   const actions = document.querySelector('#modal-box .form-actions')
   const msg     = document.getElementById('modal-msg')
 
-  titulo.textContent = `🏥 Ficha Médica — ${nombreAlumno}`
+  titulo.textContent = `Ficha médica — ${nombreAlumno}`
   msg.innerHTML = ''
-  form.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+  form.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando...</p>'
   overlay.style.display = 'block'
   actions.innerHTML = `
     <button class="btn-secondary" onclick="cerrarModal()">Cerrar</button>
@@ -3794,10 +3819,10 @@ async function guardarFichaMedica() {
   }
   const { ok, data } = await apiPut(`${API1}/ficha-medica/${fichaAlumnoActual.id}`, body)
   if (ok) {
-    msg.innerHTML = '<span class="mensaje-ok">✅ Ficha médica guardada correctamente</span>'
+    msg.innerHTML = '<span class="mensaje-ok">Ficha médica guardada correctamente</span>'
     setTimeout(() => cerrarModal(), 1200)
   } else {
-    msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    msg.innerHTML = `<span class="mensaje-err">${data.error}</span>`
   }
 }
 
@@ -3808,18 +3833,18 @@ async function guardarFichaMedica() {
 async function cargarJustificaciones() {
   const el     = document.getElementById('tabla-justificaciones')
   const estado = document.getElementById('filtro-estado-just')?.value || ''
-  el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+  el.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando...</p>'
   try {
     const url  = `${API2}/asistencia/justificaciones${estado ? '?estado=' + estado : ''}`
     const data = await apiGet(url)
     if (!data.length) {
       el.innerHTML = `<p style="color:#aaa;text-align:center;padding:24px">
-        ${estado === 'pendiente' ? '✅ No hay justificaciones pendientes' : 'No hay registros'}</p>`
+        ${estado === 'pendiente' ? '<i class="im im-ok" aria-hidden="true"></i> No hay justificaciones pendientes' : 'No hay registros'}</p>`
       return
     }
     const colorEstado = { pendiente:'#fef3c7', aprobada:'#dcfce7', rechazada:'#fee2e2' }
     const textoEstado = { pendiente:'#92400e', aprobada:'#166534', rechazada:'#7f1d1d' }
-    const labelEstado = { pendiente:'⏳ Pendiente', aprobada:'✅ Aprobada', rechazada:'❌ Rechazada' }
+    const labelEstado = { pendiente:'<i class="im im-espera" aria-hidden="true"></i> Pendiente', aprobada:'<i class="im im-ok" aria-hidden="true"></i> Aprobada', rechazada:'<i class="im im-error" aria-hidden="true"></i> Rechazada' }
     el.innerHTML = `<div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:.85em">
         <thead><tr style="background:#1e40af;color:#fff">
@@ -3854,7 +3879,7 @@ async function cargarJustificaciones() {
       }).join('') +
       '</tbody></table></div>'
   } catch(err) {
-    el.innerHTML = `<p class="mensaje-err">❌ Error: ${err.message}</p>`
+    el.innerHTML = `<p class="mensaje-err">Error: ${err.message}</p>`
   }
 }
 
@@ -3862,10 +3887,10 @@ async function cambiarEstadoJustificacion(id, estado) {
   const msg = document.getElementById('msg-justificaciones')
   const { ok, data } = await apiPut(`${API2}/asistencia/justificacion/${id}`, { estado })
   if (ok) {
-    msg.innerHTML = `<span class="mensaje-ok">✅ Justificación marcada como "${estado}"</span>`
+    msg.innerHTML = `<span class="mensaje-ok">Justificación marcada como "${estado}"</span>`
     setTimeout(() => { msg.innerHTML = ''; cargarJustificaciones() }, 1500)
   } else {
-    msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    msg.innerHTML = `<span class="mensaje-err">${data.error}</span>`
   }
 }
 
@@ -3881,11 +3906,11 @@ function abrirJustificar(idDetalle, nombreAlumno, fecha, asignatura) {
   const form    = document.getElementById('modal-form-container')
   const actions = document.querySelector('#modal-box .form-actions')
   const msg     = document.getElementById('modal-msg')
-  titulo.textContent = `📝 Justificar ausencia — ${nombreAlumno}`
+  titulo.textContent = `Justificar ausencia — ${nombreAlumno}`
   msg.innerHTML = ''
   form.innerHTML = `
     <div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:9px 13px;font-size:.85em;color:#713f12;margin-bottom:12px">
-      📅 ${fecha} &nbsp;|&nbsp; 📖 ${asignatura}
+      <i class="im im-calendario" aria-hidden="true"></i> ${fecha} &nbsp;|&nbsp; <i class="im im-libro" aria-hidden="true"></i> ${asignatura}
     </div>
     <div class="form-group"><label>Motivo de la justificación *</label>
       <select id="just-tipo" onchange="document.getElementById('just-motivo').value=this.value"
@@ -3911,18 +3936,18 @@ function abrirJustificar(idDetalle, nombreAlumno, fecha, asignatura) {
 async function guardarJustificacion(idDetalle) {
   const motivo = document.getElementById('just-motivo')?.value.trim()
   const msg    = document.getElementById('modal-msg')
-  if (!motivo) { msg.innerHTML = '<span class="mensaje-err">⚠️ El motivo es obligatorio</span>'; return }
+  if (!motivo) { msg.innerHTML = '<span class="mensaje-aviso">El motivo es obligatorio</span>'; return }
   const { ok, data } = await apiPost(`${API2}/asistencia/justificar`,
     { id_asistencia_detalle: idDetalle, motivo })
   if (ok) {
-    msg.innerHTML = '<span class="mensaje-ok">✅ Justificación registrada</span>'
+    msg.innerHTML = '<span class="mensaje-ok">Justificación registrada</span>'
     setTimeout(() => {
       cerrarModal()
       // Refrescar el reporte del alumno actual
       if (alumnoReporteActual) seleccionarAlumnoReporte(alumnoReporteActual.id, alumnoReporteActual.nombre)
     }, 1000)
   } else {
-    msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    msg.innerHTML = `<span class="mensaje-err">${data.error}</span>`
   }
 }
 
@@ -3935,48 +3960,48 @@ let _parametrosCache = []
 async function cargarConfiguracion() {
   const el = document.getElementById('form-configuracion')
   const msg = document.getElementById('msg-configuracion')
-  el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+  el.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando...</p>'
   try {
     _parametrosCache = await apiGet(`${API1}/parametros`)
     const get = (clave) => _parametrosCache.find(p => p.clave === clave)?.valor || ''
     el.innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div class="form-group">
-          <label>🏫 Nombre del colegio</label>
+          <label><i class="im im-aulas" aria-hidden="true"></i> Nombre del colegio</label>
           <input type="text" id="cfg-nombre_colegio" value="${get('nombre_colegio')}" placeholder="Colegio San Martín" />
         </div>
         <div class="form-group">
-          <label>📅 Año lectivo</label>
+          <label><i class="im im-calendario" aria-hidden="true"></i> Año lectivo</label>
           <input type="number" id="cfg-anio_lectivo" value="${get('anio_lectivo')}" min="2020" max="2040" style="width:120px" />
         </div>
         <div class="form-group">
-          <label>👤 Director/a</label>
+          <label><i class="im im-persona" aria-hidden="true"></i> Director/a</label>
           <input type="text" id="cfg-director_nombre" value="${get('director_nombre')}" placeholder="Nombre completo" />
         </div>
         <div class="form-group">
-          <label>📊 Umbral de asistencia (%)</label>
+          <label><i class="im im-reportes" aria-hidden="true"></i> Umbral de asistencia (%)</label>
           <input type="number" id="cfg-umbral_asistencia" value="${get('umbral_asistencia') || 85}" min="50" max="100" style="width:90px" />
           <small style="color:#6b7280;display:block;margin-top:3px">Mínimo legal: 85%</small>
         </div>
         <div class="form-group">
-          <label>📞 Teléfono</label>
+          <label><i class="im im-telefono" aria-hidden="true"></i> Teléfono</label>
           <input type="text" id="cfg-telefono_colegio" value="${get('telefono_colegio')}" placeholder="+56 2 2345 6789" />
         </div>
         <div class="form-group">
-          <label>✉️ Correo</label>
+          <label><i class="im im-correo" aria-hidden="true"></i> Correo</label>
           <input type="text" id="cfg-correo_colegio" value="${get('correo_colegio')}" placeholder="contacto@colegio.cl" />
         </div>
         <div class="form-group">
-          <label>📍 Dirección</label>
+          <label><i class="im im-ubicacion" aria-hidden="true"></i> Dirección</label>
           <input type="text" id="cfg-direccion_colegio" value="${get('direccion_colegio')}" placeholder="Av. Siempre Viva 742" />
         </div>
         <div class="form-group">
-          <label>🏙️ Comuna</label>
+          <label><i class="im im-ciudad" aria-hidden="true"></i> Comuna</label>
           <input type="text" id="cfg-comuna" value="${get('comuna')}" placeholder="Santiago" />
         </div>
       </div>
       <div class="form-group" style="margin-top:4px">
-        <label>🗺️ Región</label>
+        <label><i class="im im-mapa" aria-hidden="true"></i> Región</label>
         <select id="cfg-region" style="width:100%;max-width:360px">
           ${['Región de Arica y Parinacota','Región de Tarapacá','Región de Antofagasta',
              'Región de Atacama','Región de Coquimbo','Región de Valparaíso',
@@ -3988,7 +4013,7 @@ async function cargarConfiguracion() {
         </select>
       </div>
       <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px;margin-top:14px">
-        <h3 style="margin:0 0 4px;font-size:.95em;color:#0369a1">🤖 Reconocimiento facial</h3>
+        <h3 style="margin:0 0 4px;font-size:.95em;color:#0369a1"><i class="im im-rostro" aria-hidden="true"></i> Reconocimiento facial</h3>
         <p style="font-size:.8em;color:#555;margin:0 0 10px">
           Este valor lo usa el motor de reconocimiento (API 3). Los cambios se aplican en menos de 30 segundos.
         </p>
@@ -4002,7 +4027,7 @@ async function cargarConfiguracion() {
         </div>
       </div>`
   } catch(err) {
-    el.innerHTML = `<p class="mensaje-err">❌ Error al cargar: ${err.message}</p>`
+    el.innerHTML = `<p class="mensaje-err">Error al cargar: ${err.message}</p>`
   }
 }
 
@@ -4023,20 +4048,20 @@ async function guardarConfiguracion() {
   ]
   const umbral = parseInt(items.find(i=>i.clave==='umbral_asistencia')?.valor)
   if (isNaN(umbral) || umbral < 50 || umbral > 100) {
-    msg.innerHTML = '<span class="mensaje-err">⚠️ El umbral debe estar entre 50 y 100%</span>'; return
+    msg.innerHTML = '<span class="mensaje-aviso">El umbral debe estar entre 50 y 100%</span>'; return
   }
   const umbralBio = parseFloat(items.find(i=>i.clave==='biometria_umbral')?.valor)
   if (isNaN(umbralBio) || umbralBio < 0.3 || umbralBio > 0.9) {
-    msg.innerHTML = '<span class="mensaje-err">⚠️ El umbral facial debe estar entre 0.3 y 0.9</span>'; return
+    msg.innerHTML = '<span class="mensaje-aviso">El umbral facial debe estar entre 0.3 y 0.9</span>'; return
   }
-  msg.innerHTML = '<span style="color:gray;font-size:.88em">💾 Guardando...</span>'
+  msg.innerHTML = '<span style="color:gray;font-size:.88em"><i class="im im-guardar" aria-hidden="true"></i> Guardando...</span>'
   const { ok, data } = await apiPost(`${API1}/parametros/bulk`, items)
   if (ok) {
     _parametrosCache = data
-    msg.innerHTML = '<span class="mensaje-ok">✅ Configuración guardada correctamente</span>'
+    msg.innerHTML = '<span class="mensaje-ok">Configuración guardada correctamente</span>'
     setTimeout(() => msg.innerHTML = '', 2500)
   } else {
-    msg.innerHTML = `<span class="mensaje-err">❌ ${data.error}</span>`
+    msg.innerHTML = `<span class="mensaje-err">${data.error}</span>`
   }
 }
 
@@ -4050,7 +4075,7 @@ async function cargarBitacora() {
   const hasta  = document.getElementById('bitacora-hasta')?.value || ''
   const tabla  = document.getElementById('bitacora-tabla')?.value || ''
   const limite = document.getElementById('bitacora-limite')?.value || '100'
-  el.innerHTML = '<p style="color:gray;font-size:.88em">⏳ Cargando...</p>'
+  el.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando...</p>'
   try {
     const params = new URLSearchParams({ limite })
     if (desde) params.set('desde', desde)
@@ -4069,11 +4094,11 @@ async function cargarBitacora() {
       return '#f9fafb'
     }
     const iconAccion = (acc) => {
-      if (acc?.startsWith('CREAR'))    return '➕'
-      if (acc?.startsWith('EDITAR'))   return '✏️'
-      if (acc?.startsWith('ELIMINAR')) return '🗑️'
-      if (acc?.startsWith('LOGIN'))    return '🔑'
-      return '📋'
+      if (acc?.startsWith('CREAR'))    return '<i class="im im-mas" aria-hidden="true"></i>'
+      if (acc?.startsWith('EDITAR'))   return '<i class="im im-lapiz" aria-hidden="true"></i>'
+      if (acc?.startsWith('ELIMINAR')) return '<i class="im im-basurero" aria-hidden="true"></i>'
+      if (acc?.startsWith('LOGIN'))    return '<i class="im im-llave" aria-hidden="true"></i>'
+      return '<i class="im im-portapapeles" aria-hidden="true"></i>'
     }
     el.innerHTML = `<div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:.84em">
@@ -4105,7 +4130,7 @@ async function cargarBitacora() {
       '</tbody></table></div>' +
       `<p style="font-size:.78em;color:#9ca3af;margin:6px 0 0;text-align:right">Mostrando ${data.length} registro(s)</p>`
   } catch(err) {
-    el.innerHTML = `<p class="mensaje-err">❌ Error: ${err.message}</p>`
+    el.innerHTML = `<p class="mensaje-err">Error: ${err.message}</p>`
   }
 }
 
@@ -4143,18 +4168,18 @@ async function otorgarConsentimiento() {
   const idAp = parseInt(document.getElementById('selectApoderadoConsiente').value)
   const divRes = document.getElementById('resultadoRegistro')
   if (!id) return
-  if (!idAp) { divRes.innerHTML = '<span class="mensaje-err">⚠️ Selecciona el apoderado que autoriza</span>'; return }
+  if (!idAp) { divRes.innerHTML = '<span class="mensaje-aviso">Selecciona el apoderado que autoriza</span>'; return }
   if (!document.getElementById('chk-consent-confirma').checked) {
-    divRes.innerHTML = '<span class="mensaje-err">⚠️ Debes confirmar que el apoderado fue informado y autorizó</span>'
+    divRes.innerHTML = '<span class="mensaje-aviso">Debes confirmar que el apoderado fue informado y autorizó</span>'
     return
   }
   const { ok, data } = await apiPut(`${API1}/alumnos/${id}/consentimiento`, { otorgado: true, id_apoderado: idAp })
-  if (!ok) { divRes.innerHTML = `<span class="mensaje-err">❌ ${_escHtml(data.error)}</span>`; return }
+  if (!ok) { divRes.innerHTML = `<span class="mensaje-err">${_escHtml(data.error)}</span>`; return }
   _alumnoConsentimiento[id] = true
   const sel = document.getElementById('selectAlumnoRostro')
   if (sel) { sel.value = id; seleccionarAlumnoRostro(sel) }
   document.getElementById('resultadoRegistro').innerHTML =
-    `<span class="mensaje-ok">✅ ${_escHtml(data.mensaje)}. Ya puedes capturar el rostro.</span>`
+    `<span class="mensaje-ok">${_escHtml(data.mensaje)}. Ya puedes capturar el rostro.</span>`
   if (tabActual === 'alumnos') cargarTablaAlumnos()
 }
 
@@ -4162,16 +4187,16 @@ async function revocarConsentimiento() {
   const id = parseInt(document.getElementById('idAlumno').value)
   const nombre = document.getElementById('alumno-rostro-nombre').textContent
   if (!id) return
-  if (!confirm(`¿Revocar el consentimiento biométrico de ${nombre}?\n\nSe ELIMINARÁ su rostro registrado y no podrá ser reconocido hasta que el apoderado vuelva a autorizar.`)) return
+  if (!await sicafConfirmar(`¿Revocar el consentimiento biométrico de ${nombre}?\n\nSe ELIMINARÁ su rostro registrado y no podrá ser reconocido hasta que el apoderado vuelva a autorizar.`)) return
   const { ok, data } = await apiPut(`${API1}/alumnos/${id}/consentimiento`, { otorgado: false })
   const divRes = document.getElementById('resultadoRegistro')
-  if (!ok) { divRes.innerHTML = `<span class="mensaje-err">❌ ${_escHtml(data.error)}</span>`; return }
+  if (!ok) { divRes.innerHTML = `<span class="mensaje-err">${_escHtml(data.error)}</span>`; return }
   _alumnoConsentimiento[id] = false
   _alumnoTieneRostro[id] = false
   await cargarSelectAlumnos()
   const sel = document.getElementById('selectAlumnoRostro')
   if (sel) { sel.value = id; seleccionarAlumnoRostro(sel) }
-  document.getElementById('resultadoRegistro').innerHTML = `<span class="mensaje-ok">✅ ${_escHtml(data.mensaje)}</span>`
+  document.getElementById('resultadoRegistro').innerHTML = `<span class="mensaje-ok">${_escHtml(data.mensaje)}</span>`
   if (tabActual === 'alumnos') cargarTablaAlumnos()
 }
 
@@ -4208,7 +4233,7 @@ async function cargarNotificaciones() {
     badge.style.display = d.no_leidas > 0 ? 'flex' : 'none'
     const lista = document.getElementById('notif-lista')
     if (!d.notificaciones.length) {
-      lista.innerHTML = '<div class="notif-vacio">🔔 No tienes notificaciones</div>'
+      lista.innerHTML = '<div class="notif-vacio"><i class="im im-campana" aria-hidden="true"></i> No tienes notificaciones</div>'
       return
     }
     lista.innerHTML = d.notificaciones.map(n => `

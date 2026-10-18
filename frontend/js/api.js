@@ -67,7 +67,7 @@ async function descargarArchivo(url, nombreArchivo) {
       // Mostrar el motivo que entrega el servidor (p. ej. "Período no encontrado" o falta de permiso)
       let detalle = ''
       try { detalle = (await resp.json()).error || '' } catch (e) { /* respuesta sin JSON */ }
-      alert('No se pudo generar el archivo' + (detalle ? ': ' + detalle : ''))
+      sicafAviso('No se pudo generar el archivo' + (detalle ? ': ' + detalle : ''), 'error')
       return
     }
     const blob   = await resp.blob()
@@ -77,7 +77,7 @@ async function descargarArchivo(url, nombreArchivo) {
     link.click()
     URL.revokeObjectURL(link.href)
   } catch (err) {
-    alert('Error al descargar: ' + err.message)
+    sicafAviso('Error al descargar: ' + err.message, 'error')
   }
 }
 
