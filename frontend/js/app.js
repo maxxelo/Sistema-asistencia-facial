@@ -335,7 +335,7 @@ function filtrarAlumnosReporte() {
   }
   cont.innerHTML = `<div style="background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 2px 8px #0001;position:absolute;z-index:10;width:100%;min-width:220px">` +
     matches.map(a => `
-      <div onclick="seleccionarAlumnoReporte(${a.id},'${a.nombre} ${a.apellido_paterno}')"
+      <div onclick="seleccionarAlumnoReporte(${a.id},${_arg(a.nombre + ' ' + a.apellido_paterno)})"
            style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:.88em"
            onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''">
         <strong>${a.nombre} ${a.apellido_paterno}</strong>
@@ -440,7 +440,7 @@ function renderReporteAlumno(id, nombre, resumen, historial) {
       const tipo    = h.tipo_asistencia === 'facial' ? '<i class="im im-rostro" aria-hidden="true"></i> Facial' : h.tipo_asistencia === 'manual' ? '<i class="im im-mano" aria-hidden="true"></i> Manual' : h.tipo_asistencia||'—'
       const btnJust = (!h.presente && !justEstado)
         ? `<button class="btn-sm btn-aviso"
-             onclick="abrirJustificar(${h.id_detalle||h.id},'${(nombre).replace(/'/g,"\\'")}','${new Date(h.fecha).toLocaleDateString('es-CL')}','${h.asignatura}')"><i class="bi bi-chat-square-text-fill"></i> Justificar</button>`
+             onclick="abrirJustificar(${h.id_detalle||h.id},${_arg(nombre)},${_arg(new Date(h.fecha).toLocaleDateString('es-CL'))},${_arg(h.asignatura)})"><i class="bi bi-chat-square-text-fill"></i> Justificar</button>`
         : (justEstado === 'pendiente' ? `<button class="btn-sm btn-ok"
              onclick="aprobarJustificacion(${h.id_justificacion})"><i class="bi bi-check-circle-fill"></i> Aprobar</button>` : '')
       html += `<tr style="background:${bg}">
@@ -599,7 +599,7 @@ async function cargarAlumnosRiesgo() {
       const pct   = parseFloat(a.porcentaje) || 0
       const color = pct >= 70 ? '#d97706' : '#dc2626'
       const bg    = i%2===0 ? '#fff5f5' : '#fff'
-      const nomSafe = (a.nombre_completo||'').replace(/'/g,"\\'")
+      const nomSafe = a.nombre_completo || ''
       html += `<tr style="background:${bg}">
         <td style="padding:7px 10px"><strong>${a.nombre_completo||'—'}</strong><br>
           <span style="font-size:.8em;color:#6b7280">${a.rut||''}</span></td>
@@ -609,7 +609,7 @@ async function cargarAlumnosRiesgo() {
         <td style="padding:7px 10px;text-align:center;color:#6b7280">${a.presentes||0}/${a.total_clases||0}</td>
         <td style="padding:7px 10px;text-align:center">
           <button class="btn-sm btn-info"
-            onclick="verAsistenciaAlumno(${a.id},'${nomSafe}')" title="Ver detalle"><i class="bi bi-bar-chart-fill"></i></button>
+            onclick="verAsistenciaAlumno(${a.id},${_arg(nomSafe)})" title="Ver detalle"><i class="bi bi-bar-chart-fill"></i></button>
         </td>
       </tr>`
     })
@@ -816,17 +816,17 @@ async function cargarTablaAlumnos() {
           ${esAdmin
             ? inactivo
               ? /* Inactivo: solo reactivar o eliminar permanente */`
-                  <button class="btn-sm btn-primary" onclick="reactivarAlumno(${a.id},'${a.nombre}')"><i class="bi bi-arrow-clockwise"></i> Reactivar</button>
-                  <button class="btn-sm btn-delete"  onclick="eliminarAlumno(${a.id},'${a.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`
+                  <button class="btn-sm btn-primary" onclick="reactivarAlumno(${a.id},${_arg(a.nombre)})"><i class="bi bi-arrow-clockwise"></i> Reactivar</button>
+                  <button class="btn-sm btn-delete"  onclick="eliminarAlumno(${a.id},${_arg(a.nombre)})" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`
               : /* Activo: todas las acciones */`
-                  <button class="btn-sm btn-info" onclick="verAsistenciaAlumno(${a.id},'${a.nombre} ${a.apellido_paterno}')" title="Ver asistencia"><i class="bi bi-bar-chart-fill"></i></button>
-                  <button class="btn-sm btn-ok" onclick="verFichaMedica(${a.id},'${a.nombre} ${a.apellido_paterno}')" title="Ficha médica"><i class="bi bi-file-medical-fill"></i></button>
+                  <button class="btn-sm btn-info" onclick="verAsistenciaAlumno(${a.id},${_arg(a.nombre + ' ' + a.apellido_paterno)})" title="Ver asistencia"><i class="bi bi-bar-chart-fill"></i></button>
+                  <button class="btn-sm btn-ok" onclick="verFichaMedica(${a.id},${_arg(a.nombre + ' ' + a.apellido_paterno)})" title="Ficha médica"><i class="bi bi-file-medical-fill"></i></button>
                   <button class="btn-sm btn-ok${a.tiene_rostro ? ' lleno' : ''}"
-                    onclick="irARegistrarRostro(${a.id},'${a.nombre} ${a.apellido_paterno}')"
+                    onclick="irARegistrarRostro(${a.id},${_arg(a.nombre + ' ' + a.apellido_paterno)})"
                     title="${a.tiene_rostro ? 'Rostro registrado: clic para gestionar' : 'Registrar rostro'}">
                     ${a.tiene_rostro ? '<i class="im im-ok" aria-hidden="true"></i>' : '<i class="im im-camara" aria-hidden="true"></i>'}</button>
                   <button class="btn-sm btn-edit"   onclick="editarAlumno(${a.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
-                  <button class="btn-sm btn-delete" onclick="eliminarAlumno(${a.id},'${a.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`
+                  <button class="btn-sm btn-delete" onclick="eliminarAlumno(${a.id},${_arg(a.nombre)})" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`
             : '<span style="color:#bbb">Solo lectura</span>'}
         </td>`
       tbody.appendChild(tr)
@@ -1018,11 +1018,11 @@ async function cargarTablaCursos() {
         <td>${c.total_alumnos}</td>
         <td>
           ${inactivo
-            ? `<button class="btn-sm btn-primary" onclick="reactivarCurso(${c.id},'${c.nombre}')"><i class="bi bi-arrow-clockwise"></i> Reactivar</button>
-               <button class="btn-sm btn-delete"  onclick="eliminarCurso(${c.id},'${c.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`
-            : `<button class="btn-sm btn-face"   onclick="verAlumnosCurso(${c.id},'${c.nombre}')" title="Ver alumnos"><i class="bi bi-people-fill"></i> ${c.total_alumnos}</button>
+            ? `<button class="btn-sm btn-primary" onclick="reactivarCurso(${c.id},${_arg(c.nombre)})"><i class="bi bi-arrow-clockwise"></i> Reactivar</button>
+               <button class="btn-sm btn-delete"  onclick="eliminarCurso(${c.id},${_arg(c.nombre)})" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`
+            : `<button class="btn-sm btn-face"   onclick="verAlumnosCurso(${c.id},${_arg(c.nombre)})" title="Ver alumnos"><i class="bi bi-people-fill"></i> ${c.total_alumnos}</button>
                <button class="btn-sm btn-edit"   onclick="editarCurso(${c.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
-               <button class="btn-sm btn-delete" onclick="eliminarCurso(${c.id},'${c.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`}
+               <button class="btn-sm btn-delete" onclick="eliminarCurso(${c.id},${_arg(c.nombre)})" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`}
         </td>`
       tbody.appendChild(tr)
     })
@@ -1112,10 +1112,10 @@ async function cargarTablaProfesores() {
         <td>${p.especialidad || '—'}</td>
         <td>
           ${inactivo
-            ? `<button class="btn-sm btn-primary" onclick="reactivarProfesor(${p.id},'${p.nombre}')"><i class="bi bi-arrow-clockwise"></i> Reactivar</button>
-               <button class="btn-sm btn-delete"  onclick="eliminarProfesor(${p.id},'${p.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`
+            ? `<button class="btn-sm btn-primary" onclick="reactivarProfesor(${p.id},${_arg(p.nombre)})"><i class="bi bi-arrow-clockwise"></i> Reactivar</button>
+               <button class="btn-sm btn-delete"  onclick="eliminarProfesor(${p.id},${_arg(p.nombre)})" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`
             : `<button class="btn-sm btn-edit"   onclick="editarProfesor(${p.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
-               <button class="btn-sm btn-delete" onclick="eliminarProfesor(${p.id},'${p.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`}
+               <button class="btn-sm btn-delete" onclick="eliminarProfesor(${p.id},${_arg(p.nombre)})" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`}
         </td>`
       tbody.appendChild(tr)
     })
@@ -1816,9 +1816,9 @@ async function cargarTablaUsuarios() {
         <td style="font-size:.82em;color:#666">${ultimoAcceso}</td>
         <td>
           <button class="btn-sm btn-edit"   onclick="editarUsuario(${u.id})" title="Editar usuario"><i class="bi bi-pencil-fill"></i></button>
-          <button class="btn-sm btn-edit" onclick="resetPasswordUsuario(${u.id},'${u.nombre_usuario}')" title="Cambiar contraseña"><i class="bi bi-key-fill"></i></button>
-          <button class="btn-sm ${u.activo?'btn-secondary':'btn-face'}" onclick="toggleUsuario(${u.id},'${u.nombre_usuario}',${u.activo})" title="${u.activo?'Desactivar acceso':'Activar acceso'}">${u.activo?'<i class="bi bi-lock-fill"></i>':'<i class="bi bi-unlock-fill"></i>'}</button>
-          <button class="btn-sm btn-delete" onclick="eliminarUsuario(${u.id},'${u.nombre_usuario}')" title="Eliminar usuario"><i class="bi bi-trash3-fill"></i></button>
+          <button class="btn-sm btn-edit" onclick="resetPasswordUsuario(${u.id},${_arg(u.nombre_usuario)})" title="Cambiar contraseña"><i class="bi bi-key-fill"></i></button>
+          <button class="btn-sm ${u.activo?'btn-secondary':'btn-face'}" onclick="toggleUsuario(${u.id},${_arg(u.nombre_usuario)},${u.activo})" title="${u.activo?'Desactivar acceso':'Activar acceso'}">${u.activo?'<i class="bi bi-lock-fill"></i>':'<i class="bi bi-unlock-fill"></i>'}</button>
+          <button class="btn-sm btn-delete" onclick="eliminarUsuario(${u.id},${_arg(u.nombre_usuario)})" title="Eliminar usuario"><i class="bi bi-trash3-fill"></i></button>
         </td>`
       tbody.appendChild(tr)
     })
@@ -1880,7 +1880,7 @@ async function cargarTablaAsignaturas() {
         <td>${a.activo ? '<i class="im im-ok" aria-hidden="true"></i> Activa' : '<i class="im im-punto" aria-hidden="true"></i> Inactiva'}</td>
         <td>
           <button class="btn-sm btn-edit"   onclick="editarAsignatura(${a.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
-          <button class="btn-sm btn-delete" onclick="eliminarAsignatura(${a.id},'${a.nombre.replace(/'/g,"\\'")}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
+          <button class="btn-sm btn-delete" onclick="eliminarAsignatura(${a.id},${_arg(a.nombre)})" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
         </td>`
       tbody.appendChild(tr)
     })
@@ -1925,7 +1925,7 @@ async function cargarTablaAulas() {
         <td>${a.capacidad} alumnos</td>
         <td>
           <button class="btn-sm btn-edit"   onclick="editarAula(${a.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
-          <button class="btn-sm btn-delete" onclick="eliminarAula(${a.id},'${a.codigo}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
+          <button class="btn-sm btn-delete" onclick="eliminarAula(${a.id},${_arg(a.codigo)})" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
         </td>`
       tbody.appendChild(tr)
     })
@@ -3094,19 +3094,16 @@ async function cargarHorarios() {
     const opcionPreviaExiste = seleccionPrevia && selector.querySelector(`option[value="${seleccionPrevia}"]`)
     if (opcionPreviaExiste) {
       selector.value = seleccionPrevia
-      // Misma clase activa: solo re-evaluar ventana horaria (sin resetear la lista)
-      if (rolUsuario !== 'admin' && _listaAsistencia.length > 0 && !_asistenciaGuardada) {
-        const opt    = selector.selectedOptions[0]
-        const estado = evaluarVentanaHoraria(opt, fecha)
-        const banner = document.getElementById('asis-banner')
-        const btnIni = document.getElementById('btn-iniciar-rec')
-        if (estado.bloquear) {
-          if (btnIni) btnIni.disabled = true
-          if (banner) { banner.className = 'asis-banner bloqueada'; banner.style.display = 'block'; banner.innerHTML = estado.mensaje }
+      // Misma clase y misma fecha: solo re-evaluar la ventana horaria (sin resetear la lista).
+      // Si cambió la fecha, la lista es de otro día: se carga de nuevo.
+      if (rolUsuario !== 'admin') {
+        if (_listaAsistencia.length > 0 && _asistenciaFecha === fecha && parseInt(seleccionPrevia) === _asistenciaIdHorario) {
+          if (!_asistenciaGuardada) {
+            const estado = evaluarVentanaHoraria(selector.selectedOptions[0], fecha)
+            _aplicarBloqueoAsistencia(estado.bloquear ? estado.mensaje : null, estado.bloquear ? '' : estado.mensaje)
+          }
         } else {
-          if (btnIni && !intervaloReconocimiento) btnIni.disabled = false
-          if (banner && estado.mensaje) { banner.className = 'asis-banner'; banner.style.display = 'block'; banner.innerHTML = estado.mensaje }
-          else if (banner && !estado.mensaje) banner.style.display = 'none'
+          cargarListaAsistencia()
         }
       }
     } else if (idActivo) {
@@ -3143,7 +3140,35 @@ let _asistenciaGuardada = false
 let _asistenciaIdHorario = null
 let _asistenciaIdCurso   = null
 let _asistenciaFecha     = null
+let _asistenciaBloqueo   = null   // motivo (HTML) por el que la lista no se puede modificar
+let _asistenciaCambios   = false  // hay marcas que todavía no se guardan
 let _vidasMap = new Map()  // id_alumno → { total_clases, max_ausencias, ausencias_previas }
+
+// No perder marcas sin guardar al cerrar o recargar la pestaña
+window.addEventListener('beforeunload', e => {
+  if (_asistenciaCambios && !_asistenciaGuardada) { e.preventDefault(); e.returnValue = '' }
+})
+
+/* Bloquea o libera la lista de asistencia. Con bloqueo nada se puede marcar,
+   reconocer ni guardar; el servidor aplica las mismas reglas (API 2). */
+function _aplicarBloqueoAsistencia(motivo, aviso = '') {
+  _asistenciaBloqueo = motivo || null
+  const banner = document.getElementById('asis-banner')
+  const btnIni = document.getElementById('btn-iniciar-rec')
+  const soloLectura = !!_asistenciaBloqueo || _asistenciaGuardada
+  if (_asistenciaBloqueo && typeof intervaloReconocimiento !== 'undefined' && intervaloReconocimiento) detener()
+  if (btnIni) btnIni.disabled = soloLectura || (typeof intervaloReconocimiento !== 'undefined' && !!intervaloReconocimiento)
+  ;['btn-borrador-asis', 'btn-definitivo-asis'].forEach(id => {
+    const b = document.getElementById(id)
+    if (b && !_asistenciaGuardada) b.style.display = (soloLectura || !_listaAsistencia.length) ? 'none' : 'inline-block'
+  })
+  document.querySelectorAll('.btn-toggle-asis').forEach(b => { b.disabled = soloLectura })
+  document.getElementById('lista-asis')?.classList.toggle('solo-lectura', soloLectura)
+  if (!banner) return
+  if (_asistenciaBloqueo)  { banner.className = 'asis-banner bloqueada'; banner.style.display = 'block'; banner.innerHTML = _asistenciaBloqueo }
+  else if (aviso)          { banner.className = 'asis-banner'; banner.style.display = 'block'; banner.innerHTML = aviso }
+  else if (!_asistenciaGuardada) banner.style.display = 'none'
+}
 
 function _calcularVidas(id_alumno, presente) {
   const d = _vidasMap.get(id_alumno)
@@ -3224,7 +3249,7 @@ function evaluarVentanaHoraria(opt, fecha) {
   }
 }
 
-async function cargarListaAsistencia() {
+async function cargarListaAsistencia(forzar = false) {
   const sel       = document.getElementById('selectorHorario')
   const fechaInp  = document.getElementById('fechaClase')
   const listaDiv  = document.getElementById('lista-asis')
@@ -3257,13 +3282,19 @@ async function cargarListaAsistencia() {
 
   if (!id_curso) return
 
-  // Si ya hay una sesión activa para el mismo horario, no resetear
-  if (id_horario === _asistenciaIdHorario && _listaAsistencia.length > 0 && !_asistenciaGuardada) return
+  // Si ya hay una sesión activa para la misma clase y la misma fecha, no resetear
+  if (!forzar && id_horario === _asistenciaIdHorario && fecha === _asistenciaFecha &&
+      _listaAsistencia.length > 0 && !_asistenciaGuardada) return
+
+  // Cambio de clase o de fecha: la cámara no sigue marcando en la clase anterior
+  if (typeof intervaloReconocimiento !== 'undefined' && intervaloReconocimiento) detener()
 
   _asistenciaIdHorario = id_horario
   _asistenciaIdCurso   = id_curso
   _asistenciaFecha     = fecha
   _asistenciaGuardada  = false
+  _asistenciaBloqueo   = null
+  _asistenciaCambios   = false
 
   if (listaDiv) listaDiv.innerHTML = '<div class="lista-asis-placeholder"><i class="im im-espera" aria-hidden="true"></i> Cargando lista...</div>'
   if (header) header.style.display = 'none'
@@ -3295,11 +3326,11 @@ async function cargarListaAsistencia() {
         apellido: a.apellido_paterno,
         rut:      a.rut,
         presente: a.presente,
-        tipo:     a.tipo_asistencia || 'normal'
+        tipo:     a.tipo_asistencia || 'normal',
+        hora:     a.hora_marcada ? String(a.hora_marcada).slice(0, 8) : null
       }))
-      if (banner) { banner.className = 'asis-banner bloqueada'; banner.style.display = 'block'; banner.innerHTML = '<i class="bi bi-lock-fill"></i> Asistencia registrada definitivamente — no puede modificarse' }
-      if (btnIni) btnIni.disabled = true
       mostrarBotonesGuardar(false)
+      _aplicarBloqueoAsistencia('<i class="bi bi-lock-fill"></i> Asistencia registrada definitivamente — no puede modificarse')
 
     } else if (hayBorrador) {
       // ── Estado: BORRADOR (editable) ────────────────────────────
@@ -3310,11 +3341,15 @@ async function cargarListaAsistencia() {
         apellido: a.apellido_paterno,
         rut:      a.rut,
         presente: a.presente,
-        tipo:     a.tipo_asistencia || 'normal'
+        tipo:     a.tipo_asistencia || 'normal',
+        hora:     a.hora_marcada ? String(a.hora_marcada).slice(0, 8) : null
       }))
-      if (banner) { banner.className = 'asis-banner'; banner.style.display = 'block'; banner.innerHTML = '<i class="im im-guardar" aria-hidden="true"></i> Borrador guardado — puedes seguir modificando y reconociendo caras' }
-      if (btnIni) btnIni.disabled = false
+      // Un borrador también respeta la ventana horaria: fuera de ella queda de solo lectura
+      const estadoVentana = evaluarVentanaHoraria(opt, fecha)
       mostrarBotonesGuardar(true); habilitarBotonesGuardar(true)
+      _aplicarBloqueoAsistencia(
+        estadoVentana.bloquear ? `<i class="im im-guardar" aria-hidden="true"></i> Hay un borrador guardado, pero ya no se puede modificar. ${estadoVentana.mensaje}` : null,
+        '<i class="im im-guardar" aria-hidden="true"></i> Borrador guardado — puedes seguir modificando y reconociendo caras')
 
     } else {
       // ── Estado: NUEVA sesión ───────────────────────────────────
@@ -3329,17 +3364,8 @@ async function cargarListaAsistencia() {
       }))
 
       const estadoVentana = evaluarVentanaHoraria(opt, fecha)
-
-      if (estadoVentana.bloquear) {
-        if (btnIni) btnIni.disabled = true
-        mostrarBotonesGuardar(false)
-        if (banner) { banner.className = 'asis-banner bloqueada'; banner.style.display = 'block'; banner.innerHTML = estadoVentana.mensaje }
-      } else {
-        if (btnIni) btnIni.disabled = false
-        mostrarBotonesGuardar(_listaAsistencia.length > 0); habilitarBotonesGuardar(true)
-        if (banner && estadoVentana.mensaje) { banner.className = 'asis-banner'; banner.style.display = 'block'; banner.innerHTML = estadoVentana.mensaje }
-        else if (banner) { banner.style.display = 'none' }
-      }
+      habilitarBotonesGuardar(true)
+      _aplicarBloqueoAsistencia(estadoVentana.bloquear ? estadoVentana.mensaje : null, estadoVentana.bloquear ? '' : estadoVentana.mensaje)
     }
 
     // Mostrar cabecera con nombre de clase
@@ -3350,9 +3376,10 @@ async function cargarListaAsistencia() {
     }
 
     renderizarListaAsistencia()
+    _aplicarBloqueoAsistencia(_asistenciaBloqueo, banner && banner.style.display !== 'none' && !_asistenciaBloqueo ? banner.innerHTML : '')
 
   } catch (err) {
-    if (listaDiv) listaDiv.innerHTML = `<div class="lista-asis-placeholder" style="color:#dc2626">Error: ${err.message}</div>`
+    if (listaDiv) listaDiv.innerHTML = `<div class="lista-asis-placeholder" style="color:#dc2626">Error: ${_escHtml(err.message)}</div>`
   }
 }
 
@@ -3383,7 +3410,7 @@ function renderizarListaAsistencia() {
           : '<span class="badge-asis-ausente"><i class="im im-error" aria-hidden="true"></i> Ausente</span>'}
       </div>
       <button class="btn-toggle-asis" onclick="toggleAsistencia(${a.id})"
-        ${_asistenciaGuardada ? 'disabled' : ''}>
+        ${_asistenciaGuardada || _asistenciaBloqueo ? 'disabled' : ''}>
         ${a.presente ? 'Marcar ausente' : 'Marcar presente'}
       </button>
     </div>`).join('')
@@ -3392,10 +3419,13 @@ function renderizarListaAsistencia() {
 }
 
 function marcarPresente(id_alumno, tipo) {
+  if (_asistenciaGuardada || _asistenciaBloqueo) return
   const a = _listaAsistencia.find(x => x.id === id_alumno)
   if (!a || a.presente) return
   a.presente = true
   a.tipo     = tipo || 'facial'
+  a.hora     = new Date().toTimeString().slice(0, 8)
+  _asistenciaCambios = true
 
   const row = document.getElementById(`row-asis-${id_alumno}`)
   if (row) {
@@ -3430,12 +3460,15 @@ function _actualizarContadoresAsis() {
 }
 
 function toggleAsistencia(id_alumno) {
+  if (_asistenciaGuardada || _asistenciaBloqueo) return
   const a = _listaAsistencia.find(x => x.id === id_alumno)
   if (!a) return
 
   if (a.presente) {
     a.presente = false
     a.tipo     = null
+    a.hora     = null
+    _asistenciaCambios = true
     const row = document.getElementById(`row-asis-${id_alumno}`)
     if (row) {
       row.className = 'asistencia-row ausente'
@@ -3456,6 +3489,7 @@ async function guardarAsistencia(definitivo = false) {
     return sicafAviso('Selecciona una clase primero', 'aviso')
   }
   if (!_listaAsistencia.length) return sicafAviso('No hay alumnos en este curso', 'aviso')
+  if (_asistenciaGuardada || _asistenciaBloqueo) return sicafAviso('Esta asistencia ya no se puede modificar', 'aviso')
 
   const presentes = _listaAsistencia.filter(a => a.presente).length
   const ausentes  = _listaAsistencia.length - presentes
@@ -3483,12 +3517,17 @@ async function guardarAsistencia(definitivo = false) {
           id_alumno:       a.id,
           presente:        a.presente,
           tipo_asistencia: a.tipo === 'facial' ? 'facial' : 'normal',
-          hora_marcada:    new Date().toTimeString().slice(0, 8)
+          hora_marcada:    a.presente ? (a.hora || new Date().toTimeString().slice(0, 8)) : null
         }))
       })
     })
     const d = await r.json()
-    if (!r.ok) throw new Error(d.error || 'Error al guardar')
+    if (!r.ok) {
+      const err = new Error(d.error || 'Error al guardar')
+      err.status = r.status
+      throw err
+    }
+    _asistenciaCambios = false
 
     const banner = document.getElementById('asis-banner')
     const res    = document.getElementById('resultado')
@@ -3515,8 +3554,9 @@ async function guardarAsistencia(definitivo = false) {
   } catch (e) {
     if (btnBorrador)   { btnBorrador.disabled = false;   btnBorrador.innerHTML = '<i class="im im-guardar" aria-hidden="true"></i> Guardar borrador' }
     if (btnDefinitivo) { btnDefinitivo.disabled = false; btnDefinitivo.innerHTML = '<i class="bi bi-lock-fill"></i> Registrar definitivamente' }
-    const res = document.getElementById('resultado')
-    if (res) res.innerHTML = `<span class="mensaje-err">${e.message}</span>`
+    sicafAviso(e.message, 'error')
+    // 403 (fuera de horario) o 409 (ya definitiva): mostrar el estado real que tiene el servidor
+    if (e.status === 403 || e.status === 409) cargarListaAsistencia(true)
   }
 }
 
@@ -3571,7 +3611,7 @@ async function cargarTablaPeriodos() {
         <td>${badge}</td>
         <td>
           <button class="btn-sm btn-edit" onclick="editarPeriodo(${p.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
-          <button class="btn-sm btn-delete" onclick="eliminarPeriodo(${p.id},'${p.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
+          <button class="btn-sm btn-delete" onclick="eliminarPeriodo(${p.id},${_arg(p.nombre)})" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
         </td>`
       tbody.appendChild(tr)
     })
@@ -3645,7 +3685,7 @@ async function cargarEvaluaciones() {
           <button class="btn-sm btn-info" onclick="irIngresarNotas(${e.id})" title="Ingresar notas"><i class="bi bi-clipboard-check-fill"></i></button>
           ${!esProfesor ? `
           <button class="btn-sm btn-edit" onclick="editarEvaluacion(${e.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
-          <button class="btn-sm btn-delete" onclick="eliminarEvaluacion(${e.id},'${e.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>` : ''}
+          <button class="btn-sm btn-delete" onclick="eliminarEvaluacion(${e.id},${_arg(e.nombre)})" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>` : ''}
         </td>`
       tbody.appendChild(tr)
     })
@@ -4018,7 +4058,7 @@ async function cargarTablaApoderados() {
         <td style="font-size:.83em">${celdaAlumnos}</td>
         <td>
           <button class="btn-sm btn-edit" onclick="editarApoderado(${ap.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
-          <button class="btn-sm btn-delete" onclick="eliminarApoderado(${ap.id},'${ap.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
+          <button class="btn-sm btn-delete" onclick="eliminarApoderado(${ap.id},${_arg(ap.nombre)})" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
         </td>`
       tbody.appendChild(tr)
     })
@@ -4060,8 +4100,8 @@ async function cargarComunicados() {
       <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:10px;box-shadow:0 1px 3px #0001">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
           <div style="flex:1">
-            <h3 style="margin:0 0 6px;color:#1e40af">${c.titulo}</h3>
-            <p style="margin:0;color:#374151;line-height:1.5;white-space:pre-wrap">${c.contenido}</p>
+            <h3 style="margin:0 0 6px;color:#1e40af">${_escHtml(c.titulo)}</h3>
+            <p style="margin:0;color:#374151;line-height:1.5;white-space:pre-wrap">${_escHtml(c.contenido)}</p>
           </div>
           <div style="text-align:right;flex-shrink:0">
             <div style="font-size:.78em;color:#9ca3af">${new Date(c.fecha_publicacion).toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'numeric'})}</div>
@@ -4215,7 +4255,7 @@ async function cargarJustificaciones() {
             <span style="font-size:.78em;color:#6b7280">${j.rut||''}</span></td>
           <td style="padding:7px 10px">${j.curso||'—'}</td>
           <td style="padding:7px 10px">${j.asignatura}</td>
-          <td style="padding:7px 10px;max-width:200px;font-size:.83em">${j.motivo}</td>
+          <td style="padding:7px 10px;max-width:200px;font-size:.83em">${_escHtml(j.motivo)}</td>
           <td style="padding:7px 10px;text-align:center">
             <span style="background:${colorEstado[est]};color:${textoEstado[est]};padding:2px 10px;border-radius:12px;font-size:.8em;font-weight:600">
               ${labelEstado[est]}</span></td>
@@ -4550,6 +4590,12 @@ let _intervaloNotif = null
 
 function _escHtml(t) {
   return String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+}
+
+// Texto como argumento dentro de onclick="...": comillas de JavaScript y escape de HTML.
+// Así un nombre como D'Angelo no rompe el botón ni puede inyectar código.
+function _arg(t) {
+  return _escHtml(JSON.stringify(String(t ?? '')))
 }
 
 function iniciarNotificaciones() {

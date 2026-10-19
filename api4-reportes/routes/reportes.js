@@ -1,4 +1,8 @@
 const express = require('express');
+// Fecha de hoy en Chile (YYYY-MM-DD). El contenedor corre en UTC: después de las 21:00
+// toISOString() ya daría el día siguiente.
+const hoyEnChile = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
+
 const router  = express.Router();
 const pool    = require('../db/connection');
 const PDFDocument = require('pdfkit');
@@ -418,7 +422,7 @@ router.get('/csv/curso/:id', verificarToken, adminOProfesor, permisoCurso, async
        ORDER BY a.apellido_paterno, asig.nombre`, [id]
     );
 
-    const fecha = new Date().toISOString().slice(0,10);
+    const fecha = hoyEnChile();
     const filename = `asistencia_${nombreCurso.replace(/\s+/g,'_')}_${fecha}.csv`;
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -472,7 +476,7 @@ router.get('/csv/alumno/:id', verificarToken, adminOProfesor, permisoAlumno, asy
        ORDER BY ac.fecha DESC, h.hora_inicio DESC`, [id]
     );
 
-    const fecha    = new Date().toISOString().slice(0,10);
+    const fecha    = hoyEnChile();
     const filename = `historial_${al.rut}_${fecha}.csv`;
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -553,7 +557,7 @@ router.get('/pdf/alumno/:id', verificarToken, adminOProfesor, permisoAlumno, asy
     const totalPres     = resumenRes.rows.reduce((s, r) => s + parseInt(r.presentes), 0);
     const pctGlobal     = totalClases ? (100 * totalPres / totalClases).toFixed(1) : null;
 
-    const fechaHoy  = new Date().toISOString().slice(0, 10);
+    const fechaHoy  = hoyEnChile();
     const filename  = `reporte_asistencia_${al.rut}_${fechaHoy}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -665,7 +669,7 @@ router.get('/pdf/curso/:id', verificarToken, adminOProfesor, permisoCurso, async
     );
 
     const colegio  = await nombreColegio();
-    const fechaHoy = new Date().toISOString().slice(0, 10);
+    const fechaHoy = hoyEnChile();
     const filename = `reporte_asistencia_${curso.nombre.replace(/\s+/g, '_')}_${fechaHoy}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -767,7 +771,7 @@ router.get('/pdf/libro-clases/:id', verificarToken, adminOProfesor, permisoHorar
     });
 
     const colegio  = await nombreColegio();
-    const fechaHoy = new Date().toISOString().slice(0, 10);
+    const fechaHoy = hoyEnChile();
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition',
       `attachment; filename="libro_clases_${hor.curso.replace(/\s+/g,'_')}_${hor.asignatura.replace(/\s+/g,'_')}_${fechaHoy}.pdf"`);
@@ -986,7 +990,7 @@ router.get('/pdf/boletin/:id', verificarToken, adminOProfesor, permisoAlumno, as
 
     const colegio      = await nombreColegio();
     const nombreAlumno = `${al.nombre} ${al.apellido_paterno} ${al.apellido_materno || ''}`.trim();
-    const fechaHoy     = new Date().toISOString().slice(0, 10);
+    const fechaHoy     = hoyEnChile();
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="boletin_${al.rut}_${fechaHoy}.pdf"`);
 

@@ -56,7 +56,9 @@ function partirDescriptores(plano) {
 // Devuelve { alumno, distancia }:
 //   alumno    → datos del alumno si la menor distancia está bajo el umbral, si no null
 //   distancia → la menor distancia encontrada (para registrar la confianza del intento)
-async function buscarAlumno(descriptorRecibido) {
+//   idCurso   → si viene, solo se compara contra los alumnos de ese curso: es más rápido,
+//               baja los falsos positivos y nunca marca a un alumno de otro curso
+async function buscarAlumno(descriptorRecibido, idCurso = null) {
   const resultado = await pool.query(`
     SELECT r.id_alumno, r.descriptor_facial,
            a.nombre, a.apellido_paterno, a.rut
@@ -64,7 +66,8 @@ async function buscarAlumno(descriptorRecibido) {
     JOIN alumnos a ON r.id_alumno = a.id
     WHERE r.activo = TRUE AND a.activo = TRUE
       AND a.consentimiento_biometrico = TRUE   -- sin consentimiento no se reconoce (R.40)
-  `)
+      AND ($1::int IS NULL OR a.id_curso = $1)
+  `, [idCurso])
 
   if (resultado.rows.length === 0) {
     return { alumno: null, distancia: null }

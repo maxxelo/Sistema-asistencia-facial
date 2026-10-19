@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db/connection');
 const { verificarToken, soloAdmin, adminOProfesor } = require('../middleware/auth');
+const { validarPersona } = require('../lib/validaciones');
 
 // Normaliza id_alumnos (array) / id_alumno (legacy) a un array de enteros sin repetidos.
 // Devuelve null si no se envió ninguno de los dos (= no tocar los vínculos).
@@ -57,6 +58,8 @@ router.post('/', verificarToken, soloAdmin, async (req, res) => {
   const idsAlumnos = leerIdsAlumnos(req.body) || [];
   if (!rut || !nombre)
     return res.status(400).json({ error: 'Campos requeridos: rut, nombre' });
+  const errorDatos = validarPersona(req.body, { campos: ['nombre', 'parentesco'] });
+  if (errorDatos) return res.status(400).json({ error: errorDatos });
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -88,6 +91,8 @@ router.put('/:id', verificarToken, soloAdmin, async (req, res) => {
   const { id } = req.params;
   const { rut, nombre, telefono, email, parentesco, direccion, activo } = req.body;
   const idsAlumnos = leerIdsAlumnos(req.body);
+  const errorDatos = validarPersona(req.body, { campos: ['nombre', 'parentesco'] });
+  if (errorDatos) return res.status(400).json({ error: errorDatos });
   const client = await pool.connect();
   try {
     await client.query('BEGIN');

@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db/connection');
 const { verificarToken, soloAdmin, adminOProfesor } = require('../middleware/auth');
+const { validarPersona } = require('../lib/validaciones');
 
 // =====================================================
 // GET /profesores
@@ -78,6 +79,8 @@ router.post('/', verificarToken, soloAdmin, async (req, res) => {
   if (!rut || !nombre || !apellido_paterno) {
     return res.status(400).json({ error: 'Campos requeridos: rut, nombre, apellido_paterno' });
   }
+  const errorDatos = validarPersona(req.body);
+  if (errorDatos) return res.status(400).json({ error: errorDatos });
 
   try {
     const result = await pool.query(
@@ -124,6 +127,8 @@ router.post('/importar', verificarToken, soloAdmin, async (req, res) => {
         errores.push({ fila, rut, error: 'Faltan campos requeridos (rut, nombre, apellido_paterno)' });
         continue;
       }
+      const errorFila = validarPersona(p);
+      if (errorFila) { errores.push({ fila, rut, error: errorFila }); continue; }
       try {
         await client.query(
           `INSERT INTO profesores (rut, nombre, apellido_paterno, apellido_materno, email, telefono, especialidad)
@@ -159,6 +164,8 @@ router.put('/:id', verificarToken, soloAdmin, async (req, res) => {
   if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
 
   const { nombre, apellido_paterno, apellido_materno, email, telefono, especialidad } = req.body;
+  const errorDatos = validarPersona(req.body);
+  if (errorDatos) return res.status(400).json({ error: errorDatos });
 
   try {
     const result = await pool.query(

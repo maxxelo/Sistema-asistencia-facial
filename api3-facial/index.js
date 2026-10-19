@@ -152,6 +152,16 @@ wss.on('connection', (ws, req) => {
 
   console.log(`Cliente WebSocket conectado: ${usuario.nombre_usuario || usuario.id}`)
 
+  // Datos de la clase que se está pasando (se consultan una vez por horario)
+  const clases = new Map()
+  async function datosClase(idHorario) {
+    if (!clases.has(idHorario)) {
+      const r = await pool.query('SELECT id_curso, id_profesor FROM horarios WHERE id = $1', [idHorario])
+      clases.set(idHorario, r.rows[0] || null)
+    }
+    return clases.get(idHorario)
+  }
+
   ws.on('message', async (mensaje) => {
     try {
       const datos = JSON.parse(mensaje)
@@ -165,8 +175,23 @@ wss.on('connection', (ws, req) => {
         return
       }
 
-      // Buscar al alumno comparando contra los rostros registrados
-      const { alumno, distancia } = await buscarAlumno(datos.descriptor)
+      if (!Array.isArray(datos.descriptor) || datos.descriptor.length !== 128) {
+        ws.send(JSON.stringify({ exito: false, mensaje: 'Descriptor facial inválido' }))
+        return
+      }
+      const clase = await datosClase(parseInt(datos.id_horario))
+      if (!clase) {
+        ws.send(JSON.stringify({ exito: false, mensaje: 'La clase seleccionada no existe' }))
+        return
+      }
+      // Un profesor solo reconoce en sus propias clases
+      if (usuario.tipo_persona !== 'admin' && clase.id_profesor !== usuario.id_profesor) {
+        ws.send(JSON.stringify({ exito: false, mensaje: 'Esta clase no está asignada a tu perfil de profesor' }))
+        return
+      }
+
+      // Buscar al alumno solo entre los rostros del curso de la clase
+      const { alumno, distancia } = await buscarAlumno(datos.descriptor, clase.id_curso)
       const confianza = distancia !== null ? parseFloat((1 - distancia).toFixed(2)) : null
 
       if (!alumno) {

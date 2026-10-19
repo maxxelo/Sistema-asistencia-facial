@@ -3,6 +3,7 @@ const router  = express.Router();
 const pool    = require('../db/connection');
 const { verificarToken, soloAdmin, adminOProfesor } = require('../middleware/auth');
 const { registrarOperacion } = require('./bitacora');
+const { validarPersona } = require('../lib/validaciones');
 
 // =====================================================
 // GET /alumnos
@@ -98,6 +99,8 @@ router.post('/', verificarToken, soloAdmin, async (req, res) => {
   if (!rut || !nombre || !apellido_paterno) {
     return res.status(400).json({ error: 'Campos requeridos: rut, nombre, apellido_paterno' });
   }
+  const errorDatos = validarPersona(req.body);
+  if (errorDatos) return res.status(400).json({ error: errorDatos });
 
   try {
     const result = await pool.query(
@@ -152,6 +155,8 @@ router.post('/importar', verificarToken, soloAdmin, async (req, res) => {
         errores.push({ fila, rut, error: 'Faltan campos requeridos (rut, nombre, apellido_paterno)' });
         continue;
       }
+      const errorFila = validarPersona(a);
+      if (errorFila) { errores.push({ fila, rut, error: errorFila }); continue; }
 
       // Resolver curso: numérico → id directo; texto → buscar por nombre
       let idCurso = null;
@@ -207,6 +212,8 @@ router.put('/:id', verificarToken, soloAdmin, async (req, res) => {
     nombre, apellido_paterno, apellido_materno,
     email, telefono, direccion, fecha_nacimiento, id_curso
   } = req.body;
+  const errorDatos = validarPersona(req.body);
+  if (errorDatos) return res.status(400).json({ error: errorDatos });
 
   try {
     const result = await pool.query(

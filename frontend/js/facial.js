@@ -271,6 +271,12 @@ function conectarWebSocket() {
       const conf = r.alumno.confianza ? ` — ${Math.round(r.alumno.confianza * 100)}%` : ''
       const esc  = typeof _escHtml === 'function' ? _escHtml : (t => t)
       div.innerHTML = `<i class="im im-ok" aria-hidden="true"></i> <strong>${esc(r.alumno.nombre)} ${esc(r.alumno.apellido)}</strong> presente${conf}`
+      const enLista = typeof _listaAsistencia === 'undefined' || _listaAsistencia.some(x => x.id === r.alumno.id)
+      if (!enLista) {
+        div.innerHTML = `<span class="mensaje-aviso">${esc(r.alumno.nombre)} ${esc(r.alumno.apellido)} no pertenece a esta clase</span>`
+        _avisoDesconocido()
+        return
+      }
       _mostrarReconocido(r.alumno, r.ya_enviado)
       if (!r.ya_enviado && typeof marcarPresente === 'function') {
         marcarPresente(r.alumno.id, 'facial')
@@ -316,7 +322,8 @@ function detener() {
   if (res) res.innerHTML = 'Reconocimiento detenido.'
   const btnIni = document.getElementById('btn-iniciar-rec')
   const btnDet = document.getElementById('btn-detener-rec')
-  if (btnIni && typeof _asistenciaGuardada !== 'undefined' && !_asistenciaGuardada) btnIni.disabled = false
+  // Solo se vuelve a habilitar si la clase admite cambios (no definitiva ni fuera de horario)
+  if (btnIni && typeof _asistenciaGuardada !== 'undefined' && !_asistenciaGuardada && !_asistenciaBloqueo) btnIni.disabled = false
   if (btnDet) btnDet.style.display = 'none'
 }
 
@@ -324,6 +331,9 @@ async function iniciar() {
   const id_horario = document.getElementById('selectorHorario').value
   const fecha      = document.getElementById('fechaClase').value
   if (!id_horario || !fecha) { sicafAviso('Selecciona la clase activa primero', 'aviso'); return }
+  if (typeof _asistenciaBloqueo !== 'undefined' && (_asistenciaBloqueo || _asistenciaGuardada)) {
+    sicafAviso('Esta clase no admite cambios en este momento', 'aviso'); return
+  }
   const res = document.getElementById('resultado')
   if (res) res.innerHTML = 'Cargando modelos...'
   if (!faceapi.nets.tinyFaceDetector.isLoaded) await cargarModelos()

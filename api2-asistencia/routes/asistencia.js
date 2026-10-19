@@ -17,6 +17,76 @@ function fechaValida(fechaStr) {
   return /^\d{4}-\d{2}-\d{2}$/.test(fechaStr) && !isNaN(Date.parse(fechaStr + 'T12:00:00Z'));
 }
 
+// Ventana para pasar asistencia: desde 15 min antes del inicio hasta 30 min después del término.
+// Es la misma regla que muestra el frontend; aquí se hace cumplir.
+const VENTANA_ANTES_MIN   = 15;
+const VENTANA_DESPUES_MIN = 30;
+const ZONA_COLEGIO = 'America/Santiago';   // los contenedores corren en UTC
+
+const aMinutos = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); return h * 60 + m; };
+const aHora    = (min)  => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+// Fecha y hora actuales en Chile, calculadas por PostgreSQL
+async function ahoraEnChile() {
+  const r = await pool.query(
+    `SELECT to_char(now() AT TIME ZONE $1, 'YYYY-MM-DD') AS fecha,
+            to_char(now() AT TIME ZONE $1, 'HH24:MI')    AS hora`, [ZONA_COLEGIO]);
+  return r.rows[0];
+}
+
+// Valida que la clase se pueda registrar en esa fecha, por ese usuario y en este momento.
+// Devuelve { horario } si está todo bien, o { status, error } para responder.
+//   · el horario existe y su día coincide con la fecha
+//   · no es una fecha futura ni un feriado
+//   · un profesor solo registra SUS clases, el mismo día y dentro de la ventana horaria
+//     (el administrador puede corregir días anteriores)
+async function validarClase(usuario, id_horario, fecha) {
+  const hRes = await pool.query(
+    `SELECT id_curso, id_profesor, dia_semana,
+            to_char(hora_inicio, 'HH24:MI') AS hora_inicio,
+            to_char(hora_fin,    'HH24:MI') AS hora_fin
+       FROM horarios WHERE id = $1`, [id_horario]);
+  if (hRes.rows.length === 0) return { status: 404, error: 'Horario no encontrado' };
+  const horario = hRes.rows[0];
+
+  const diaFecha = diaSemanaDeFecha(fecha);
+  if (horario.dia_semana && diaFecha !== horario.dia_semana) {
+    return { status: 400, error: `La fecha ${fecha} cae en ${NOMBRE_DIA[diaFecha]}, pero esta clase es del día ${NOMBRE_DIA[horario.dia_semana]}` };
+  }
+
+  const esAdmin = usuario.tipo_persona === 'admin';
+  if (!esAdmin && horario.id_profesor !== usuario.id_profesor) {
+    return { status: 403, error: 'Esta clase no está asignada a tu perfil de profesor' };
+  }
+
+  const ahora = await ahoraEnChile();
+  if (fecha > ahora.fecha) {
+    return { status: 400, error: 'No se puede registrar asistencia de una fecha futura' };
+  }
+  const feriado = await pool.query('SELECT descripcion FROM feriados WHERE fecha = $1', [fecha]);
+  if (feriado.rows.length) {
+    return { status: 400, error: `El ${fecha} es feriado (${feriado.rows[0].descripcion}): no hay clases` };
+  }
+
+  if (!esAdmin) {
+    if (fecha !== ahora.fecha) {
+      return { status: 403, error: 'Solo se puede pasar asistencia el día que corresponde a la clase. Para corregir un día anterior, contacta al administrador.' };
+    }
+    const actual = aMinutos(ahora.hora);
+    const desde  = aMinutos(horario.hora_inicio) - VENTANA_ANTES_MIN;
+    const hasta  = aMinutos(horario.hora_fin) + VENTANA_DESPUES_MIN;
+    if (actual < desde) {
+      return { status: 403, error: `La clase comienza a las ${horario.hora_inicio}. Podrás pasar asistencia desde las ${aHora(desde)}.` };
+    }
+    if (actual > hasta) {
+      return { status: 403, error: `Fuera del rango permitido: la asistencia de esta clase se podía registrar hasta las ${aHora(hasta)}. Contacta al administrador.` };
+    }
+  }
+  return { horario };
+}
+
+const MSG_DEFINITIVA = 'La asistencia de esta clase ya fue registrada definitivamente y no puede modificarse';
+
 // =====================================================
 // POST /asistencia/marcar
 // Marca asistencia manual para un curso completo
@@ -34,22 +104,23 @@ router.post('/marcar', verificarToken, adminOProfesor, async (req, res) => {
     return res.status(400).json({ error: 'Fecha inválida, formato esperado: YYYY-MM-DD' });
   }
 
-  // El horario debe existir, pertenecer al curso indicado y
-  // su día de la semana debe coincidir con la fecha
+  // Validaciones antes de escribir: clase, fecha, dueño, ventana horaria y alumnos del curso
   try {
-    const hRes = await pool.query('SELECT id_curso, dia_semana FROM horarios WHERE id = $1', [id_horario]);
-    if (hRes.rows.length === 0) {
-      return res.status(404).json({ error: 'Horario no encontrado' });
-    }
-    const horario = hRes.rows[0];
-    if (horario.id_curso !== parseInt(id_curso)) {
+    const v = await validarClase(req.usuario, id_horario, fecha);
+    if (v.error) return res.status(v.status).json({ error: v.error });
+    if (v.horario.id_curso !== parseInt(id_curso)) {
       return res.status(400).json({ error: 'El horario seleccionado no pertenece a ese curso' });
     }
-    const diaFecha = diaSemanaDeFecha(fecha);
-    if (horario.dia_semana && diaFecha !== horario.dia_semana) {
-      return res.status(400).json({
-        error: `La fecha ${fecha} cae en ${NOMBRE_DIA[diaFecha]}, pero esta clase es del día ${NOMBRE_DIA[horario.dia_semana]}`
-      });
+
+    const ids = [...new Set(alumnos.map(a => parseInt(a.id_alumno)))];
+    if (ids.some(isNaN) || ids.length !== alumnos.length) {
+      return res.status(400).json({ error: 'La lista de alumnos tiene IDs inválidos o repetidos' });
+    }
+    const delCurso = await pool.query(
+      'SELECT COUNT(*)::int AS n FROM alumnos WHERE id = ANY($1::int[]) AND id_curso = $2 AND activo = TRUE',
+      [ids, id_curso]);
+    if (delCurso.rows[0].n !== ids.length) {
+      return res.status(400).json({ error: 'Hay alumnos en la lista que no pertenecen a este curso o están inactivos' });
     }
   } catch (err) {
     console.error('[POST /marcar - validación]', err.message);
@@ -60,15 +131,22 @@ router.post('/marcar', verificarToken, adminOProfesor, async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Crear la cabecera de asistencia o actualizar si ya existe
+    // Crear la cabecera o actualizarla si sigue en borrador.
+    // Si ya es definitiva, el WHERE impide tocarla y no se devuelve ninguna fila
+    // (se resuelve en la misma sentencia: no hay carrera entre dos guardados).
     const resultCabecera = await client.query(
       `INSERT INTO asistencia_cabecera (fecha, id_curso, id_horario, id_profesor)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (fecha, id_horario)
-       DO UPDATE SET id_profesor = EXCLUDED.id_profesor
+       DO UPDATE SET id_profesor = COALESCE(EXCLUDED.id_profesor, asistencia_cabecera.id_profesor)
+       WHERE asistencia_cabecera.guardada = FALSE
        RETURNING id`,
       [fecha, id_curso, id_horario, id_profesor]
     );
+    if (resultCabecera.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: MSG_DEFINITIVA });
+    }
     const id_cabecera = resultCabecera.rows[0].id;
 
     // Insertar o actualizar el registro de cada alumno
@@ -121,7 +199,7 @@ router.post('/marcar', verificarToken, adminOProfesor, async (req, res) => {
 // Body: { id_alumno, id_horario, fecha, confianza }
 // Auth: JWT (cualquier rol — API 3 usa su propio token de servicio)
 // =====================================================
-router.post('/marcar-facial', verificarToken, async (req, res) => {
+router.post('/marcar-facial', verificarToken, adminOProfesor, async (req, res) => {
   const { id_alumno, id_horario, fecha, confianza } = req.body;
 
   if (!id_alumno || !id_horario || !fecha) {
@@ -134,23 +212,10 @@ router.post('/marcar-facial', verificarToken, async (req, res) => {
   // ── Validaciones de contexto (antes de escribir nada) ──
   let id_curso;
   try {
-    // 1. El horario debe existir y su día coincidir con la fecha
-    const hRes = await pool.query(
-      'SELECT id_curso, dia_semana FROM horarios WHERE id = $1',
-      [id_horario]
-    );
-    if (hRes.rows.length === 0) {
-      return res.status(404).json({ error: 'Horario no encontrado' });
-    }
-    const horario = hRes.rows[0];
-    id_curso = horario.id_curso;
-
-    const diaFecha = diaSemanaDeFecha(fecha);
-    if (horario.dia_semana && diaFecha !== horario.dia_semana) {
-      return res.status(400).json({
-        error: `La fecha ${fecha} cae en ${NOMBRE_DIA[diaFecha]}, pero esta clase es del día ${NOMBRE_DIA[horario.dia_semana]}`
-      });
-    }
+    // 1. Clase, fecha, dueño y ventana horaria (mismas reglas que el registro manual)
+    const v = await validarClase(req.usuario, id_horario, fecha);
+    if (v.error) return res.status(v.status).json({ error: v.error });
+    id_curso = v.horario.id_curso;
 
     // 2. El alumno debe existir, estar activo y pertenecer al curso del horario
     const aRes = await pool.query(
@@ -178,24 +243,29 @@ router.post('/marcar-facial', verificarToken, async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Crear cabecera si no existe
+    // Crear cabecera si no existe (una asistencia definitiva no se modifica)
     const resultCabecera = await client.query(
       `INSERT INTO asistencia_cabecera (fecha, id_curso, id_horario)
        VALUES ($1, $2, $3)
        ON CONFLICT (fecha, id_horario) DO UPDATE SET fecha = EXCLUDED.fecha
+       WHERE asistencia_cabecera.guardada = FALSE
        RETURNING id`,
       [fecha, id_curso, id_horario]
     );
+    if (resultCabecera.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: MSG_DEFINITIVA });
+    }
     const id_cabecera = resultCabecera.rows[0].id;
 
     // Marcar alumno como presente con tipo 'facial'
     const resultDetalle = await client.query(
       `INSERT INTO asistencia_detalle
          (id_asistencia_cabecera, id_alumno, presente, hora_marcada, tipo_asistencia)
-       VALUES ($1, $2, TRUE, CURRENT_TIME, 'facial')
+       VALUES ($1, $2, TRUE, (now() AT TIME ZONE 'America/Santiago')::time, 'facial')
        ON CONFLICT (id_asistencia_cabecera, id_alumno)
        DO UPDATE SET presente        = TRUE,
-                     hora_marcada    = CURRENT_TIME,
+                     hora_marcada    = (now() AT TIME ZONE 'America/Santiago')::time,
                      tipo_asistencia = 'facial'
        RETURNING id`,
       [id_cabecera, id_alumno]
@@ -661,13 +731,24 @@ router.post('/justificar', verificarToken, adminOProfesor, async (req, res) => {
   if (!id_asistencia_detalle || !motivo) {
     return res.status(400).json({ error: 'Faltan campos: id_asistencia_detalle, motivo' });
   }
+  const texto = String(motivo).trim();
+  if (texto.length < 5 || texto.length > 500) {
+    return res.status(400).json({ error: 'El motivo debe tener entre 5 y 500 caracteres' });
+  }
 
   try {
+    const det = await pool.query(
+      `SELECT ad.presente, EXISTS (SELECT 1 FROM justificaciones j WHERE j.id_asistencia_detalle = ad.id) AS ya_tiene
+         FROM asistencia_detalle ad WHERE ad.id = $1`, [id_asistencia_detalle]);
+    if (det.rows.length === 0) return res.status(404).json({ error: 'Registro de asistencia no encontrado' });
+    if (det.rows[0].presente) return res.status(400).json({ error: 'Solo se justifican inasistencias: el alumno figura presente' });
+    if (det.rows[0].ya_tiene) return res.status(409).json({ error: 'Esta inasistencia ya tiene una justificación registrada' });
+
     const result = await pool.query(
       `INSERT INTO justificaciones (id_asistencia_detalle, motivo)
        VALUES ($1, $2)
        RETURNING *`,
-      [id_asistencia_detalle, motivo]
+      [id_asistencia_detalle, texto]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

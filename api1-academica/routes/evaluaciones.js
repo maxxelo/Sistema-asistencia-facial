@@ -127,6 +127,37 @@ router.post('/:id/calificaciones', verificarToken, adminOProfesor, async (req, r
   if (!Array.isArray(calificaciones) || !calificaciones.length)
     return res.status(400).json({ error: 'Se requiere array calificaciones: [{id_alumno, nota}]' });
 
+  // Escala chilena: 1.0 a 7.0 con un decimal. Una nota mal escrita se rechaza (no se ignora en silencio)
+  const malas = calificaciones.filter(c => {
+    if (c.nota === null || c.nota === '' || c.nota === undefined) return false;
+    const n = Number(c.nota);
+    return isNaN(n) || n < 1 || n > 7 || Math.round(n * 10) !== n * 10;
+  });
+  if (malas.length) {
+    return res.status(400).json({ error: `Hay ${malas.length} nota(s) fuera de la escala 1.0 a 7.0 (con un decimal)` });
+  }
+
+  try {
+    const ev = await pool.query('SELECT id_asignatura FROM evaluaciones WHERE id = $1', [id]);
+    if (!ev.rows.length) return res.status(404).json({ error: 'Evaluación no encontrada' });
+    // Un profesor solo califica a alumnos de cursos donde dicta esa asignatura
+    if (req.usuario.tipo_persona !== 'admin') {
+      const ids = calificaciones.map(c => parseInt(c.id_alumno)).filter(n => !isNaN(n));
+      const permitidos = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM alumnos a
+          WHERE a.id = ANY($1::int[])
+            AND EXISTS (SELECT 1 FROM horarios h
+                         WHERE h.id_curso = a.id_curso AND h.id_asignatura = $2 AND h.id_profesor = $3)`,
+        [ids, ev.rows[0].id_asignatura, req.usuario.id_profesor]);
+      if (permitidos.rows[0].n !== ids.length) {
+        return res.status(403).json({ error: 'Solo puedes calificar a alumnos de cursos donde dictas esta asignatura' });
+      }
+    }
+  } catch (err) {
+    console.error('[POST calificaciones - permisos]', err.message);
+    return res.status(500).json({ error: 'Error al validar las calificaciones' });
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -140,7 +171,6 @@ router.post('/:id/calificaciones', verificarToken, adminOProfesor, async (req, r
         );
       } else {
         const nota = parseFloat(c.nota);
-        if (isNaN(nota) || nota < 1.0 || nota > 7.0) continue;
         await client.query(
           `INSERT INTO calificaciones (id_alumno, id_evaluacion, nota)
            VALUES ($1,$2,$3)

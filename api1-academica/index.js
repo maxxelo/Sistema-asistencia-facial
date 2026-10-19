@@ -46,11 +46,23 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+// Fuerza bruta: 10 intentos fallidos por usuario y equipo cada 15 minutos.
+// Los ingresos correctos no cuentan.
+const limiteLogin = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `${req.ip}|${String(req.body?.nombre_usuario || '').toLowerCase()}`,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos fallidos. Espera 15 minutos antes de volver a intentar.' }
+});
+
 // Auditoría: registra toda escritura exitosa en bitacora_operaciones
 app.use(auditoria);
 
 // ── Rutas ──────────────────────────────────────────────
-app.use('/login',       authRoutes);
+app.use('/login',       limiteLogin, authRoutes);
 app.use('/alumnos',     alumnosRoutes);
 app.use('/cursos',      cursosRoutes);
 app.use('/profesores',  profesoresRoutes);
