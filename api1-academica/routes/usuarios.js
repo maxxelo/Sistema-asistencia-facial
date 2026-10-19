@@ -3,6 +3,7 @@ const router   = express.Router();
 const bcrypt   = require('bcryptjs');
 const pool     = require('../db/connection');
 const { verificarToken, soloAdmin } = require('../middleware/auth');
+const { validarClave } = require('../lib/validaciones');
 const { registrarOperacion } = require('./bitacora');
 
 // =====================================================
@@ -46,9 +47,8 @@ router.post('/', verificarToken, soloAdmin, async (req, res) => {
   if (!['admin', 'profesor'].includes(tipo_persona)) {
     return res.status(400).json({ error: 'tipo_persona debe ser "admin" o "profesor"' });
   }
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
-  }
+  const errorClave = validarClave(password, nombre_usuario);
+  if (errorClave) return res.status(400).json({ error: errorClave });
 
   try {
     // Obtener el id del rol
@@ -137,9 +137,8 @@ router.patch('/:id/password', verificarToken, soloAdmin, async (req, res) => {
   if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
 
   const { nueva_password } = req.body;
-  if (!nueva_password || nueva_password.length < 6) {
-    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
-  }
+  const errorClave = validarClave(nueva_password);
+  if (errorClave) return res.status(400).json({ error: errorClave });
 
   try {
     const password_hash = await bcrypt.hash(nueva_password, 10);

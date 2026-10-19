@@ -1,2 +1,14 @@
+# Variables de entorno (credenciales)
 .env
+
+# Dependencias: se instalan con npm install dentro de cada contenedor
 node_modules/
+
+# Archivos locales de herramientas y del sistema
+.claude/
+.claudeignore
+__pycache__/
+*.pyc
+*.respaldo*
+.DS_Store
+Thumbs.db

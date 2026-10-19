@@ -55,4 +55,21 @@ function validarPersona(datos, { campos = ['nombre', 'apellido_paterno', 'apelli
   return null;
 }
 
-module.exports = { validarPersona, rutValido };
+/**
+ * Política de contraseñas (la misma que pide el formulario):
+ * 8+ caracteres, una mayúscula, un número, un símbolo y sin contener el nombre de usuario.
+ * @returns {string|null}
+ */
+function validarClave(clave, nombreUsuario = '') {
+  const c = String(clave || '');
+  if (c.length < 8)            return 'La contraseña debe tener al menos 8 caracteres';
+  if (!/[A-Z]/.test(c))        return 'La contraseña debe contener al menos una mayúscula';
+  if (!/[0-9]/.test(c))        return 'La contraseña debe contener al menos un número';
+  if (!/[^a-zA-Z0-9]/.test(c)) return 'La contraseña debe contener al menos un símbolo (!@#$...)';
+  if (nombreUsuario && c.toLowerCase().includes(String(nombreUsuario).toLowerCase())) {
+    return 'La contraseña no puede contener el nombre de usuario';
+  }
+  return null;
+}
+
+module.exports = { validarPersona, rutValido, validarClave };

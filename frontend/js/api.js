@@ -32,31 +32,56 @@ function authHeaders() {
   return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
 }
 
+// Lee la respuesta y detecta la sesión vencida: las APIs responden 401/403 con un
+// error sobre el token. En vez de dejar la pantalla rota, se vuelve al login con un aviso.
+let _avisoSesionMostrado = false
+async function _leerRespuesta(r) {
+  let data
+  try { data = await r.json() } catch { data = {} }
+  if ((r.status === 401 || r.status === 403) && /token/i.test(data?.error || '') && token) {
+    if (!_avisoSesionMostrado) {
+      _avisoSesionMostrado = true
+      if (typeof sicafAviso === 'function') sicafAviso('Tu sesión expiró. Vuelve a iniciar sesión para continuar.', 'aviso')
+      setTimeout(() => { _avisoSesionMostrado = false }, 3000)
+    }
+    if (typeof cerrarSesion === 'function') cerrarSesion()
+  }
+  return data
+}
+
 async function apiGet(url) {
   const r = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
-  return r.json()
+  return _leerRespuesta(r)
 }
 
 async function apiPost(url, body) {
   const r = await fetch(url, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) })
-  return { ok: r.ok, data: await r.json() }
+  return { ok: r.ok, data: await _leerRespuesta(r) }
 }
 
 async function apiPut(url, body) {
   const r = await fetch(url, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) })
-  return { ok: r.ok, data: await r.json() }
+  return { ok: r.ok, data: await _leerRespuesta(r) }
 }
 
 async function apiDelete(url) {
   const r = await fetch(url, { method: 'DELETE', headers: authHeaders() })
-  return { ok: r.ok, data: await r.json() }
+  return { ok: r.ok, data: await _leerRespuesta(r) }
 }
 
 async function apiPatch(url, body) {
   // Para reactivar registros (PATCH /entidad/:id/reactivar)
   const r = await fetch(url, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(body) })
-  return { ok: r.ok, data: await r.json() }
+  return { ok: r.ok, data: await _leerRespuesta(r) }
 }
+
+// Si la pestaña queda abierta hasta que vence el token, se cierra la sesión sola
+setInterval(() => {
+  if (token && tokenExpirado(token) && typeof cerrarSesion === 'function') {
+    if (typeof sicafAviso === 'function') sicafAviso('Tu sesión expiró. Vuelve a iniciar sesión para continuar.', 'aviso')
+    cerrarSesion()
+  }
+}, 60 * 1000)
 
 /* ── DESCARGA AUTENTICADA DE ARCHIVOS (CSV, PDF) ──────────────── */
 async function descargarArchivo(url, nombreArchivo) {

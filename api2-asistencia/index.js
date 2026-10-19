@@ -6,6 +6,7 @@ require('dotenv').config();
 
 const asistenciaRoutes = require('./routes/asistencia');
 const auditoria        = require('./middleware/auditoria');
+const sinHtml = require('./middleware/sinHtml');
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use(cors({
 
 // Body parser
 app.use(express.json());
+app.use(sinHtml);   // sin etiquetas HTML en los datos (XSS guardado)
 
 // Rate limiting: 100 peticiones por minuto (según arquitectura definida)
 const limiter = rateLimit({

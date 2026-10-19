@@ -22,6 +22,7 @@ const parametrosRoutes   = require('./routes/parametros');
 const bitacoraRoutes     = require('./routes/bitacora');
 const notificacionesRoutes = require('./routes/notificaciones');
 const auditoria          = require('./middleware/auditoria');
+const sinHtml = require('./middleware/sinHtml');
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(sinHtml);   // sin etiquetas HTML en los datos (XSS guardado)
 
 // Rate limiting: 1000 peticiones por minuto (API académica recibe más tráfico)
 const limiter = rateLimit({

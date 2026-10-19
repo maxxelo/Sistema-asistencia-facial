@@ -23,7 +23,7 @@ const DIAS_SEMANA = { 1:'Lunes', 2:'Martes', 3:'Miércoles', 4:'Jueves', 5:'Vier
 
 /* ── INICIO ────────────────────────────────────────────────────── */
 window.onload = () => {
-  document.getElementById('fechaClase').value = new Date().toISOString().split('T')[0]
+  document.getElementById('fechaClase').value = fechaHoy()   // fecha local: toISOString() usa UTC y después de las 21:00 daría mañana
   if (token) {
     if (tokenExpirado(token)) {
       // Token vencido: limpiar sesión y mostrar login
@@ -2919,9 +2919,9 @@ async function guardarModal() {
     const pass1 = leerCampo('f-nueva_password')
     const pass2 = leerCampo('f-nueva_password2')
     if (!pass1 || pass1.length < 8)     { msg.innerHTML='<span class="mensaje-aviso">La contraseña debe tener al menos 8 caracteres</span>'; return }
-    if (!/[A-Z]/.test(pass1))            { msg.innerHTML='<span class="mensaje-aviso">Debe contener al menos una mayúscula</span>'; return }
-    if (!/[0-9]/.test(pass1))            { msg.innerHTML='<span class="mensaje-aviso">Debe contener al menos un número</span>'; return }
-    if (!/[^a-zA-Z0-9]/.test(pass1))     { msg.innerHTML='<span class="mensaje-aviso">Debe contener al menos un símbolo (!@#$...)</span>'; return }
+    if (!/[A-Z]/.test(pass1))            { msg.innerHTML='<span class="mensaje-aviso">La contraseña debe contener al menos una mayúscula</span>'; return }
+    if (!/[0-9]/.test(pass1))            { msg.innerHTML='<span class="mensaje-aviso">La contraseña debe contener al menos un número</span>'; return }
+    if (!/[^a-zA-Z0-9]/.test(pass1))     { msg.innerHTML='<span class="mensaje-aviso">La contraseña debe contener al menos un símbolo (!@#$...)</span>'; return }
     if (pass1 !== pass2) { msg.innerHTML='<span class="mensaje-aviso">Las contraseñas no coinciden</span>'; return }
 
     const { ok, data } = await apiPatch(`${API1}/usuarios/${modalId}/password`, { nueva_password: pass1 })

@@ -308,10 +308,25 @@ check("RUT con dígito verificador malo → 400", st == 400 and "RUT" in str(r.g
 st, r = llamar("POST", BASE1 + "/alumnos/importar",
                {"alumnos": [{"rut": "12345678-5", "nombre": "<b>x</b>", "apellido_paterno": "Prueba", "curso": "3°A"}]},
                token=TOKEN)
-check("importación CSV rechaza la fila con HTML", st == 200 and r.get("importados") == 0 and r.get("errores"), f"status {st}: {r}")
+check("importación CSV con HTML se rechaza", st == 400 or (st == 200 and r.get("importados") == 0), f"status {st}: {r}")
+st, r = llamar("POST", BASE2 + "/asistencia/justificar",
+               {"id_asistencia_detalle": 1, "motivo": "<script>alert(1)</script> enfermo"}, token=TOKEN)
+check("motivo de justificación con HTML → 400", st == 400 and "HTML" in str(r.get("error", "")), f"status {st}: {r}")
+st, r = llamar("POST", BASE1 + "/comunicados",
+               {"titulo": "Reunión", "contenido": "Traer notas < 4 para revisar <3"}, token=TOKEN)
+check("un '<' suelto en un comunicado sí se acepta", st == 201, f"status {st}: {r}")
 st, r = llamar("POST", BASE1 + "/alumnos",
                {"rut": "12345678-5", "nombre": "Dante", "apellido_paterno": "D'Angelo", "id_curso": 1}, token=TOKEN)
 check("apellido con apóstrofe (D'Angelo) se acepta", st == 201, f"status {st}: {r}")
+
+st, r = llamar("POST", BASE1 + "/usuarios",
+               {"nombre_usuario": "prueba.clave", "password": "abc123", "tipo_persona": "admin"}, token=TOKEN)
+check("contraseña débil al crear usuario → 400", st == 400 and "8 caracteres" in str(r.get("error", "")), f"status {st}: {r}")
+st, r = llamar("POST", BASE1 + "/usuarios",
+               {"nombre_usuario": "prueba.clave", "password": "Segura#2026", "tipo_persona": "admin"}, token=TOKEN)
+check("contraseña que cumple la política → 201", st == 201, f"status {st}: {r}")
+st, r = llamar("PATCH", BASE1 + f"/usuarios/{(r or {}).get('id')}/password", {"nueva_password": "sinmayus1!"}, token=TOKEN)
+check("cambio a contraseña sin mayúscula → 400", st == 400, f"status {st}: {r}")
 
 print("══ LOGIN: LÍMITE DE INTENTOS ══")
 for _ in range(10):
