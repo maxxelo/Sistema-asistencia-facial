@@ -439,9 +439,9 @@ function renderReporteAlumno(id, nombre, resumen, historial) {
       const justifTexto = h.justificacion ? `<br><span style="font-size:.78em;color:#d97706"><i class="im im-nota" aria-hidden="true"></i> ${h.justificacion}</span>` : ''
       const tipo    = h.tipo_asistencia === 'facial' ? '<i class="im im-rostro" aria-hidden="true"></i> Facial' : h.tipo_asistencia === 'manual' ? '<i class="im im-mano" aria-hidden="true"></i> Manual' : h.tipo_asistencia||'—'
       const btnJust = (!h.presente && !justEstado)
-        ? `<button class="btn-sm" style="background:#d97706;color:#fff;font-size:.75em"
+        ? `<button class="btn-sm btn-aviso"
              onclick="abrirJustificar(${h.id_detalle||h.id},'${(nombre).replace(/'/g,"\\'")}','${new Date(h.fecha).toLocaleDateString('es-CL')}','${h.asignatura}')"><i class="bi bi-chat-square-text-fill"></i> Justificar</button>`
-        : (justEstado === 'pendiente' ? `<button class="btn-sm" style="background:#16a34a;color:#fff;font-size:.75em"
+        : (justEstado === 'pendiente' ? `<button class="btn-sm btn-ok"
              onclick="aprobarJustificacion(${h.id_justificacion})"><i class="bi bi-check-circle-fill"></i> Aprobar</button>` : '')
       html += `<tr style="background:${bg}">
         <td style="padding:5px 10px">${new Date(h.fecha).toLocaleDateString('es-CL')}</td>
@@ -454,7 +454,7 @@ function renderReporteAlumno(id, nombre, resumen, historial) {
     })
     html += '</tbody></table></div>'
   } else {
-    html += '<p style="color:#aaa;text-align:center;padding:20px">No hay registros de asistencia aún</p>'
+    html += sicafVacio({ icono: 'asistencia', titulo: 'Sin asistencia registrada', texto: 'Aún no hay clases con asistencia para este alumno.', compacto: true })
   }
   return html
 }
@@ -478,7 +478,7 @@ async function cargarReporteCurso() {
   try {
     const data = await apiGet(`${API2}/asistencia/curso/${idCurso}?fecha=${fecha}`)
     if (!data.length) {
-      el.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">No hay asistencia registrada para esa fecha en este curso.</p>'
+      el.innerHTML = sicafVacio({ icono: 'calendario', titulo: 'Sin asistencia ese día', texto: 'No hay asistencia registrada para esa fecha en este curso.', compacto: true })
       return
     }
     // Agrupar por horario
@@ -540,7 +540,7 @@ async function cargarResumenDia() {
   try {
     const data = await apiGet(`${API2}/asistencia/fecha?fecha=${fecha}`)
     if (!data.length) {
-      el.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">No hay clases registradas para esta fecha.</p>'
+      el.innerHTML = sicafVacio({ icono: 'calendario', titulo: 'Sin clases ese día', texto: 'No hay clases registradas para esta fecha.', compacto: true })
       return
     }
     let html = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px">`
@@ -608,7 +608,7 @@ async function cargarAlumnosRiesgo() {
           <span style="background:${color};color:#fff;padding:3px 10px;border-radius:12px;font-weight:700">${pct}%</span></td>
         <td style="padding:7px 10px;text-align:center;color:#6b7280">${a.presentes||0}/${a.total_clases||0}</td>
         <td style="padding:7px 10px;text-align:center">
-          <button class="btn-sm" style="background:#1e40af;color:#fff"
+          <button class="btn-sm btn-info"
             onclick="verAsistenciaAlumno(${a.id},'${nomSafe}')" title="Ver detalle"><i class="bi bi-bar-chart-fill"></i></button>
         </td>
       </tr>`
@@ -674,7 +674,7 @@ async function cargarListaManual() {
   try {
     const alumnos = await apiGet(`${API2}/asistencia/curso/${idCurso}?fecha=${fecha}&id_horario=${idHorario}`)
     if (!alumnos.length) {
-      el.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">No hay alumnos en este curso.</p>'; return
+      el.innerHTML = sicafVacio({ icono: 'alumnos', titulo: 'Curso sin alumnos', texto: 'Este curso todavía no tiene alumnos matriculados.', compacto: true }); return
     }
 
     const yaGuardada = alumnos.some(a => a.guardada === true)
@@ -794,7 +794,8 @@ async function cargarTablaAlumnos() {
     const alumnos = await apiGet(`${API1}/alumnos`)
     tbody.innerHTML = ''
     if (!alumnos.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="color:gray">No hay alumnos registrados</td></tr>'; return
+      tbody.innerHTML = sicafVacioFila(6, { icono: 'alumnos', titulo: 'Aún no hay alumnos',
+        texto: 'Registra el primer alumno para asignarlo a un curso y pasar asistencia.', accion: { texto: 'Crear el primero', onclick: "abrirModal('alumno')" } }); return
     }
     alumnos.forEach(a => {
       const tr    = document.createElement('tr')
@@ -816,11 +817,11 @@ async function cargarTablaAlumnos() {
             ? inactivo
               ? /* Inactivo: solo reactivar o eliminar permanente */`
                   <button class="btn-sm btn-primary" onclick="reactivarAlumno(${a.id},'${a.nombre}')"><i class="bi bi-arrow-clockwise"></i> Reactivar</button>
-                  <button class="btn-sm btn-delete"  onclick="eliminarAlumno(${a.id},'${a.nombre}')"><i class="bi bi-trash3-fill"></i></button>`
+                  <button class="btn-sm btn-delete"  onclick="eliminarAlumno(${a.id},'${a.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`
               : /* Activo: todas las acciones */`
-                  <button class="btn-sm" style="background:#0891b2;color:#fff" onclick="verAsistenciaAlumno(${a.id},'${a.nombre} ${a.apellido_paterno}')" title="Ver asistencia"><i class="bi bi-bar-chart-fill"></i></button>
-                  <button class="btn-sm" style="background:#059669;color:#fff" onclick="verFichaMedica(${a.id},'${a.nombre} ${a.apellido_paterno}')" title="Ficha médica"><i class="bi bi-file-medical-fill"></i></button>
-                  <button class="btn-sm" style="${a.tiene_rostro ? 'background:#16a34a;color:#fff' : 'background:#f0fdf4;color:#166534;border:1px solid #bbf7d0'}"
+                  <button class="btn-sm btn-info" onclick="verAsistenciaAlumno(${a.id},'${a.nombre} ${a.apellido_paterno}')" title="Ver asistencia"><i class="bi bi-bar-chart-fill"></i></button>
+                  <button class="btn-sm btn-ok" onclick="verFichaMedica(${a.id},'${a.nombre} ${a.apellido_paterno}')" title="Ficha médica"><i class="bi bi-file-medical-fill"></i></button>
+                  <button class="btn-sm btn-ok${a.tiene_rostro ? ' lleno' : ''}"
                     onclick="irARegistrarRostro(${a.id},'${a.nombre} ${a.apellido_paterno}')"
                     title="${a.tiene_rostro ? 'Rostro registrado: clic para gestionar' : 'Registrar rostro'}">
                     ${a.tiene_rostro ? '<i class="im im-ok" aria-hidden="true"></i>' : '<i class="im im-camara" aria-hidden="true"></i>'}</button>
@@ -995,7 +996,8 @@ async function cargarTablaCursos() {
     listaCursos = cursos.filter(c => c.activo)
     tbody.innerHTML = ''
     if (!cursos.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="color:gray">No hay cursos</td></tr>'; return
+      tbody.innerHTML = sicafVacioFila(7, { icono: 'cursos', titulo: 'Aún no hay cursos',
+        texto: 'Crea un curso para asignarle alumnos, profesor jefe y horario.', accion: { texto: 'Crear el primero', onclick: "abrirModal('curso')" } }); return
     }
     cursos.forEach(c => {
       const tr       = document.createElement('tr')
@@ -1017,10 +1019,10 @@ async function cargarTablaCursos() {
         <td>
           ${inactivo
             ? `<button class="btn-sm btn-primary" onclick="reactivarCurso(${c.id},'${c.nombre}')"><i class="bi bi-arrow-clockwise"></i> Reactivar</button>
-               <button class="btn-sm btn-delete"  onclick="eliminarCurso(${c.id},'${c.nombre}')"><i class="bi bi-trash3-fill"></i></button>`
+               <button class="btn-sm btn-delete"  onclick="eliminarCurso(${c.id},'${c.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`
             : `<button class="btn-sm btn-face"   onclick="verAlumnosCurso(${c.id},'${c.nombre}')" title="Ver alumnos"><i class="bi bi-people-fill"></i> ${c.total_alumnos}</button>
-               <button class="btn-sm btn-edit"   onclick="editarCurso(${c.id})"><i class="bi bi-pencil-fill"></i></button>
-               <button class="btn-sm btn-delete" onclick="eliminarCurso(${c.id},'${c.nombre}')"><i class="bi bi-trash3-fill"></i></button>`}
+               <button class="btn-sm btn-edit"   onclick="editarCurso(${c.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
+               <button class="btn-sm btn-delete" onclick="eliminarCurso(${c.id},'${c.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`}
         </td>`
       tbody.appendChild(tr)
     })
@@ -1092,7 +1094,8 @@ async function cargarTablaProfesores() {
     listaProfesores = profs.filter(p => p.activo)
     tbody.innerHTML = ''
     if (!profs.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="color:gray">No hay profesores</td></tr>'; return
+      tbody.innerHTML = sicafVacioFila(6, { icono: 'profesores', titulo: 'Aún no hay profesores',
+        texto: 'Agrega a los docentes para asignarles clases y jefaturas.', accion: { texto: 'Crear el primero', onclick: "abrirModal('profesor')" } }); return
     }
     profs.forEach(p => {
       const tr       = document.createElement('tr')
@@ -1110,9 +1113,9 @@ async function cargarTablaProfesores() {
         <td>
           ${inactivo
             ? `<button class="btn-sm btn-primary" onclick="reactivarProfesor(${p.id},'${p.nombre}')"><i class="bi bi-arrow-clockwise"></i> Reactivar</button>
-               <button class="btn-sm btn-delete"  onclick="eliminarProfesor(${p.id},'${p.nombre}')"><i class="bi bi-trash3-fill"></i></button>`
-            : `<button class="btn-sm btn-edit"   onclick="editarProfesor(${p.id})"><i class="bi bi-pencil-fill"></i></button>
-               <button class="btn-sm btn-delete" onclick="eliminarProfesor(${p.id},'${p.nombre}')"><i class="bi bi-trash3-fill"></i></button>`}
+               <button class="btn-sm btn-delete"  onclick="eliminarProfesor(${p.id},'${p.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`
+            : `<button class="btn-sm btn-edit"   onclick="editarProfesor(${p.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
+               <button class="btn-sm btn-delete" onclick="eliminarProfesor(${p.id},'${p.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>`}
         </td>`
       tbody.appendChild(tr)
     })
@@ -1730,7 +1733,10 @@ function _horRenderTabla() {
   document.getElementById('hor-contador').textContent =
     `${filas.length} de ${_hor.datos.length} bloque${_hor.datos.length === 1 ? '' : 's'}`
   if (!filas.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="color:gray">${_hor.datos.length ? 'Ningún bloque coincide con los filtros' : 'No hay bloques horarios'}</td></tr>`
+    tbody.innerHTML = _hor.datos.length
+      ? sicafVacioFila(6, { icono: 'filtro', titulo: 'Ningún bloque coincide con los filtros', texto: 'Prueba con otro curso, profesor o día.', compacto: true })
+      : sicafVacioFila(6, { icono: 'calendario', titulo: 'Aún no hay bloques horarios',
+          texto: 'Arma el horario semanal: cada bloque une curso, asignatura, profesor y sala.', accion: { texto: 'Crear el primero', onclick: "abrirModal('horario')" } })
     return
   }
 
@@ -1783,7 +1789,8 @@ async function cargarTablaUsuarios() {
     const usuarios = await apiGet(`${API1}/usuarios`)
     tbody.innerHTML = ''
     if (!usuarios.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="color:gray">No hay usuarios</td></tr>'; return
+      tbody.innerHTML = sicafVacioFila(6, { icono: 'usuarios', titulo: 'Aún no hay usuarios',
+        texto: 'Crea las cuentas de acceso de administradores y profesores.', accion: { texto: 'Crear el primero', onclick: "abrirModal('usuario')" } }); return
     }
     usuarios.forEach(u => {
       const tr = document.createElement('tr')
@@ -1809,7 +1816,7 @@ async function cargarTablaUsuarios() {
         <td style="font-size:.82em;color:#666">${ultimoAcceso}</td>
         <td>
           <button class="btn-sm btn-edit"   onclick="editarUsuario(${u.id})" title="Editar usuario"><i class="bi bi-pencil-fill"></i></button>
-          <button class="btn-sm" style="background:#8b5cf6;color:#fff" onclick="resetPasswordUsuario(${u.id},'${u.nombre_usuario}')" title="Cambiar contraseña"><i class="bi bi-key-fill"></i></button>
+          <button class="btn-sm btn-edit" onclick="resetPasswordUsuario(${u.id},'${u.nombre_usuario}')" title="Cambiar contraseña"><i class="bi bi-key-fill"></i></button>
           <button class="btn-sm ${u.activo?'btn-secondary':'btn-face'}" onclick="toggleUsuario(${u.id},'${u.nombre_usuario}',${u.activo})" title="${u.activo?'Desactivar acceso':'Activar acceso'}">${u.activo?'<i class="bi bi-lock-fill"></i>':'<i class="bi bi-unlock-fill"></i>'}</button>
           <button class="btn-sm btn-delete" onclick="eliminarUsuario(${u.id},'${u.nombre_usuario}')" title="Eliminar usuario"><i class="bi bi-trash3-fill"></i></button>
         </td>`
@@ -1858,7 +1865,8 @@ async function cargarTablaAsignaturas() {
     listaAsignaturas = asigs.filter(a => a.activo)
     tbody.innerHTML = ''
     if (!asigs.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="color:gray">No hay asignaturas</td></tr>'; return
+      tbody.innerHTML = sicafVacioFila(6, { icono: 'asignaturas', titulo: 'Aún no hay asignaturas',
+        texto: 'Registra las asignaturas que se dictan para armar los horarios.', accion: { texto: 'Crear la primera', onclick: "abrirModal('asignatura')" } }); return
     }
     asigs.forEach(a => {
       const tr = document.createElement('tr')
@@ -1871,8 +1879,8 @@ async function cargarTablaAsignaturas() {
         <td>${a.horas_semanales} hrs</td>
         <td>${a.activo ? '<i class="im im-ok" aria-hidden="true"></i> Activa' : '<i class="im im-punto" aria-hidden="true"></i> Inactiva'}</td>
         <td>
-          <button class="btn-sm btn-edit"   onclick="editarAsignatura(${a.id})"><i class="bi bi-pencil-fill"></i></button>
-          <button class="btn-sm btn-delete" onclick="eliminarAsignatura(${a.id},'${a.nombre.replace(/'/g,"\\'")}')"><i class="bi bi-trash3-fill"></i></button>
+          <button class="btn-sm btn-edit"   onclick="editarAsignatura(${a.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
+          <button class="btn-sm btn-delete" onclick="eliminarAsignatura(${a.id},'${a.nombre.replace(/'/g,"\\'")}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
         </td>`
       tbody.appendChild(tr)
     })
@@ -1905,7 +1913,8 @@ async function cargarTablaAulas() {
     listaAulas = aulas
     tbody.innerHTML = ''
     if (!aulas.length) {
-      tbody.innerHTML = '<tr><td colspan="5" style="color:gray">No hay aulas registradas</td></tr>'; return
+      tbody.innerHTML = sicafVacioFila(5, { icono: 'aulas', titulo: 'Aún no hay aulas',
+        texto: 'Registra las salas para asignarlas a los bloques horarios.', accion: { texto: 'Crear la primera', onclick: "abrirModal('aula')" } }); return
     }
     aulas.forEach(a => {
       const tr = document.createElement('tr')
@@ -1915,8 +1924,8 @@ async function cargarTablaAulas() {
         <td>${a.nombre || '—'}</td>
         <td>${a.capacidad} alumnos</td>
         <td>
-          <button class="btn-sm btn-edit"   onclick="editarAula(${a.id})"><i class="bi bi-pencil-fill"></i></button>
-          <button class="btn-sm btn-delete" onclick="eliminarAula(${a.id},'${a.codigo}')"><i class="bi bi-trash3-fill"></i></button>
+          <button class="btn-sm btn-edit"   onclick="editarAula(${a.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
+          <button class="btn-sm btn-delete" onclick="eliminarAula(${a.id},'${a.codigo}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
         </td>`
       tbody.appendChild(tr)
     })
@@ -1953,7 +1962,7 @@ async function abrirModal(tipo, datos = null) {
     apoderado: 'Apoderado', comunicado: 'Comunicado'
   }
   document.getElementById('modal-titulo').textContent =
-    (modalId ? 'Editar' : 'Nuevo/a') + ' ' + (titulos[tipo] || tipo)
+    (modalId ? 'Editar' : ['asignatura', 'aula'].includes(tipo) ? 'Nueva' : 'Nuevo') + ' ' + (titulos[tipo] || tipo).toLowerCase()
 
   // Siempre obtener datos frescos para los selectores del formulario
   if (tipo === 'alumno') {
@@ -2011,6 +2020,7 @@ async function abrirModal(tipo, datos = null) {
   if (tipo === 'apoderado') _renderAlumnosApod()
   aplicarRestriccionesInput()
   document.getElementById('modal-overlay').style.display = 'block'
+  setTimeout(() => document.querySelector('#modal-form-container input:not([type="hidden"]), #modal-form-container select, #modal-form-container textarea')?.focus(), 60)
 }
 
 function aplicarRestriccionesInput() {
@@ -3352,28 +3362,26 @@ function renderizarListaAsistencia() {
   const total     = _listaAsistencia.length
   const ausentes  = total - presentes
 
-  const elPres = document.getElementById('cnt-presentes')
-  const elAus  = document.getElementById('cnt-ausentes')
-  if (elPres) elPres.textContent = `${presentes} presente${presentes !== 1 ? 's' : ''}`
-  if (elAus)  elAus.textContent  = `${ausentes} ausente${ausentes !== 1 ? 's' : ''}`
+  _actualizarContadoresAsis()
 
   if (!total) {
-    if (div) div.innerHTML = '<div class="lista-asis-placeholder">No hay alumnos registrados en este curso</div>'
+    if (div) div.innerHTML = sicafVacio({ icono: 'alumnos', titulo: 'Este curso no tiene alumnos', texto: 'Pide al administrador que matricule a los alumnos en el curso.', compacto: true })
     return
   }
 
   const rows = _listaAsistencia.map(a => `
     <div class="asistencia-row ${a.presente ? 'presente' : 'ausente'}" id="row-asis-${a.id}">
-      <div class="asis-estado">
-        ${a.presente
-          ? `<span class="badge-asis-presente">${a.tipo === 'facial' ? '<i class="im im-camara" aria-hidden="true"></i>' : '<i class="im im-mano" aria-hidden="true"></i>'} Presente</span>`
-          : '<span class="badge-asis-ausente"><i class="im im-error" aria-hidden="true"></i> Ausente</span>'}
-      </div>
+      <span class="as-ava" aria-hidden="true">${_escHtml(((a.nombre || '?')[0] + (a.apellido || '')[0]).toUpperCase())}</span>
       <div class="asis-nombre">
-        <strong>${a.nombre} ${a.apellido}</strong>
-        <span class="asis-rut">${a.rut}</span>
+        <strong>${_escHtml(a.nombre)} ${_escHtml(a.apellido)}</strong>
+        <span class="asis-rut">${_escHtml(a.rut)}</span>
       </div>
       <div class="asis-vidas" id="vidas-asis-${a.id}">${_renderBadgeVidas(a.id, a.presente)}</div>
+      <div class="asis-estado">
+        ${a.presente
+          ? `<span class="badge-asis-presente">${a.tipo === 'facial' ? '<i class="im im-rostro" aria-hidden="true"></i>' : '<i class="im im-mano" aria-hidden="true"></i>'} Presente</span>`
+          : '<span class="badge-asis-ausente"><i class="im im-error" aria-hidden="true"></i> Ausente</span>'}
+      </div>
       <button class="btn-toggle-asis" onclick="toggleAsistencia(${a.id})"
         ${_asistenciaGuardada ? 'disabled' : ''}>
         ${a.presente ? 'Marcar ausente' : 'Marcar presente'}
@@ -3393,18 +3401,32 @@ function marcarPresente(id_alumno, tipo) {
   if (row) {
     row.className = 'asistencia-row presente'
     row.querySelector('.asis-estado').innerHTML =
-      `<span class="badge-asis-presente"><i class="im im-camara" aria-hidden="true"></i> Presente</span>`
+      `<span class="badge-asis-presente">${a.tipo === 'manual' ? '<i class="im im-mano" aria-hidden="true"></i>' : '<i class="im im-rostro" aria-hidden="true"></i>'} Presente</span>`
     const btn = row.querySelector('.btn-toggle-asis')
     if (btn) btn.textContent = 'Marcar ausente'
   }
   _actualizarBadgeVidas(id_alumno, true)
 
+  _actualizarContadoresAsis()
+
+  // Resaltar la fila recién marcada y traerla a la vista
+  if (row) {
+    row.classList.add('recien')
+    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    setTimeout(() => row.classList.remove('recien'), 2600)
+  }
+}
+
+/* Contadores y barra de avance de la lista de asistencia */
+function _actualizarContadoresAsis() {
   const presentes = _listaAsistencia.filter(x => x.presente).length
   const total     = _listaAsistencia.length
   const elPres = document.getElementById('cnt-presentes')
   const elAus  = document.getElementById('cnt-ausentes')
   if (elPres) elPres.textContent = `${presentes} presente${presentes !== 1 ? 's' : ''}`
   if (elAus)  elAus.textContent  = `${total - presentes} ausente${total - presentes !== 1 ? 's' : ''}`
+  const barra = document.getElementById('asis-progreso')
+  if (barra) barra.style.width = (total ? Math.round(100 * presentes / total) : 0) + '%'
 }
 
 function toggleAsistencia(id_alumno) {
@@ -3423,13 +3445,7 @@ function toggleAsistencia(id_alumno) {
       if (btn) btn.textContent = 'Marcar presente'
     }
     _actualizarBadgeVidas(id_alumno, false)
-
-    const presentes = _listaAsistencia.filter(x => x.presente).length
-    const total     = _listaAsistencia.length
-    const elPres = document.getElementById('cnt-presentes')
-    const elAus  = document.getElementById('cnt-ausentes')
-    if (elPres) elPres.textContent = `${presentes} presente${presentes !== 1 ? 's' : ''}`
-    if (elAus)  elAus.textContent  = `${total - presentes} ausente${total - presentes !== 1 ? 's' : ''}`
+    _actualizarContadoresAsis()
   } else {
     marcarPresente(id_alumno, 'manual')
   }
@@ -3539,7 +3555,8 @@ async function cargarTablaPeriodos() {
     listaPeriodos = await apiGet(`${API1}/periodos`)
     tbody.innerHTML = ''
     if (!listaPeriodos.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="color:gray">No hay períodos académicos. Crea el primero →</td></tr>'; return
+      tbody.innerHTML = sicafVacioFila(6, { icono: 'calendario', titulo: 'Aún no hay períodos académicos',
+        texto: 'Crea el primer semestre o trimestre para empezar a registrar notas.', accion: { texto: 'Crear el primero', onclick: "abrirModalNotas('periodo')" } }); return
     }
     listaPeriodos.forEach(p => {
       const tr = document.createElement('tr')
@@ -3553,8 +3570,8 @@ async function cargarTablaPeriodos() {
         <td>${new Date(p.fecha_fin).toLocaleDateString('es-CL')}</td>
         <td>${badge}</td>
         <td>
-          <button class="btn-sm btn-edit" onclick="editarPeriodo(${p.id})"><i class="bi bi-pencil-fill"></i></button>
-          <button class="btn-sm btn-delete" onclick="eliminarPeriodo(${p.id},'${p.nombre}')"><i class="bi bi-trash3-fill"></i></button>
+          <button class="btn-sm btn-edit" onclick="editarPeriodo(${p.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
+          <button class="btn-sm btn-delete" onclick="eliminarPeriodo(${p.id},'${p.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>
         </td>`
       tbody.appendChild(tr)
     })
@@ -3609,7 +3626,8 @@ async function cargarEvaluaciones() {
     listaEvaluaciones = await apiGet(url)
     tbody.innerHTML = ''
     if (!listaEvaluaciones.length) {
-      tbody.innerHTML = '<tr><td colspan="8" style="color:gray">No hay evaluaciones para este período</td></tr>'; return
+      tbody.innerHTML = sicafVacioFila(8, { icono: 'nota', titulo: 'No hay evaluaciones en este período',
+        texto: 'Crea una evaluación para registrar las notas del curso.', accion: (rolUsuario === 'admin' ? { texto: 'Crear la primera', onclick: "abrirModalNotas('evaluacion')" } : null) }); return
     }
     const tipoColor = { prueba:'#dbeafe', trabajo:'#fef3c7', control:'#f0fdf4', examen:'#fce7f3' }
     listaEvaluaciones.forEach(e => {
@@ -3624,7 +3642,7 @@ async function cargarEvaluaciones() {
         <td>${e.porcentaje ? e.porcentaje+'%' : '—'}</td>
         <td>${e.periodo}</td>
         <td>
-          <button class="btn-sm" style="background:#0891b2;color:#fff" onclick="irIngresarNotas(${e.id})" title="Ingresar notas"><i class="bi bi-clipboard-check-fill"></i></button>
+          <button class="btn-sm btn-info" onclick="irIngresarNotas(${e.id})" title="Ingresar notas"><i class="bi bi-clipboard-check-fill"></i></button>
           ${!esProfesor ? `
           <button class="btn-sm btn-edit" onclick="editarEvaluacion(${e.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
           <button class="btn-sm btn-delete" onclick="eliminarEvaluacion(${e.id},'${e.nombre}')" title="Eliminar"><i class="bi bi-trash3-fill"></i></button>` : ''}
@@ -3680,7 +3698,7 @@ async function cargarCalificaciones() {
   try {
     const data = await apiGet(`${API1}/evaluaciones/${idEval}/calificaciones`)
     if (!data.calificaciones?.length) {
-      el.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">No hay alumnos en el curso de esta evaluación.</p>'; return
+      el.innerHTML = sicafVacio({ icono: 'alumnos', titulo: 'Curso sin alumnos', texto: 'El curso de esta evaluación no tiene alumnos.', compacto: true }); return
     }
     const ev = data.evaluacion
     let html = `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;padding:10px 14px;margin-bottom:12px;font-size:.85em;color:#0369a1">
@@ -3978,7 +3996,8 @@ async function cargarTablaApoderados() {
 
     tbody.innerHTML = ''
     if (!apods.length) {
-      tbody.innerHTML = '<tr><td colspan="8" style="color:gray">No hay apoderados registrados</td></tr>'; return
+      tbody.innerHTML = sicafVacioFila(8, { icono: 'apoderados', titulo: 'Aún no hay apoderados',
+        texto: 'Registra a los apoderados y vincúlalos con sus alumnos.', accion: { texto: 'Crear el primero', onclick: "abrirModal('apoderado')" } }); return
     }
     apods.forEach(ap => {
       const tr = document.createElement('tr')
@@ -4033,7 +4052,9 @@ async function cargarComunicados() {
   try {
     const coms = await apiGet(`${API1}/comunicados`)
     if (!coms.length) {
-      el.innerHTML = '<p style="color:#aaa;text-align:center;padding:30px">No hay comunicados publicados.</p>'; return
+      el.innerHTML = sicafVacio({ icono: 'comunicados', titulo: 'Aún no hay comunicados',
+        texto: 'Publica avisos para profesores y apoderados del colegio.',
+        accion: rolUsuario === 'admin' ? { texto: 'Publicar el primero', onclick: "abrirModal('comunicado')" } : null }); return
     }
     el.innerHTML = coms.map(c => `
       <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:10px;box-shadow:0 1px 3px #0001">
@@ -4161,8 +4182,9 @@ async function cargarJustificaciones() {
     const url  = `${API2}/asistencia/justificaciones${estado ? '?estado=' + estado : ''}`
     const data = await apiGet(url)
     if (!data.length) {
-      el.innerHTML = `<p style="color:#aaa;text-align:center;padding:24px">
-        ${estado === 'pendiente' ? '<i class="im im-ok" aria-hidden="true"></i> No hay justificaciones pendientes' : 'No hay registros'}</p>`
+      el.innerHTML = estado === 'pendiente'
+        ? sicafVacio({ icono: 'doble-check', titulo: 'Todo revisado', texto: 'No hay justificaciones pendientes por revisar.' })
+        : sicafVacio({ icono: 'justificacion', titulo: 'Sin justificaciones', texto: 'No hay justificaciones con este filtro.' })
       return
     }
     const colorEstado = { pendiente:'#fef3c7', aprobada:'#dcfce7', rechazada:'#fee2e2' }
@@ -4183,8 +4205,8 @@ async function cargarJustificaciones() {
         const bg = i%2===0 ? '#fff' : '#f9fafb'
         const est = j.estado || 'pendiente'
         const acciones = est === 'pendiente' ? `
-          <button class="btn-sm" style="background:#16a34a;color:#fff" onclick="cambiarEstadoJustificacion(${j.id},'aprobada')"><i class="bi bi-check-circle-fill"></i> Aprobar</button>
-          <button class="btn-sm" style="background:#dc2626;color:#fff" onclick="cambiarEstadoJustificacion(${j.id},'rechazada')"><i class="bi bi-x-circle-fill"></i> Rechazar</button>`
+          <button class="btn-sm btn-ok" onclick="cambiarEstadoJustificacion(${j.id},'aprobada')"><i class="bi bi-check-circle-fill"></i> Aprobar</button>
+          <button class="btn-sm btn-delete" onclick="cambiarEstadoJustificacion(${j.id},'rechazada')"><i class="bi bi-x-circle-fill"></i> Rechazar</button>`
           : `<button class="btn-sm btn-secondary" onclick="cambiarEstadoJustificacion(${j.id},'pendiente')"><i class="bi bi-arrow-counterclockwise"></i> Reabrir</button>`
         return `<tr style="background:${bg}">
           <td style="padding:7px 10px">${new Date(j.fecha).toLocaleDateString('es-CL')}<br>
@@ -4406,7 +4428,7 @@ async function cargarBitacora() {
     if (tabla) params.set('tabla', tabla)
     const data = await apiGet(`${API1}/bitacora?${params}`)
     if (!data.length) {
-      el.innerHTML = '<p style="color:#aaa;text-align:center;padding:24px">No hay registros en este rango</p>'
+      el.innerHTML = sicafVacio({ icono: 'filtro', titulo: 'Sin movimientos', texto: 'No hay registros en este rango de fechas.', compacto: true })
       return
     }
     const colorAccion = (acc) => {

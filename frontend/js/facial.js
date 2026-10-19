@@ -6,6 +6,92 @@ const OPCIONES_DETECTOR = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, 
 let ws = null, intervaloReconocimiento = null, intervaloPreview = null
 let modoIP = false
 
+/* ── VISOR: estados, recuadros y tarjeta de reconocido ─────────── */
+// Estados del visor (atributo data-estado de #as-visor, los pinta css/sicaf-tema.css):
+//   apagada · buscando · detectado · capturando · reconocido · desconocido
+let _retencionVisor = null      // mientras se muestra un reconocido, la vista previa no cambia el estado
+let _timerDesconocido = null
+
+function _estadoVisor(estado, texto) {
+  const visor = document.getElementById('as-visor')
+  if (!visor) return
+  const fuerte = ['apagada', 'reconocido', 'capturando'].includes(estado)
+  if (_retencionVisor && !fuerte) return
+  visor.dataset.estado = estado
+  const chip = document.getElementById('as-chip-txt')
+  if (chip && texto) chip.textContent = texto
+}
+
+function _textoEnVivo(hayRostro) {
+  if (intervaloReconocimiento) return hayRostro ? 'En vivo · rostro detectado' : 'En vivo · buscando rostros'
+  return hayRostro ? 'Rostro detectado' : 'Cámara activa'
+}
+
+// La webcam se muestra en espejo, como un espejo real; la cámara del celular no
+function _espejo(activo) {
+  const c = document.getElementById('contenedor-camara')
+  if (c) c.classList.toggle('espejo', !!activo)
+}
+
+// Recuadro propio sobre cada rostro: esquinas redondeadas, sin los números de face-api
+function _dibujarRostros(canvas, detecciones, limpiar = true) {
+  const ctx = canvas.getContext('2d')
+  if (limpiar) ctx.clearRect(0, 0, canvas.width, canvas.height)
+  ctx.strokeStyle = '#b794ff'
+  ctx.lineWidth = Math.max(3, canvas.width / 170)
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+  ctx.shadowColor = 'rgba(59,26,94,.55)'; ctx.shadowBlur = 6
+  detecciones.forEach(d => {
+    const b = (d.detection || d).box
+    const l = Math.min(b.width, b.height) * 0.24
+    ;[[b.x, b.y, 1, 1], [b.x + b.width, b.y, -1, 1], [b.x, b.y + b.height, 1, -1], [b.x + b.width, b.y + b.height, -1, -1]]
+      .forEach(([x, y, sx, sy]) => {
+        ctx.beginPath(); ctx.moveTo(x, y + sy * l); ctx.lineTo(x, y); ctx.lineTo(x + sx * l, y); ctx.stroke()
+      })
+  })
+  ctx.shadowBlur = 0
+}
+
+function _destello() {
+  const v = document.getElementById('as-visor')
+  if (!v) return
+  v.classList.remove('destello'); void v.offsetWidth; v.classList.add('destello')
+}
+
+// Tarjeta grande con el alumno reconocido (se muestra unos segundos sobre la imagen)
+function _mostrarReconocido(alumno, yaPresente) {
+  const tarjeta = document.getElementById('as-tarjeta')
+  const visor   = document.getElementById('as-visor')
+  if (!tarjeta || !visor) return
+  const esc   = typeof _escHtml === 'function' ? _escHtml : (t => String(t ?? ''))
+  const nom   = `${alumno.nombre || ''} ${alumno.apellido || ''}`.trim()
+  const ini   = ((alumno.nombre || '?')[0] + (alumno.apellido || '')[0] || '').toUpperCase()
+  const hora  = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const conf  = alumno.confianza ? ` · ${Math.round(alumno.confianza * 100)} % de coincidencia` : ''
+  tarjeta.innerHTML = `
+    <span class="as-t-ava" aria-hidden="true">${esc(ini)}</span>
+    <div class="as-t-txt"><b>${esc(nom)}</b><span>${yaPresente ? 'Ya estaba presente' : 'Presente'} · ${hora}${conf}</span></div>
+    <i class="im im-ok as-t-ok" aria-hidden="true"></i>`
+  tarjeta.classList.remove('visible'); void tarjeta.offsetWidth; tarjeta.classList.add('visible')
+  clearTimeout(_retencionVisor)
+  visor.dataset.estado = 'reconocido'
+  const chip = document.getElementById('as-chip-txt')
+  if (chip) chip.textContent = 'Alumno reconocido'
+  _retencionVisor = setTimeout(() => {
+    _retencionVisor = null
+    tarjeta.classList.remove('visible')
+    _estadoVisor(intervaloReconocimiento ? 'buscando' : 'apagada', intervaloReconocimiento ? _textoEnVivo(false) : 'Cámara apagada')
+  }, 3200)
+}
+
+// Rostro visible pero no registrado: aviso breve, el docente puede marcarlo a mano
+function _avisoDesconocido() {
+  if (_retencionVisor) return
+  _estadoVisor('desconocido', 'Rostro no reconocido')
+  clearTimeout(_timerDesconocido)
+  _timerDesconocido = setTimeout(() => _estadoVisor('buscando', _textoEnVivo(false)), 1800)
+}
+
 /* ── CÁMARA ────────────────────────────────────────────────────── */
 function cambiarModo(modo) {
   modoIP = (modo === 'ip')
@@ -36,6 +122,8 @@ async function activarWebcam() {
   if (video.srcObject) return
   const stream = await navigator.mediaDevices.getUserMedia({ video: true })
   video.srcObject = stream
+  _espejo(true)
+  _estadoVisor('buscando', _textoEnVivo(false))
   iniciarPreviewWebcam()
 }
 
@@ -46,14 +134,14 @@ function iniciarPreviewWebcam() {
     if (video.readyState < 2) return
     const det = await faceapi.detectAllFaces(video, OPCIONES_DETECTOR).withFaceLandmarks()
     faceapi.matchDimensions(canvas, { width: video.videoWidth, height: video.videoHeight })
-    const ctx = canvas.getContext('2d')
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    faceapi.draw.drawDetections(canvas, faceapi.resizeResults(det, { width: video.videoWidth, height: video.videoHeight }))
+    _dibujarRostros(canvas, faceapi.resizeResults(det, { width: video.videoWidth, height: video.videoHeight }))
+    _estadoVisor(det.length ? 'detectado' : 'buscando', _textoEnVivo(det.length > 0))
   }, 300)
 }
 
 function iniciarPreviewIP(url) {
   detenerPreview()
+  _espejo(false)
   const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d')
   intervaloPreview = setInterval(async () => {
     try {
@@ -61,7 +149,8 @@ function iniciarPreviewIP(url) {
       canvas.width = 560; canvas.height = 420
       ctx.drawImage(img, 0, 0, 560, 420)
       const det = await faceapi.detectAllFaces(canvas, OPCIONES_DETECTOR).withFaceLandmarks()
-      faceapi.draw.drawDetections(canvas, det)
+      _dibujarRostros(canvas, det, false)          // sobre la imagen recién dibujada
+      _estadoVisor(det.length ? 'detectado' : 'buscando', _textoEnVivo(det.length > 0))
       document.getElementById('estadoCamara').innerHTML =
         det.length > 0 ? '<i class="im im-ok" aria-hidden="true"></i> Rostro detectado' : '<i class="im im-lupa" aria-hidden="true"></i> Buscando rostro...'
     } catch (err) { console.warn(err.message) }
@@ -82,6 +171,9 @@ function apagarWebcam() {
   }
   const canvas = document.getElementById('canvas')
   if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
+  clearTimeout(_retencionVisor); _retencionVisor = null
+  document.getElementById('as-tarjeta')?.classList.remove('visible')
+  _estadoVisor('apagada', 'Cámara apagada')
 }
 
 // El navegador también la libera al cerrar la pestaña, pero así queda explícito
@@ -125,8 +217,9 @@ async function _registrarRostro(idAlumno, divReg) {
   const descriptores = []
   for (let i = 0; i < TOTAL_CAPTURAS; i++) {
     divReg.innerHTML = `<i class="im im-camara" aria-hidden="true"></i> Captura ${i + 1} de ${TOTAL_CAPTURAS}... mira a la cámara`
+    _estadoVisor('capturando', `Captura ${i + 1} de ${TOTAL_CAPTURAS} · mira a la cámara`)
     let elemento
-    try { elemento = await getFrame() }
+    try { elemento = await getFrame(); _destello() }
     catch (err) { divReg.innerHTML = `<i class="im im-error" aria-hidden="true"></i> Error cámara: ${err.message}`; return }
     const deteccion = await faceapi.detectSingleFace(elemento, OPCIONES_DETECTOR)
       .withFaceLandmarks().withFaceDescriptor()
@@ -176,14 +269,19 @@ function conectarWebSocket() {
     const div = document.getElementById('resultado')
     if (r.exito && r.alumno) {
       const conf = r.alumno.confianza ? ` — ${Math.round(r.alumno.confianza * 100)}%` : ''
-      div.innerHTML = `<i class="im im-camara" aria-hidden="true"></i> <strong>${r.alumno.nombre} ${r.alumno.apellido}</strong>${conf}`
+      const esc  = typeof _escHtml === 'function' ? _escHtml : (t => t)
+      div.innerHTML = `<i class="im im-ok" aria-hidden="true"></i> <strong>${esc(r.alumno.nombre)} ${esc(r.alumno.apellido)}</strong> presente${conf}`
+      _mostrarReconocido(r.alumno, r.ya_enviado)
       if (!r.ya_enviado && typeof marcarPresente === 'function') {
         marcarPresente(r.alumno.id, 'facial')
       }
     } else {
-      div.innerHTML = r.mensaje === 'Rostro no reconocido'
-        ? '<i class="im im-lupa" aria-hidden="true"></i> Buscando...'
-        : `<span class="mensaje-aviso">${r.mensaje || 'Sin resultado'}</span>`
+      if (r.mensaje === 'Rostro no reconocido') {
+        div.innerHTML = '<i class="im im-lupa" aria-hidden="true"></i> Rostro no reconocido: si es un alumno del curso, márcalo en la lista.'
+        _avisoDesconocido()
+      } else {
+        div.innerHTML = `<span class="mensaje-aviso">${r.mensaje || 'Sin resultado'}</span>`
+      }
     }
   }
 }
@@ -240,6 +338,7 @@ async function iniciar() {
   conectarWebSocket()
   if (intervaloReconocimiento) clearInterval(intervaloReconocimiento)
   intervaloReconocimiento = setInterval(enviarFrame, 2000)
+  _estadoVisor('buscando', _textoEnVivo(false))
   if (res) res.innerHTML = '<i class="im im-lupa" aria-hidden="true"></i> Buscando rostros...'
   const btnIni = document.getElementById('btn-iniciar-rec')
   const btnDet = document.getElementById('btn-detener-rec')

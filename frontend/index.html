@@ -890,24 +890,53 @@
 
   <!-- ── TAB: ASISTENCIA ──────────────────────────────────────── -->
   <div class="tab-section" id="sec-asistencia">
+   <div class="as-layout">
 
-    <!-- Cámara -->
-    <div class="seccion">
-      <h2>Cámara</h2>
-      <label><input type="radio" name="tipoCamara" value="webcam" checked onchange="cambiarModo('webcam')"> Webcam del PC</label>
-      &nbsp;&nbsp;
-      <label><input type="radio" name="tipoCamara" value="ip" onchange="cambiarModo('ip')"> IP Webcam (celular)</label>
-      <div id="config-ip" style="display:none; margin-top:8px">
-        <label>URL: <input type="text" id="urlIP" placeholder="http://192.168.1.X:8080" size="28" /></label>
-        <button class="btn-primary" onclick="conectarIP()">Conectar y Ver</button>
+    <!-- Izquierda: cámara -->
+    <div class="as-col-camara">
+     <div class="seccion as-camara">
+      <div class="as-cam-cab">
+        <h2>Cámara</h2>
+        <div class="as-modo" role="radiogroup" aria-label="Tipo de cámara">
+          <label><input type="radio" name="tipoCamara" value="webcam" checked onchange="cambiarModo('webcam')"><span><i class="im im-camara" aria-hidden="true"></i> Webcam del PC</span></label>
+          <label><input type="radio" name="tipoCamara" value="ip" onchange="cambiarModo('ip')"><span><i class="im im-telefono" aria-hidden="true"></i> Cámara del celular</span></label>
+        </div>
       </div>
-      <br><br>
-      <div id="contenedor-camara">
-        <video id="video" width="560" height="420" autoplay muted></video>
-        <canvas id="canvas" width="560" height="420"></canvas>
+      <div id="config-ip" class="as-ip" style="display:none">
+        <label for="urlIP">Dirección de la app IP Webcam</label>
+        <div class="as-ip-fila">
+          <input type="text" id="urlIP" placeholder="http://192.168.1.X:8080" />
+          <button class="btn-primary" onclick="conectarIP()">Conectar</button>
+        </div>
       </div>
+
+      <div class="as-visor" id="as-visor" data-estado="apagada">
+        <div id="contenedor-camara">
+          <video id="video" width="560" height="420" autoplay muted playsinline></video>
+          <canvas id="canvas" width="560" height="420"></canvas>
+        </div>
+        <span class="as-esq tl" aria-hidden="true"></span><span class="as-esq tr" aria-hidden="true"></span>
+        <span class="as-esq bl" aria-hidden="true"></span><span class="as-esq br" aria-hidden="true"></span>
+        <div class="as-guia" aria-hidden="true"><span>Ubica tu rostro aquí</span></div>
+        <div class="as-barrido" aria-hidden="true"></div>
+        <div class="as-chip" aria-hidden="true"><span class="punto"></span><span id="as-chip-txt">Cámara apagada</span></div>
+        <div class="as-vacio">
+          <span class="as-vacio-ico" aria-hidden="true"><i class="im im-rostro"></i></span>
+          <b>La cámara está apagada</b>
+          <span>Elige la clase y pulsa «Iniciar reconocimiento». Cada alumno mira a la cámara y queda presente solo.</span>
+        </div>
+        <div class="as-flash" aria-hidden="true"></div>
+        <div class="as-tarjeta" id="as-tarjeta"></div>
+      </div>
+
+      <!-- Estado del reconocimiento (también lo anuncian los lectores de pantalla) -->
+      <div id="resultado" class="asis-resultado" role="status" aria-live="polite">Esperando reconocimiento...</div>
+      <p class="as-privacidad"><i class="im im-candado" aria-hidden="true"></i> Solo se procesa el descriptor numérico del rostro: las imágenes de la cámara no se guardan.</p>
+     </div>
     </div>
 
+    <!-- Derecha: registro de rostro (admin), clase activa y lista -->
+    <div class="as-col-panel">
     <!-- Registrar rostro — solo admin -->
     <div class="seccion solo-admin" id="sec-registrar-rostro">
       <h2>Registrar rostro de alumno</h2>
@@ -957,18 +986,18 @@
     </div>
 
     <!-- Clase activa -->
-    <div class="seccion">
+    <div class="seccion as-clase">
       <h2>Clase activa</h2>
-      <label>Fecha: <input type="date" id="fechaClase" /></label>
-      &nbsp;&nbsp;
-      <label>Clase:
-        <select id="selectorHorario">
-          <option value="">-- Selecciona --</option>
-        </select>
-      </label>
-      &nbsp;
-      <button class="btn-primary" onclick="cargarHorarios()"><i class="im im-recargar" aria-hidden="true"></i> Cargar</button>
-      <div id="infoClase" style="color:gray; font-size:.88em; margin-top:6px"></div>
+      <div class="as-clase-fila">
+        <label class="as-campo">Fecha<input type="date" id="fechaClase" /></label>
+        <label class="as-campo as-campo-ancho">Clase
+          <select id="selectorHorario">
+            <option value="">-- Selecciona --</option>
+          </select>
+        </label>
+        <button class="btn-primary" onclick="cargarHorarios()"><i class="im im-recargar" aria-hidden="true"></i> Cargar</button>
+      </div>
+      <div id="infoClase" style="color:gray; font-size:.88em; margin-top:8px"></div>
     </div>
 
     <!-- Reconocimiento y lista de asistencia — solo profesores -->
@@ -981,6 +1010,7 @@
           <span id="cnt-presentes" class="cnt-chip cnt-verde">0 presentes</span>
           <span id="cnt-ausentes"  class="cnt-chip cnt-rojo">0 ausentes</span>
         </div>
+        <div class="as-avance" aria-hidden="true"><i id="asis-progreso" style="width:0%"></i></div>
       </div>
 
       <!-- Banner: asistencia ya guardada -->
@@ -988,7 +1018,11 @@
 
       <!-- Lista de alumnos -->
       <div id="lista-asis" class="lista-asis-placeholder">
-        Selecciona una clase para ver la lista de alumnos
+        <div class="sk-vacio compacto">
+          <span class="sk-vacio-ico" aria-hidden="true"><i class="im im-calendario-ok"></i></span>
+          <b>Elige la clase activa</b>
+          <p>La lista de alumnos aparece aquí al seleccionar la fecha y la clase.</p>
+        </div>
       </div>
 
       <!-- Controles: Iniciar / Detener / Guardar -->
@@ -998,10 +1032,10 @@
         <button id="btn-borrador-asis" class="btn-borrador-asis" onclick="guardarAsistencia(false)" style="display:none"><i class="im im-guardar" aria-hidden="true"></i> Guardar borrador</button>
         <button id="btn-definitivo-asis" class="btn-guardar-asis" onclick="guardarAsistencia(true)" style="display:none"><i class="im im-candado" aria-hidden="true"></i> Registrar definitivamente</button>
       </div>
-
-      <!-- Resultado del reconocimiento en vivo -->
-      <div id="resultado" class="asis-resultado">Esperando reconocimiento...</div>
     </div>
+    </div>
+
+   </div>
   </div>
 
   <!-- ── TAB: REPORTES ───────────────────────────────────────── -->
@@ -1445,7 +1479,7 @@
 <!-- ═══ MODAL CRUD ═══════════════════════════════════════════════════ -->
 <div id="modal-overlay" onclick="cerrarModal()">
   <div id="modal-box" onclick="event.stopPropagation()">
-    <h3 id="modal-titulo">Formulario</h3>
+    <h3><span class="mb-ico" aria-hidden="true"><i class="im im-nota" id="modal-ico"></i></span><span id="modal-titulo">Formulario</span></h3>
     <div id="modal-form-container"></div>
     <div id="modal-msg" style="margin-top:8px; font-weight:bold"></div>
     <div class="form-actions">
