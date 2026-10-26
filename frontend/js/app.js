@@ -255,7 +255,7 @@ function mostrarTab(nombre) {
   if (nombre === 'apoderados')   cargarTablaApoderados()
   if (nombre === 'comunicados')     cargarComunicados()
   if (nombre === 'justificaciones') cargarJustificaciones()
-  if (nombre === 'configuracion')   cargarConfiguracion()
+  if (nombre === 'configuracion')   { cargarConfiguracion(); cargarFeriados() }
   if (nombre === 'bitacora') {
     const hoy = fechaHoy()
     const hEl = document.getElementById('bitacora-hasta')
@@ -355,15 +355,47 @@ async function seleccionarAlumnoReporte(id, nombre) {
   const el = document.getElementById('resultado-reporte-alumno')
   el.innerHTML = '<p style="color:gray;font-size:.88em"><i class="im im-espera" aria-hidden="true"></i> Cargando...</p>'
   alumnoReporteActual = { id, nombre }
+  // Rango de fechas opcional (R.22): con rango, el porcentaje se calcula solo sobre ese período
+  const desde = document.getElementById('r-alumno-desde')?.value || ''
+  const hasta = document.getElementById('r-alumno-hasta')?.value || ''
+  if (desde && hasta && desde > hasta) {
+    el.innerHTML = '<p class="mensaje-aviso">La fecha "Desde" debe ser anterior o igual a "Hasta".</p>'
+    return
+  }
+  const filtro = new URLSearchParams()
+  if (desde) filtro.set('fecha_inicio', desde)
+  if (hasta) filtro.set('fecha_fin', hasta)
   try {
-    const [resumen, historial] = await Promise.all([
+    const [resumenTotal, historial] = await Promise.all([
       apiGet(`${API2}/asistencia/resumen/alumno/${id}`),
-      apiGet(`${API2}/asistencia/alumno/${id}`)
+      apiGet(`${API2}/asistencia/alumno/${id}${filtro.toString() ? '?' + filtro : ''}`)
     ])
+    const resumen = (desde || hasta) ? _resumenPorAsignatura(historial) : resumenTotal
     el.innerHTML = renderReporteAlumno(id, nombre, resumen, historial)
   } catch (err) {
     el.innerHTML = `<p class="mensaje-err">Error: ${err.message}</p>`
   }
+}
+
+// Mismo formato que /asistencia/resumen/alumno, calculado desde el historial filtrado
+function _resumenPorAsignatura(historial) {
+  const grupos = {}
+  historial.forEach(h => {
+    const g = grupos[h.asignatura] || (grupos[h.asignatura] = { asignatura: h.asignatura, total_clases: 0, clases_presentes: 0 })
+    g.total_clases++
+    if (h.presente) g.clases_presentes++
+  })
+  return Object.values(grupos).map(g => ({ ...g, porcentaje_asistencia: g.total_clases ? (100 * g.clases_presentes / g.total_clases).toFixed(1) : null }))
+}
+
+function recargarReporteAlumno() {
+  if (alumnoReporteActual) seleccionarAlumnoReporte(alumnoReporteActual.id, alumnoReporteActual.nombre)
+}
+
+function limpiarRangoAlumno() {
+  document.getElementById('r-alumno-desde').value = ''
+  document.getElementById('r-alumno-hasta').value = ''
+  recargarReporteAlumno()
 }
 
 function renderReporteAlumno(id, nombre, resumen, historial) {
@@ -4476,6 +4508,61 @@ async function guardarJustificacion(idDetalle) {
 ══════════════════════════════════════════════════════════════════ */
 
 let _parametrosCache = []
+
+/* ── FERIADOS Y DÍAS NO LECTIVOS (CU009) ───────────────────────── */
+async function cargarFeriados() {
+  const sel = document.getElementById('fer-anio')
+  const lista = document.getElementById('lista-feriados')
+  if (!sel || !lista) return
+  if (!sel.options.length) {
+    const actual = new Date().getFullYear()
+    sel.innerHTML = [actual - 1, actual, actual + 1].map(a => `<option value="${a}" ${a === actual ? 'selected' : ''}>${a}</option>`).join('')
+  }
+  lista.innerHTML = '<p style="color:gray;font-size:.88em">Cargando...</p>'
+  const datos = await apiGet(`${API1}/feriados?anio=${sel.value}`)
+  if (!Array.isArray(datos) || !datos.length) {
+    lista.innerHTML = sicafVacio({ icono: 'calendario', titulo: 'Sin feriados registrados', texto: `No hay feriados ni días no lectivos para ${sel.value}.`, compacto: true })
+    return
+  }
+  const TIPO = { nacional: 'Nacional', institucional: 'Institucional', vacaciones: 'Vacaciones' }
+  const DIA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+  lista.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Día</th><th>Descripción</th><th>Tipo</th><th>Acciones</th></tr></thead><tbody>
+    ${datos.map(f => {
+      const iso = String(f.fecha).slice(0, 10)
+      const dia = DIA[new Date(iso + 'T12:00:00').getDay()]
+      return `<tr><td>${fechaDia(iso)}</td><td>${dia}</td><td>${_escHtml(f.descripcion)}</td><td>${TIPO[f.tipo] || _escHtml(f.tipo || '—')}</td>
+        <td><button class="btn-sm btn-delete" title="Eliminar" onclick="eliminarFeriado(${f.id}, ${_arg(f.descripcion + ' (' + fechaDia(iso) + ')')})"><i class="bi bi-trash3-fill"></i></button></td></tr>`
+    }).join('')}</tbody></table></div>`
+}
+
+async function agregarFeriado() {
+  const msg = document.getElementById('msg-feriados')
+  const desde = document.getElementById('fer-desde').value
+  const hasta = document.getElementById('fer-hasta').value
+  const descripcion = document.getElementById('fer-descripcion').value.trim()
+  const tipo = document.getElementById('fer-tipo').value
+  if (!desde || !descripcion) { msg.innerHTML = '<span class="mensaje-aviso">Indica al menos la fecha y la descripción.</span>'; return }
+  if (hasta && hasta < desde) { msg.innerHTML = '<span class="mensaje-aviso">La fecha "Hasta" debe ser igual o posterior a "Desde".</span>'; return }
+  const { ok, data } = (hasta && hasta !== desde)
+    ? await apiPost(`${API1}/feriados/rango`, { fecha_inicio: desde, fecha_fin: hasta, descripcion, tipo })
+    : await apiPost(`${API1}/feriados`, { fecha: desde, descripcion, tipo })
+  if (!ok) { msg.innerHTML = `<span class="mensaje-err">${_escHtml(data.error || 'No se pudo guardar')}</span>`; return }
+  const n = Array.isArray(data.dias) ? data.dias.length : 1      // el rango omite sábados y domingos
+  msg.innerHTML = `<span class="mensaje-ok">${hasta && hasta !== desde ? `Período registrado: ${n} día(s) hábiles` : 'Día registrado'} · ${_escHtml(descripcion)}</span>`
+  document.getElementById('fer-descripcion').value = ''
+  document.getElementById('fer-hasta').value = ''
+  document.getElementById('fer-anio').value = desde.slice(0, 4)
+  cargarFeriados()
+}
+
+async function eliminarFeriado(id, nombre) {
+  const ok = await sicafConfirmar(`¿Eliminar ${nombre}?\nEse día volverá a contar como día de clases.`)
+  if (!ok) return
+  const r = await apiDelete(`${API1}/feriados/${id}`)
+  if (!r.ok) return sicafAviso(r.data.error || 'No se pudo eliminar', 'error')
+  sicafAviso('Día eliminado del calendario', 'ok')
+  cargarFeriados()
+}
 
 async function cargarConfiguracion() {
   const el = document.getElementById('form-configuracion')

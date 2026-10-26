@@ -1059,6 +1059,11 @@
                  oninput="filtrarAlumnosReporte()" class="search-input" />
           <div id="lista-alumnos-reporte" style="position:relative;flex:1;min-width:200px"></div>
         </div>
+        <div class="rep-rango">
+          <label>Desde <input type="date" id="r-alumno-desde" onchange="recargarReporteAlumno()"></label>
+          <label>Hasta <input type="date" id="r-alumno-hasta" onchange="recargarReporteAlumno()"></label>
+          <button type="button" class="btn-secondary" onclick="limpiarRangoAlumno()">Todo el historial</button>
+        </div>
         <div id="resultado-reporte-alumno"></div>
       </div>
 
@@ -1421,6 +1426,30 @@
       <div style="margin-top:16px">
         <button class="btn-primary" onclick="guardarConfiguracion()"><i class="im im-guardar" aria-hidden="true"></i> Guardar cambios</button>
       </div>
+    </div>
+
+    <!-- Feriados y días no lectivos (CU009): no cuentan como clases en el cálculo de asistencia -->
+    <div class="seccion" id="sec-feriados">
+      <h2 style="margin-bottom:4px"><i class="im im-calendario" aria-hidden="true"></i> Feriados y días no lectivos</h2>
+      <p style="font-size:.85em;color:#6b7280;margin:0 0 14px">Los días registrados aquí no se cuentan como clases al calcular el porcentaje de asistencia, y en ellos no se puede pasar asistencia.</p>
+      <div class="fer-form">
+        <label>Desde <input type="date" id="fer-desde"></label>
+        <label>Hasta <small>(opcional, para un período)</small> <input type="date" id="fer-hasta"></label>
+        <label class="fer-ancho">Descripción <input type="text" id="fer-descripcion" maxlength="100" placeholder="Ej: Jornada de reflexión"></label>
+        <label>Tipo
+          <select id="fer-tipo">
+            <option value="institucional">Institucional</option>
+            <option value="vacaciones">Vacaciones</option>
+            <option value="nacional">Nacional</option>
+          </select>
+        </label>
+        <button class="btn-primary" onclick="agregarFeriado()"><i class="im im-mas" aria-hidden="true"></i> Agregar</button>
+      </div>
+      <div id="msg-feriados" style="margin:8px 0"></div>
+      <div class="fer-filtro">
+        <label>Año <select id="fer-anio" onchange="cargarFeriados()"></select></label>
+      </div>
+      <div id="lista-feriados"></div>
     </div>
   </div>
 

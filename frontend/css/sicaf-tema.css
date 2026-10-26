@@ -732,3 +732,11 @@ body.app-active #modal-box th { color: #fff; }
 .imp-tabla th { background: #6d3fe0; color: #fff; text-align: left; padding: 6px 8px; }
 .imp-tabla td { padding: 5px 8px; border-bottom: 1px solid #efeaf8; }
 .imp-nota { font-size: .82em; color: #5d566b; margin: 4px 0 0; }
+
+/* Reporte por alumno: rango de fechas · Configuración: feriados y días no lectivos */
+.rep-rango, .fer-form, .fer-filtro { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; margin-bottom: 12px; }
+.rep-rango label, .fer-form label, .fer-filtro label { display: flex; flex-direction: column; gap: 5px; font-size: .8em; font-weight: 600; color: #5d566b; }
+.rep-rango input, .fer-form input, .fer-form select, .fer-filtro select { min-height: 40px; }
+.fer-form .fer-ancho { flex: 1 1 220px; }
+.fer-form small { font-weight: 400; color: #8a8399; }
+.fer-form .btn-primary, .rep-rango .btn-secondary { min-height: 40px; }
