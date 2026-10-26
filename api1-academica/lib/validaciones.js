@@ -44,7 +44,7 @@ function validarPersona(datos, { campos = ['nombre', 'apellido_paterno', 'apelli
     }
   }
   if (validarRut && datos.rut && !rutValido(datos.rut)) {
-    return 'El RUT no es válido: revisa el formato (12345678-9) y el dígito verificador';
+    return 'El RUT no es válido: revisa el formato (12345678-5) y el dígito verificador';
   }
   if (datos.email && !EMAIL.test(String(datos.email).trim())) {
     return 'El email no tiene un formato válido';

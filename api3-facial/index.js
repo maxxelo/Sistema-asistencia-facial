@@ -17,11 +17,16 @@ const app = express()
 
 // Seguridad: misma capa que las demás APIs
 app.use(helmet())
+// CORS: solo orígenes locales autorizados (R.36): este equipo y la red privada del colegio
+// (10.x, 172.16-31.x, 192.168.x). Así el sistema funciona desde cualquier computador, tablet o celular de la red
+// local, pero nunca desde un sitio de internet. CORS_ORIGENES permite agregar otros (separados por coma).
+const ORIGEN_LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/;
+const ORIGENES_EXTRA = (process.env.CORS_ORIGENES || '').split(',').map(s => s.trim()).filter(Boolean);
 app.use(cors({
-  origin: ['http://localhost', 'http://localhost:3000'],
-  methods: ['GET', 'POST'],
+  origin: (origen, listo) => listo(null, !origen || ORIGEN_LOCAL.test(origen) || ORIGENES_EXTRA.includes(origen)),
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
-}))
+}));
 app.use(express.json({ limit: '1mb' }))   // hasta 5 descriptores por registro
 
 const limiter = rateLimit({

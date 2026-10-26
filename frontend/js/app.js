@@ -1090,6 +1090,125 @@ async function verAlumnosCurso(id, nombre) {
   document.getElementById('modal-overlay').style.display = 'block'
 }
 
+/* ── IMPORTACIÓN MASIVA DE ALUMNOS (R.8) ───────────────────────── */
+// El administrador sube un CSV (puede guardarlo desde Excel). La API valida cada fila y carga
+// las válidas en una sola transacción; las filas con error se informan una por una.
+const COLUMNAS_IMPORTAR = ['rut', 'nombre', 'apellido_paterno', 'apellido_materno', 'email', 'telefono', 'curso']
+let _filasImportar = []
+
+function abrirImportarAlumnos() {
+  _filasImportar = []
+  document.getElementById('modal-titulo').textContent = 'Importar alumnos desde CSV'
+  document.getElementById('modal-msg').innerHTML = ''
+  document.getElementById('modal-form-container').innerHTML = `
+    <div class="imp-ayuda">
+      <p>Cargue un archivo CSV con un alumno por fila. La primera fila debe tener estas columnas:</p>
+      <code>rut;nombre;apellido_paterno;apellido_materno;email;telefono;curso</code>
+      <p>El curso se indica por su nombre, por ejemplo <b>3°A</b>. Sirve el CSV que guarda Excel (con punto y coma o con comas).
+         Las filas con errores se informan y no se cargan; las demás sí.</p>
+      <button type="button" class="btn-secondary" onclick="descargarPlantillaAlumnos()"><i class="im im-descargar" aria-hidden="true"></i> Descargar plantilla</button>
+    </div>
+    <div class="form-group">
+      <label for="f-archivo-csv">Archivo CSV</label>
+      <input type="file" id="f-archivo-csv" accept=".csv,text/csv" onchange="leerCsvAlumnos(this)">
+    </div>
+    <div id="imp-vista"></div>`
+  document.querySelector('#modal-box .form-actions').innerHTML = `
+    <button class="btn-secondary" onclick="cerrarModal()">Cancelar</button>
+    <button class="btn-primary" id="btn-importar" onclick="importarAlumnos()" disabled>Importar</button>`
+  modalTipo = null; modalId = null
+  document.getElementById('modal-overlay').style.display = 'block'
+}
+
+function descargarPlantillaAlumnos() {
+  const texto = '﻿' + COLUMNAS_IMPORTAR.join(';') + '\n' +
+                '12345678-5;Juan;Pérez;González;juan.perez@correo.cl;912345678;3°A\n'
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([texto], { type: 'text/csv;charset=utf-8' }))
+  a.download = 'plantilla_alumnos.csv'
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+// CSV con comillas, separador ; o , (se detecta en la primera fila) y saltos de línea Windows o Unix
+function _parsearCsv(texto) {
+  texto = texto.replace(/^﻿/, '')
+  const primera = texto.split(/\r?\n/)[0] || ''
+  const sep = (primera.match(/;/g) || []).length >= (primera.match(/,/g) || []).length ? ';' : ','
+  const filas = []
+  let fila = [], campo = '', comillas = false
+  for (let i = 0; i < texto.length; i++) {
+    const ch = texto[i]
+    if (comillas) {
+      if (ch === '"') { if (texto[i + 1] === '"') { campo += '"'; i++ } else comillas = false }
+      else campo += ch
+    } else if (ch === '"') comillas = true
+    else if (ch === sep) { fila.push(campo); campo = '' }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && texto[i + 1] === '\n') i++
+      fila.push(campo); filas.push(fila); fila = []; campo = ''
+    } else campo += ch
+  }
+  if (campo || fila.length) { fila.push(campo); filas.push(fila) }
+  return filas.filter(f => f.some(c => c.trim()))
+}
+
+// Excel en español guarda los CSV en Windows-1252: si el archivo no es UTF-8 válido, se lee con esa codificación
+async function _leerTextoArchivo(archivo) {
+  const bytes = await archivo.arrayBuffer()
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes) }
+  catch { return new TextDecoder('windows-1252').decode(bytes) }
+}
+
+async function leerCsvAlumnos(input) {
+  const vista = document.getElementById('imp-vista')
+  const btn = document.getElementById('btn-importar')
+  _filasImportar = []; btn.disabled = true
+  const archivo = input.files[0]
+  if (!archivo) { vista.innerHTML = ''; return }
+  const filas = _parsearCsv(await _leerTextoArchivo(archivo))
+  const norm = t => t.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '_')
+  const cab = (filas[0] || []).map(norm)
+  const faltan = ['rut', 'nombre', 'apellido_paterno'].filter(c => !cab.includes(c))
+  if (faltan.length) {
+    vista.innerHTML = `<p class="mensaje-err">Faltan columnas obligatorias en la primera fila: ${faltan.join(', ')}. Descargue la plantilla para ver el formato.</p>`
+    return
+  }
+  _filasImportar = filas.slice(1).map(f => {
+    const o = {}
+    cab.forEach((c, i) => { if (COLUMNAS_IMPORTAR.includes(c)) o[c] = (f[i] || '').trim() })
+    return o
+  })
+  if (!_filasImportar.length) { vista.innerHTML = '<p class="mensaje-aviso">El archivo no tiene filas de alumnos.</p>'; return }
+  const muestra = _filasImportar.slice(0, 6).map(a => `<tr><td>${_escHtml(a.rut)}</td><td>${_escHtml(a.nombre)} ${_escHtml(a.apellido_paterno)}</td><td>${_escHtml(a.curso || '—')}</td></tr>`).join('')
+  vista.innerHTML = `
+    <p class="mensaje-ok">${_filasImportar.length} alumno(s) listos para importar.</p>
+    <table class="imp-tabla"><thead><tr><th>RUT</th><th>Nombre</th><th>Curso</th></tr></thead><tbody>${muestra}</tbody></table>
+    ${_filasImportar.length > 6 ? `<p class="imp-nota">… y ${_filasImportar.length - 6} más.</p>` : ''}`
+  btn.disabled = false
+}
+
+async function importarAlumnos() {
+  if (!_filasImportar.length) return
+  const btn = document.getElementById('btn-importar')
+  btn.disabled = true; btn.textContent = 'Importando…'
+  const { ok, data } = await apiPost(`${API1}/alumnos/importar`, { alumnos: _filasImportar })
+  const vista = document.getElementById('imp-vista')
+  if (!ok) {
+    vista.innerHTML = `<p class="mensaje-err">${_escHtml(data.error || 'No se pudo importar el archivo')}</p>`
+    btn.disabled = false; btn.textContent = 'Importar'
+    return
+  }
+  const errores = (data.errores || []).map(e =>
+    `<tr><td>${e.fila + 1}</td><td>${_escHtml(e.rut || '—')}</td><td>${_escHtml(e.error)}</td></tr>`).join('')
+  vista.innerHTML = `
+    <p class="${data.importados ? 'mensaje-ok' : 'mensaje-aviso'}">${data.importados} de ${data.total} alumno(s) importados.</p>
+    ${errores ? `<p>Estas filas no se cargaron (la fila 1 es la de los títulos):</p>
+      <table class="imp-tabla"><thead><tr><th>Fila</th><th>RUT</th><th>Motivo</th></tr></thead><tbody>${errores}</tbody></table>` : ''}`
+  document.querySelector('#modal-box .form-actions').innerHTML = '<button class="btn-primary" onclick="cerrarModal()">Listo</button>'
+  if (data.importados) cargarTablaAlumnos()
+}
+
 /* ── TABLA: PROFESORES ─────────────────────────────────────────── */
 async function cargarTablaProfesores() {
   const tbody = document.getElementById('tbodyProfesores')

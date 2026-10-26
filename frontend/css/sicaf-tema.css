@@ -723,3 +723,12 @@ body.app-active #modal-box th { color: #fff; }
 #seccionApp .btn-primary:disabled, body.app-active .btn-primary:disabled {
   opacity: .45; cursor: not-allowed; box-shadow: none; transform: none; filter: grayscale(.35);
 }
+
+/* Importación de alumnos desde CSV */
+.imp-ayuda { background: #f6f2ff; border: 1px solid #e0d6fb; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-size: .88em; color: #3a3448; }
+.imp-ayuda p { margin: 0 0 8px; }
+.imp-ayuda code { display: block; margin: 0 0 8px; padding: 6px 10px; background: #fff; border: 1px dashed #cdbdf6; border-radius: 8px; font-size: .92em; overflow-x: auto; white-space: nowrap; }
+.imp-tabla { width: 100%; border-collapse: collapse; font-size: .84em; margin: 6px 0; }
+.imp-tabla th { background: #6d3fe0; color: #fff; text-align: left; padding: 6px 8px; }
+.imp-tabla td { padding: 5px 8px; border-bottom: 1px solid #efeaf8; }
+.imp-nota { font-size: .82em; color: #5d566b; margin: 4px 0 0; }

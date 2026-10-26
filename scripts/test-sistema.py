@@ -328,6 +328,20 @@ check("contraseña que cumple la política → 201", st == 201, f"status {st}: {
 st, r = llamar("PATCH", BASE1 + f"/usuarios/{(r or {}).get('id')}/password", {"nueva_password": "sinmayus1!"}, token=TOKEN)
 check("cambio a contraseña sin mayúscula → 400", st == 400, f"status {st}: {r}")
 
+print("══ CORS: SOLO LA RED LOCAL DEL COLEGIO ══")
+def preflight(url, origen, metodo):
+    req = urllib.request.Request(url, method="OPTIONS")
+    req.add_header("Origin", origen); req.add_header("Access-Control-Request-Method", metodo)
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.headers.get("Access-Control-Allow-Origin"), r.headers.get("Access-Control-Allow-Methods") or ""
+    except urllib.error.HTTPError as e:
+        return e.headers.get("Access-Control-Allow-Origin"), e.headers.get("Access-Control-Allow-Methods") or ""
+o, m = preflight(BASE3 + "/rostros/1", "http://192.168.1.20:3000", "DELETE")
+check("equipo de la red local puede eliminar un rostro (CORS con DELETE)", o == "http://192.168.1.20:3000" and "DELETE" in m, f"{o} {m}")
+o, m = preflight(BASE1 + "/alumnos", "https://sitio-externo.com", "GET")
+check("un sitio de internet queda bloqueado por CORS", o is None, f"{o}")
+
 print("══ LOGIN: LÍMITE DE INTENTOS ══")
 for _ in range(10):
     llamar("POST", BASE1 + "/login", {"nombre_usuario": "intruso_prueba", "password": "x"})
