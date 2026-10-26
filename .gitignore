@@ -12,3 +12,6 @@ __pycache__/
 *.respaldo*
 .DS_Store
 Thumbs.db
+
+# Documentos de entrega (se suben a la plataforma, no al repositorio)
+entregables/
