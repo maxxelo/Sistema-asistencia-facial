@@ -714,3 +714,12 @@ body.app-active #modal-box .form-actions .btn-secondary:hover { background: #f4e
   body.app-active #modal-box, .campo-error-msg { animation: none; }
   .sk-tip { transition: none; }
 }
+
+/* Tablas dentro del formulario emergente (p. ej. "Ver alumnos" de un curso): mismo encabezado morado */
+body.app-active #modal-box thead tr { background: #6d3fe0; }
+body.app-active #modal-box th { color: #fff; }
+
+/* Botón principal desactivado: que se note (p. ej. "Iniciar reconocimiento" fuera de horario) */
+#seccionApp .btn-primary:disabled, body.app-active .btn-primary:disabled {
+  opacity: .45; cursor: not-allowed; box-shadow: none; transform: none; filter: grayscale(.35);
+}

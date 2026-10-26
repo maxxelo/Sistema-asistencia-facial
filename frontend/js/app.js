@@ -8,6 +8,12 @@ function fechaHoy() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
+// Muestra una columna DATE de PostgreSQL (llega como '2026-07-27T00:00:00.000Z') como dd-mm-aaaa.
+// No se usa new Date(): en Chile (UTC-3) correría la fecha un día atrás.
+function fechaDia(valor) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(valor || ''))
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : '—'
+}
 function fechaHace7() {
   const d = new Date(); d.setDate(d.getDate() - 7)
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
@@ -440,11 +446,11 @@ function renderReporteAlumno(id, nombre, resumen, historial) {
       const tipo    = h.tipo_asistencia === 'facial' ? '<i class="im im-rostro" aria-hidden="true"></i> Facial' : h.tipo_asistencia === 'manual' ? '<i class="im im-mano" aria-hidden="true"></i> Manual' : h.tipo_asistencia||'—'
       const btnJust = (!h.presente && !justEstado)
         ? `<button class="btn-sm btn-aviso"
-             onclick="abrirJustificar(${h.id_detalle||h.id},${_arg(nombre)},${_arg(new Date(h.fecha).toLocaleDateString('es-CL'))},${_arg(h.asignatura)})"><i class="bi bi-chat-square-text-fill"></i> Justificar</button>`
+             onclick="abrirJustificar(${h.id_detalle||h.id},${_arg(nombre)},${_arg(fechaDia(h.fecha))},${_arg(h.asignatura)})"><i class="bi bi-chat-square-text-fill"></i> Justificar</button>`
         : (justEstado === 'pendiente' ? `<button class="btn-sm btn-ok"
              onclick="aprobarJustificacion(${h.id_justificacion})"><i class="bi bi-check-circle-fill"></i> Aprobar</button>` : '')
       html += `<tr style="background:${bg}">
-        <td style="padding:5px 10px">${new Date(h.fecha).toLocaleDateString('es-CL')}</td>
+        <td style="padding:5px 10px">${fechaDia(h.fecha)}</td>
         <td style="padding:5px 10px">${h.asignatura}</td>
         <td style="padding:5px 10px">${h.hora_inicio?.slice(0,5)||''}–${h.hora_fin?.slice(0,5)||''}</td>
         <td style="padding:5px 10px">${estado}${justifTexto}</td>
@@ -2108,9 +2114,9 @@ function renderFormulario(tipo, d) {
 
     return `
       <div class="form-group">
-        <label>RUT * <small style="color:#888">Ej: 12345678-9</small></label>
+        <label>RUT * <small style="color:#888">Ej: 12345678-5</small></label>
         <input type="text" id="f-rut" value="${v('rut')}" maxlength="10"
-               placeholder="12345678-9" autocomplete="off" />
+               placeholder="12345678-5" autocomplete="off" />
       </div>
       <div class="form-group">
         <label>Nombre * <small style="color:#888">Solo letras</small></label>
@@ -2198,9 +2204,9 @@ function renderFormulario(tipo, d) {
 
     return `
       <div class="form-group">
-        <label>RUT * <small style="color:#888">Ej: 12345678-9</small></label>
+        <label>RUT * <small style="color:#888">Ej: 12345678-5</small></label>
         <input type="text" id="f-rut" value="${v('rut')}" maxlength="10"
-               placeholder="12345678-9" autocomplete="off" />
+               placeholder="12345678-5" autocomplete="off" />
       </div>
       <div class="form-group">
         <label>Nombre * <small style="color:#888">Solo letras</small></label>
@@ -2475,8 +2481,8 @@ function renderFormulario(tipo, d) {
   /* ── APODERADO ───────────────────────────────────────────── */
   if (tipo === 'apoderado') {
     return `
-      <div class="form-group"><label>RUT * <small style="color:#888">Ej: 12345678-9</small></label>
-        <input type="text" id="f-rut" value="${v('rut')}" maxlength="10" placeholder="12345678-9" autocomplete="off" /></div>
+      <div class="form-group"><label>RUT * <small style="color:#888">Ej: 12345678-5</small></label>
+        <input type="text" id="f-rut" value="${v('rut')}" maxlength="10" placeholder="12345678-5" autocomplete="off" /></div>
       <div class="form-group"><label>Nombre completo *</label>
         <input type="text" id="f-nombre" value="${v('nombre')}" placeholder="María González" /></div>
       <div style="display:flex;gap:12px">
@@ -2683,8 +2689,18 @@ function autoNombreCurso() {
 }
 
 function validarRut(rut) {
-  // Formato: 7 u 8 dígitos, guión, 1 dígito o K
-  return /^\d{7,8}-[\dkK]$/.test(rut)
+  // Formato: 7 u 8 dígitos, guión, 1 dígito o K, y dígito verificador correcto (módulo 11),
+  // la misma regla que aplica la API
+  const m = /^(\d{7,8})-([\dkK])$/.exec(rut || '')
+  if (!m) return false
+  let suma = 0, mult = 2
+  for (const d of m[1].split('').reverse()) {
+    suma += Number(d) * mult
+    mult = mult === 7 ? 2 : mult + 1
+  }
+  const resto = 11 - (suma % 11)
+  const dv = resto === 11 ? '0' : resto === 10 ? 'K' : String(resto)
+  return dv === m[2].toUpperCase()
 }
 
 function validarEmail(email) {
@@ -2719,7 +2735,7 @@ async function guardarModal() {
     }
     // RUT chileno
     if (!validarRut(rut)) {
-      msg.innerHTML = '<span class="mensaje-aviso">RUT inválido — formato esperado: 12345678-9</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">RUT inválido: revisa el formato (12345678-5) y el dígito verificador</span>'; return
     }
     // Nombres sin números
     if (tieneNumeros(nombre)) {
@@ -2814,7 +2830,7 @@ async function guardarModal() {
       msg.innerHTML = '<span class="mensaje-aviso">RUT, Nombre y Apellido Paterno son obligatorios</span>'; return
     }
     if (!validarRut(rut)) {
-      msg.innerHTML = '<span class="mensaje-aviso">RUT inválido — formato esperado: 12345678-9</span>'; return
+      msg.innerHTML = '<span class="mensaje-aviso">RUT inválido: revisa el formato (12345678-5) y el dígito verificador</span>'; return
     }
     if (tieneNumeros(nombre)) {
       msg.innerHTML = '<span class="mensaje-aviso">El nombre no puede contener números</span>'; return
@@ -3606,8 +3622,8 @@ async function cargarTablaPeriodos() {
       tr.innerHTML = `
         <td>${p.id}</td>
         <td><strong>${p.nombre}</strong></td>
-        <td>${new Date(p.fecha_inicio).toLocaleDateString('es-CL')}</td>
-        <td>${new Date(p.fecha_fin).toLocaleDateString('es-CL')}</td>
+        <td>${fechaDia(p.fecha_inicio)}</td>
+        <td>${fechaDia(p.fecha_fin)}</td>
         <td>${badge}</td>
         <td>
           <button class="btn-sm btn-edit" onclick="editarPeriodo(${p.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button>
@@ -3678,7 +3694,7 @@ async function cargarEvaluaciones() {
         <td><strong>${e.nombre}</strong></td>
         <td><span style="background:${tipoColor[tipo]||'#f3f4f6'};padding:2px 8px;border-radius:10px;font-size:.8em">${tipo}</span></td>
         <td>${e.asignatura}</td>
-        <td>${new Date(e.fecha).toLocaleDateString('es-CL')}</td>
+        <td>${fechaDia(e.fecha)}</td>
         <td>${e.porcentaje ? e.porcentaje+'%' : '—'}</td>
         <td>${e.periodo}</td>
         <td>
@@ -3725,7 +3741,7 @@ async function prepararSelectorEvaluaciones() {
   if (sel && sel.options.length <= 1) {
     sel.innerHTML = '<option value="">— Selecciona evaluación —</option>' +
       listaEvaluaciones.map(e =>
-        `<option value="${e.id}">${e.asignatura} — ${e.nombre} (${e.tipo_evaluacion||'—'}) — ${new Date(e.fecha).toLocaleDateString('es-CL')}</option>`
+        `<option value="${e.id}">${e.asignatura} — ${e.nombre} (${e.tipo_evaluacion||'—'}) — ${fechaDia(e.fecha)}</option>`
       ).join('')
   }
 }
@@ -3743,7 +3759,7 @@ async function cargarCalificaciones() {
     const ev = data.evaluacion
     let html = `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;padding:10px 14px;margin-bottom:12px;font-size:.85em;color:#0369a1">
       <i class="im im-portapapeles" aria-hidden="true"></i> <strong>${ev.asignatura}</strong> — ${ev.nombre} (${ev.tipo_evaluacion||'—'})
-      ${ev.porcentaje?` — Ponderación: ${ev.porcentaje}%`:''} — ${new Date(ev.fecha).toLocaleDateString('es-CL')}
+      ${ev.porcentaje?` — Ponderación: ${ev.porcentaje}%`:''} — ${fechaDia(ev.fecha)}
     </div>
     <div style="max-height:420px;overflow-y:auto;border-radius:6px;border:1px solid #e5e7eb;margin-bottom:12px">
     <table style="width:100%;border-collapse:collapse;font-size:.88em">
@@ -4249,7 +4265,7 @@ async function cargarJustificaciones() {
           <button class="btn-sm btn-delete" onclick="cambiarEstadoJustificacion(${j.id},'rechazada')"><i class="bi bi-x-circle-fill"></i> Rechazar</button>`
           : `<button class="btn-sm btn-secondary" onclick="cambiarEstadoJustificacion(${j.id},'pendiente')"><i class="bi bi-arrow-counterclockwise"></i> Reabrir</button>`
         return `<tr style="background:${bg}">
-          <td style="padding:7px 10px">${new Date(j.fecha).toLocaleDateString('es-CL')}<br>
+          <td style="padding:7px 10px">${fechaDia(j.fecha)}<br>
             <span style="font-size:.78em;color:#6b7280">${j.hora_inicio?.slice(0,5)||''}–${j.hora_fin?.slice(0,5)||''}</span></td>
           <td style="padding:7px 10px"><strong>${j.alumno}</strong><br>
             <span style="font-size:.78em;color:#6b7280">${j.rut||''}</span></td>
