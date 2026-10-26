@@ -460,3 +460,4 @@ json.dump({'meta': meta, 'pruebas': resultados}, open(salida, 'w', encoding='utf
 tot = sum(len(r['checks']) for r in resultados)
 okc = sum(c['ok'] for r in resultados for c in r['checks'])
 print(f'\nRESULTADO: {okc}/{tot} verificaciones OK en {len(resultados)} pruebas → {salida}')
+sys.exit(0 if okc == tot else 1)
