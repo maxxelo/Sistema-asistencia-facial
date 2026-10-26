@@ -7,8 +7,9 @@ Sistema web para registrar la asistencia escolar mediante reconocimiento facial,
 - **Asistencia por reconocimiento facial** con la webcam del PC o la cámara de un celular (app IP Webcam), más la lista manual para marcar o corregir.
 - **Borrador y registro definitivo**: el docente puede guardar y seguir editando; una vez definitiva, la asistencia ya no se modifica.
 - **Ventana horaria**: la asistencia se pasa el día de la clase, desde 15 minutos antes del inicio hasta 30 minutos después del término.
-- **Gestión académica**: alumnos, cursos, profesores, asignaturas, aulas, horarios (con validación de choques), apoderados, períodos y notas.
-- **Reportes**: asistencia por alumno y por curso, libro de clases y boletín en PDF, exportación a CSV y alumnos en riesgo.
+- **Gestión académica**: alumnos (también por importación CSV), cursos, profesores, asignaturas, aulas, horarios (con validación de choques), apoderados, períodos y notas.
+- **Feriados y días no lectivos**: el colegio registra sus días sin clases, que no cuentan en el porcentaje de asistencia.
+- **Reportes**: asistencia por alumno (con rango de fechas) y por curso, libro de clases y boletín en PDF, exportación a CSV y alumnos en riesgo.
 - **Alertas**: al registrar la asistencia definitiva se notifica al administrador y al profesor jefe de cada alumno que queda bajo el umbral.
 - **Consentimiento biométrico**: el rostro de un alumno solo se registra y reconoce con el consentimiento de su apoderado. Si se revoca, el rostro se elimina.
 - **Bitácora** de las operaciones y **notificaciones** dentro del sistema.
@@ -61,6 +62,12 @@ docker compose -p sicaf_test down -v
 docker compose up -d
 ```
 
+`scripts/correr_pruebas_bd.py` ejecuta la matriz de 20 pruebas de base de datos (concurrencia, carga masiva, respaldo y restauración, sobrecarga y corte de energía) sobre un contenedor PostgreSQL aparte, sin tocar el sistema:
+
+```bash
+python scripts/correr_pruebas_bd.py
+```
+
 ## Seguridad y privacidad
 
 - **Sesiones con JWT**, contraseñas cifradas con bcrypt y política de claves (8 caracteres, mayúscula, número y símbolo).
@@ -68,7 +75,7 @@ docker compose up -d
 - **Permisos por rol** validados en el servidor: un profesor solo ve y registra sus cursos y sus clases.
 - **Reglas de negocio en el servidor**, no solo en la pantalla: ventana horaria, asistencia definitiva inmodificable, sin fechas futuras ni feriados, alumnos del curso correcto.
 - **Validación de datos**: RUT con dígito verificador, nombres, email y teléfono; se rechazan etiquetas HTML para evitar XSS.
-- **Helmet, CORS y límites de solicitudes** en todas las APIs.
+- **Helmet, CORS y límites de solicitudes** en todas las APIs. CORS acepta solo el equipo local y la red privada del colegio: el sistema funciona desde cualquier equipo de la red, nunca desde un sitio externo.
 - **Datos biométricos** según las Leyes 19.628 y 21.719: consentimiento del apoderado, solo descriptores numéricos y derecho de cancelación.
 
 ## Estructura
